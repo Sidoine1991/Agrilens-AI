@@ -5,6 +5,10 @@ import torch
 from transformers import pipeline
 import time
 from pathlib import Path
+import json
+import logging
+from fastapi import FastAPI, Request, Response
+import uvicorn
 
 # Configuration de la page
 st.set_page_config(
@@ -44,25 +48,48 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-@st.cache_resource(show_spinner=False, ttl=3600)  # Cache pour 1 heure
+# Variable globale pour le modèle
+MODEL = None
+
+# Configuration du logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Vérification de l'environnement
+def check_environment():
+    """Vérifie les variables d'environnement requises"""
+    required_vars = ["HF_TOKEN"]
+    missing_vars = [var for var in required_vars if var not in os.environ]
+    if missing_vars:
+        logger.error(f"Variables d'environnement manquantes : {', '.join(missing_vars)}")
+        return False
+    return True
+
+@st.cache_resource(show_spinner=False, ttl=3600)
 def load_model():
     """Charge le modèle avec gestion du cache et du timeout"""
-    try:
-        # Vérification du token
-        if "HF_TOKEN" not in os.environ:
-            st.error("Token d'accès Hugging Face manquant")
-            return None
-            
-        # Chemin du cache
-        cache_dir = Path("./model_cache")
-        cache_dir.mkdir(exist_ok=True)
+    global MODEL
+    
+    if MODEL is not None:
+        return MODEL
         
-        # Configuration du modèle
+    if not check_environment():
+        st.error("Configuration manquante. Vérifiez les logs pour plus d'informations.")
+        return None
+
+    try:
+        # Configuration du modèle avec chargement différé
         model_name = "google/gemma-3n-e4b-it"
         
-        # Afficher un message de chargement
-        with st.spinner('Chargement initial du modèle Gemma 3n (peut prendre plusieurs minutes)...'):
-            pipe = pipeline(
+        # Chargement progressif
+        progress_bar = st.progress(0)
+        
+        def progress_callback(step, total_steps):
+            progress = int((step / total_steps) * 100)
+            progress_bar.progress(min(progress, 100))
+        
+        with st.spinner('Chargement du modèle Gemma 3n...'):
+            MODEL = pipeline(
                 "image-text-to-text",
                 model=model_name,
                 device_map="auto",
@@ -70,12 +97,17 @@ def load_model():
                 model_kwargs={
                     "trust_remote_code": True,
                     "token": os.environ["HF_TOKEN"],
-                    "cache_dir": str(cache_dir.absolute())
-                }
+                    "cache_dir": "./model_cache"
+                },
+                callback=progress_callback
             )
-        return pipe
+            
+        progress_bar.empty()
+        return MODEL
+        
     except Exception as e:
-        st.error(f"Erreur lors du chargement du modèle : {str(e)}")
+        logger.error(f"Erreur lors du chargement du modèle : {str(e)}")
+        st.error("Erreur lors du chargement du modèle. Vérifiez les logs pour plus d'informations.")
         return None
 
 def display_upload_section():
@@ -129,7 +161,20 @@ def process_image(image, model):
         st.error(f"Erreur lors de l'analyse : {str(e)}")
         return None
 
+def health_check():
+    """Endpoint de santé pour vérifier que l'application est en cours d'exécution"""
+    return {
+        "status": "healthy",
+        "model_loaded": MODEL is not None,
+        "timestamp": time.time()
+    }
+
 def main():
+    # Vérification de l'endpoint de santé
+    if "health" in st.experimental_get_query_params():
+        st.json(health_check())
+        st.stop()
+    
     # En-tête
     st.title("🌱 AgriLens AI - Diagnostic des Plantes")
     st.markdown("### Analysez les maladies de vos plantes en un instant")
@@ -142,15 +187,19 @@ def main():
         3. Recevez un **diagnostic** et des **conseils de traitement**
         """)
     
-    # Chargement du modèle
-    model = load_model()
+    # Chargement du modèle avec gestion d'erreur améliorée
+    with st.spinner("Initialisation de l'application..."):
+        model = load_model()
     
     if model is None:
         st.error("""
         ❌ Impossible de charger le modèle. Vérifiez que :
         - Vous êtes connecté à Internet
-        - Votre token d'API Hugging Face est valide
+        - Votre token d'API Hugging Face est valide (variable d'environnement HF_TOKEN)
         - Vous avez accepté les conditions d'utilisation du modèle Gemma 3n
+        - Vous avez suffisamment de mémoire GPU disponible
+        
+        Essayez de rafraîchir la page dans quelques instants.
         """)
         return
     
@@ -165,23 +214,28 @@ def main():
         # Bouton d'analyse
         if st.button("🔍 Analyser l'image", type="primary", use_container_width=True):
             with st.spinner('Analyse en cours...'):
-                result = process_image(image, model)
-                
-                if result:
-                    # Affichage des résultats
-                    st.markdown("### 🔍 Résultats de l'analyse")
-                    st.markdown("---")
-                    st.markdown(result)
+                try:
+                    with st.spinner('Analyse en cours...'):
+                        result = process_image(image, model)
                     
-                    # Section de feedback
-                    st.markdown("---")
-                    st.markdown("### 📝 Votre avis compte !")
-                    col1, col2, col3 = st.columns(3)
-                    with col2:
-                        if st.button("👍 Le diagnostic est pertinent"):
-                            st.success("Merci pour votre retour !")
-                        if st.button("👎 Le diagnostic est inexact"):
-                            st.warning("Merci pour votre retour. Nous allons améliorer notre modèle.")
+                    if result:
+                        # Affichage des résultats
+                        st.markdown("### 🔍 Résultats de l'analyse")
+                        st.markdown("---")
+                        st.markdown(result)
+                        
+                        # Section de feedback
+                        st.markdown("---")
+                        st.markdown("### 📝 Votre avis compte !")
+                        col1, col2, col3 = st.columns(3)
+                        with col2:
+                            if st.button("👍 Le diagnostic est pertinent"):
+                                st.success("Merci pour votre retour !")
+                            if st.button("👎 Le diagnostic est inexact"):
+                                st.warning("Merci pour votre retour. Nous allons améliorer notre modèle.")
+                except Exception as e:
+                    logger.error(f"Erreur lors de l'analyse : {str(e)}")
+                    st.error("Une erreur est survenue lors de l'analyse. Veuillez réessayer ou contacter le support.")
     else:
         # Section d'exemple si aucune image n'est téléchargée
         st.markdown("---")
@@ -200,5 +254,21 @@ def main():
     </div>
     """, unsafe_allow_html=True)
 
+def run_fastapi():
+    """Lance le serveur FastAPI pour les endpoints d'API"""
+    app = FastAPI()
+    
+    @app.get("/health")
+    async def health():
+        return health_check()
+    
+    uvicorn.run(app, host="0.0.0.0", port=8501)
+
 if __name__ == "__main__":
-    main()
+    # Si l'argument --api est passé, on lance le serveur FastAPI
+    import sys
+    if "--api" in sys.argv:
+        run_fastapi()
+    else:
+        # Sinon, on lance l'interface Streamlit
+        main()
