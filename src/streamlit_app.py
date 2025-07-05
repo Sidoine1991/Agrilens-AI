@@ -79,7 +79,7 @@ def load_model():
 
     try:
         # Configuration du modèle avec chargement différé
-        model_name = "google/gemma-3n-e4b-it"
+        model_name = "google/gemma-3n-E2B-it"
         
         # Chargement progressif
         progress_bar = st.progress(0)
@@ -88,20 +88,14 @@ def load_model():
             progress = int((step / total_steps) * 100)
             progress_bar.progress(min(progress, 100))
         
-        with st.spinner('Chargement du modèle Gemma 3n...'):
+        with st.spinner('Chargement du modèle Gemma 3n-E2B-it...'):
             MODEL = pipeline(
                 "image-text-to-text",
                 model=model_name,
-                device_map="auto",
-                torch_dtype=torch.bfloat16,
-                model_kwargs={
-                    "trust_remote_code": True,
-                    "token": os.environ["HF_TOKEN"],
-                    "cache_dir": "./model_cache"
-                },
+                cache_dir="./model_cache",
                 callback=progress_callback
             )
-            
+        
         progress_bar.empty()
         return MODEL
         
@@ -135,13 +129,7 @@ def process_image(image, model):
     """Traite l'image avec le modèle"""
     try:
         # Préparation du prompt
-        prompt = """Analyse cette image de plante et identifie les maladies potentielles.
-        Fournis une réponse structurée avec :
-        1. Le nom de la plante (si identifiable)
-        2. Les maladies ou problèmes détectés
-        3. Le niveau de confiance
-        4. Des recommandations de traitement
-        """
+        prompt = """Analyse cette image de plante et identifie les maladies potentielles.\nFournis une réponse structurée avec :\n1. Le nom de la plante (si identifiable)\n2. Les maladies ou problèmes détectés\n3. Le niveau de confiance\n4. Des recommandations de traitement\n"""
         
         # Barre de progression
         progress_text = "Analyse en cours..."
@@ -149,16 +137,21 @@ def process_image(image, model):
         
         # Simulation de progression
         for percent_complete in range(100):
-            time.sleep(0.05)  # Simulation de traitement
+            time.sleep(0.01)  # Simulation de traitement plus rapide
             progress_bar.progress(percent_complete + 1, text=progress_text)
         
-        # Appel au modèle
-        response = model(image, prompt=prompt, max_new_tokens=500)
+        # Appel au modèle (pipeline image-text-to-text)
+        content = [
+            {"type": "image", "image": image.convert("RGB")},
+            {"type": "text", "text": prompt}
+        ]
+        messages = [{"role": "user", "content": content}]
+        response = model(text=messages, max_new_tokens=500)
         
         # Nettoyage de la barre de progression
         progress_bar.empty()
         
-        return response[0]['generated_text']
+        return response[0]['generated_text'] if response and 'generated_text' in response[0] else str(response)
     except Exception as e:
         st.error(f"Erreur lors de l'analyse : {str(e)}")
         return None
