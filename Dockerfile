@@ -1,21 +1,26 @@
-FROM python:3.9-slim
+FROM python:3.10-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y \
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    curl \
-    software-properties-common \
-    git \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt ./
-COPY src/ ./src/
+# Copy requirements first to leverage Docker cache
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-RUN pip3 install -r requirements.txt
+# Copy the rest of the application
+COPY . .
 
+# Set environment variables
+ENV STREAMLIT_SERVER_PORT=8501
+ENV STREAMLIT_SERVER_HEADLESS=true
+ENV STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+
+# Expose the port the app runs on
 EXPOSE 8501
 
-HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health
-
-ENTRYPOINT ["streamlit", "run", "src/streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+# Command to run the application
+CMD ["streamlit", "run", "src/streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0"]
