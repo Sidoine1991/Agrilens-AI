@@ -1,20 +1,17 @@
----
-title: AgriLensAI
-emoji: 🚀
-colorFrom: red
-colorTo: red
-sdk: docker
-app_port: 8501
-tags:
-- streamlit
-pinned: false
-short_description: An AI designing to help farmer
-license: mit
----
+# AgriLens AI 🌱
 
-# Welcome to Streamlit!
+Application de diagnostic des maladies des plantes utilisant Gemma 3n.
 
-Edit `/src/streamlit_app.py` to customize this app to your heart's desire. :heart:
+## Fonctionnalités
+- Analyse d'images de plantes
+- Détection des maladies
+- Recommandations de traitement
 
-If you have any questions, checkout our [documentation](https://docs.streamlit.io) and [community
-forums](https://discuss.streamlit.io).
+## Comment utiliser
+1. Téléchargez une photo d'une plante
+2. Cliquez sur "Analyser l'image"
+3. Consultez les résultats et recommandations
+
+## Développement
+- Framework : Streamlit
+- Modèle : google/gemma-3n-e4b-it
