@@ -11,6 +11,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Installation de PyTorch
+RUN pip install --no-cache-dir --timeout=600 \
+    torch==2.0.1+cpu \
+    torchvision==0.15.2+cpu \
+    -f https://download.pytorch.org/whl/torch_stable.html
+
 # Copie du code source
 COPY . .
 
@@ -19,8 +25,5 @@ ENV STREAMLIT_SERVER_PORT=8501
 ENV STREAMLIT_SERVER_HEADLESS=true
 ENV STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
 
-# Se déplacer dans le dossier src
-WORKDIR /app/src
-
 # Commande de démarrage
-CMD ["streamlit", "run", "streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+CMD ["python", "app.py"]
