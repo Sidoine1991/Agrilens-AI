@@ -22,6 +22,13 @@ RUN pip install --no-cache-dir --default-timeout=600 -r requirements.txt -i http
 # Copie du code source
 COPY . .
 
+# Créer le dossier cache Hugging Face et définir la variable d'environnement
+RUN mkdir -p /app/cache/huggingface
+ENV TRANSFORMERS_CACHE=/app/cache/huggingface
+
+# Configuration Streamlit
+# Pas besoin de variables d'environnement spécifiques pour Hugging Face Spaces
 WORKDIR /app
 
+# Commande de démarrage
 CMD ["streamlit", "run", "src/streamlit_app.py", "--server.port=7860", "--server.address=0.0.0.0"]
