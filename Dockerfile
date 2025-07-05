@@ -11,19 +11,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Installation de PyTorch
-RUN pip install --no-cache-dir --timeout=600 \
-    torch==2.0.1+cpu \
-    torchvision==0.15.2+cpu \
+# Installer torch/torchvision et opencv-python-headless AVANT le reste
+RUN pip install --no-cache-dir --default-timeout=600 \
+    torch==2.0.1+cpu torchvision==0.15.2+cpu opencv-python-headless==4.11.0.86 \
     -f https://download.pytorch.org/whl/torch_stable.html
+
+# Installer le reste des dépendances
+RUN pip install --no-cache-dir --default-timeout=600 -r requirements.txt -i https://pypi.org/simple
 
 # Copie du code source
 COPY . .
 
-# Configuration des variables d'environnement
-ENV STREAMLIT_SERVER_PORT=8501
-ENV STREAMLIT_SERVER_HEADLESS=true
-ENV STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+WORKDIR /app
 
-# Commande de démarrage
-CMD ["python", "app.py"]
+CMD ["streamlit", "run", "src/streamlit_app.py", "--server.port=7860", "--server.address=0.0.0.0"]
