@@ -7,11 +7,16 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends procps && \
     rm -rf /var/lib/apt/lists/*
 
+# Création du répertoire src
+RUN mkdir -p /app/src
+
 # Copie des fichiers
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+# Copie du code source
+COPY src/ /app/src/
+COPY start.sh /app/
 
 # Définir les variables d'environnement
 ENV STREAMLIT_SERVER_PORT=8501
