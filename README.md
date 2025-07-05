@@ -1,14 +1,15 @@
 ---
-title: Streamlit Template Space
+title: AgriLensAI
 emoji: 🚀
 colorFrom: red
 colorTo: red
 sdk: docker
 app_port: 8501
 tags:
-  - streamlit
+- streamlit
 pinned: false
-short_description: Streamlit template space
+short_description: An AI designing to help farmer
+license: mit
 ---
 
 # Welcome to Streamlit!
