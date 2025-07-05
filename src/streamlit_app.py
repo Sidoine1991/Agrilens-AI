@@ -106,7 +106,9 @@ def load_model():
         return MODEL
         
     except Exception as e:
+        import traceback
         logger.error(f"Erreur lors du chargement du modèle : {str(e)}")
+        traceback.print_exc()
         st.error("Erreur lors du chargement du modèle. Vérifiez les logs pour plus d'informations.")
         return None
 
@@ -234,7 +236,9 @@ def main():
                             if st.button("👎 Le diagnostic est inexact"):
                                 st.warning("Merci pour votre retour. Nous allons améliorer notre modèle.")
                 except Exception as e:
+                    import traceback
                     logger.error(f"Erreur lors de l'analyse : {str(e)}")
+                    traceback.print_exc()
                     st.error("Une erreur est survenue lors de l'analyse. Veuillez réessayer ou contacter le support.")
     else:
         # Section d'exemple si aucune image n'est téléchargée
