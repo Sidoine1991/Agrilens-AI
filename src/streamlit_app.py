@@ -250,41 +250,51 @@ with col1:
         for idx, img in enumerate(uploaded_images):
             st.image(img, width=180, caption=f"Image {idx+1}")
 
-    st.markdown("### 📋 Ou collez ici le code base64 d'une image (option avancée)")
-    base64_input = st.text_area("Collez ici le code base64 de l'image (PNG/JPEG)", height=100, key="base64_input")
-    image_from_base64 = None
-    if base64_input.strip():
-        try:
-            if "," in base64_input:
-                base64_str = base64_input.split(",")[-1]
-            else:
-                base64_str = base64_input
-            image_bytes = base64.b64decode(base64_str)
-            image_from_base64 = Image.open(BytesIO(image_bytes)).convert("RGB")
-            st.image(image_from_base64, caption="Image décodée depuis base64", width=200)
-        except Exception as e:
-            st.error(f"Erreur lors du décodage de l'image : {e}")
+    # === Explication sur l'import d'image ===
+    st.markdown('''
+    <div style='background:#fffde7; border:1px solid #ffe082; border-radius:8px; padding:1em; margin-bottom:1em;'>
+    <b>ℹ️ Import d'image&nbsp;:</b><br>
+    - <b>Upload</b> : Cliquez sur le bouton ou glissez-déposez une image (formats supportés : jpg, png, webp, bmp, gif).<br>
+    - <b>URL directe</b> : Lien qui finit par <code>.jpg</code>, <code>.png</code>, etc. (exemple : <a href='https://upload.wikimedia.org/wikipedia/commons/3/3c/Rice_blast_disease.jpg' target='_blank'>exemple</a>)<br>
+    - <b>Base64</b> : Collez le texte d'une image encodée (voir <a href='https://www.base64-image.de/' target='_blank'>outil de conversion</a>).<br>
+    <b>Copier/coller d'image n'est pas supporté</b> (limite technique de Streamlit).<br>
+    <b>En cas d'erreur 403</b> : Essayez un autre navigateur ou l'import par URL/base64.<br>
+    </div>
+    ''', unsafe_allow_html=True)
 
-    st.markdown("### 📋 Ou collez ici l'URL d'une image (option avancée)")
-    image_url = st.text_input("URL de l'image (PNG/JPEG)", key="url_input")
+    # --- Import par URL ---
+    image_url_input = st.text_input("URL de l'image (PNG/JPEG)", key="url_input")
     image_from_url = None
-    if image_url.strip():
+    if image_url_input:
+        # Vérification d'URL directe d'image
+        if not re.match(r"^https?://.*\\.(jpg|jpeg|png|webp|bmp|gif)$", image_url_input, re.IGNORECASE):
+            st.error("❌ L'URL doit pointer directement vers une image (.jpg, .png, .webp, .bmp, .gif). Exemple : https://upload.wikimedia.org/wikipedia/commons/3/3c/Rice_blast_disease.jpg")
+        else:
+            try:
+                headers = {"User-Agent": "Mozilla/5.0"}
+                response = requests.get(image_url_input, headers=headers, timeout=10, verify=False)
+                response.raise_for_status()
+                image_from_url = Image.open(BytesIO(response.content)).convert("RGB")
+            except requests.exceptions.HTTPError as e:
+                if response.status_code == 403:
+                    st.error("❌ Erreur 403 : L'accès à cette image est refusé (protection du site). Essayez une autre image ou l'import base64.")
+                else:
+                    st.error(f"❌ Erreur lors du téléchargement de l'image : {e}")
+            except Exception as e:
+                st.error(f"❌ Erreur lors du chargement de l'image depuis l'URL : {e}\nVérifiez que l'URL est correcte et accessible.")
+                st.info("Exemple d'URL valide : https://upload.wikimedia.org/wikipedia/commons/3/3c/Rice_blast_disease.jpg")
+
+    # --- Import base64 (plus visible) ---
+    st.markdown('''<b>Import par base64 (optionnel)</b> :<br>Collez ici le texte d'une image encodée en base64 (voir <a href='https://www.base64-image.de/' target='_blank'>outil de conversion</a>).''', unsafe_allow_html=True)
+    image_base64_input = st.text_area("Image (base64)", key="base64_input", height=100)
+    image_from_base64 = None
+    if image_base64_input:
         try:
-            headers = {
-                "User-Agent": "Mozilla/5.0 (compatible; AgriLensAI/1.0; +https://huggingface.co/spaces/Sidoineko/AgriLensAI)"
-            }
-            # Désactive les warnings SSL si verify=False
-            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-            response = requests.get(image_url, headers=headers, timeout=10, verify=False)
-            response.raise_for_status()
-            if "image" not in response.headers.get("Content-Type", ""):
-                raise ValueError("L'URL ne pointe pas vers une image (Content-Type incorrect)")
-            image_from_url = Image.open(BytesIO(response.content)).convert("RGB")
-            st.image(image_from_url, caption="Image chargée depuis l'URL", width=200)
-        except requests.exceptions.SSLError:
-            st.error("Erreur SSL : le site distant n'a pas de certificat reconnu. Utilisez une image provenant d'un site sécurisé (Wikipedia, Unsplash, etc.).")
+            image_data = base64.b64decode(image_base64_input)
+            image_from_base64 = Image.open(BytesIO(image_data)).convert("RGB")
         except Exception as e:
-            st.error(f"Erreur lors du chargement de l'image depuis l'URL : {e}")
+            st.error(f"❌ Erreur lors du décodage base64 : {e}\nVérifiez que le texte est bien une image encodée.")
+            st.info("Utilisez un outil comme https://www.base64-image.de/ pour convertir une image en base64.")
 
     # Ajoute les images alternatives à la liste des images à diagnostiquer
     if image_from_base64:
