@@ -247,6 +247,44 @@ with col1:
             uploaded_images = uploaded_images[:4]
         for idx, img in enumerate(uploaded_images):
             st.image(img, width=180, caption=f"Image {idx+1}")
+
+    st.markdown("### 📋 Ou collez ici le code base64 d'une image (option avancée)")
+    base64_input = st.text_area("Collez ici le code base64 de l'image (PNG/JPEG)", height=100, key="base64_input")
+    image_from_base64 = None
+    if base64_input.strip():
+        try:
+            if "," in base64_input:
+                base64_str = base64_input.split(",")[-1]
+            else:
+                base64_str = base64_input
+            image_bytes = base64.b64decode(base64_str)
+            image_from_base64 = Image.open(BytesIO(image_bytes)).convert("RGB")
+            st.image(image_from_base64, caption="Image décodée depuis base64", width=200)
+        except Exception as e:
+            st.error(f"Erreur lors du décodage de l'image : {e}")
+
+    st.markdown("### 📋 Ou collez ici l'URL d'une image (option avancée)")
+    image_url = st.text_input("URL de l'image (PNG/JPEG)", key="url_input")
+    image_from_url = None
+    if image_url.strip():
+        try:
+            import requests
+            response = requests.get(image_url)
+            image_from_url = Image.open(BytesIO(response.content)).convert("RGB")
+            st.image(image_from_url, caption="Image chargée depuis l'URL", width=200)
+        except Exception as e:
+            st.error(f"Erreur lors du chargement de l'image depuis l'URL : {e}")
+
+    # Ajoute les images alternatives à la liste des images à diagnostiquer
+    if image_from_base64:
+        if not uploaded_images:
+            uploaded_images = []
+        uploaded_images.append(image_from_base64)
+    if image_from_url:
+        if not uploaded_images:
+            uploaded_images = []
+        uploaded_images.append(image_from_url)
+
 with col2:
     user_prompt = st.text_area(T['context_label'], "", key='context_area')
 
