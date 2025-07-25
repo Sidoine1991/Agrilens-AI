@@ -163,6 +163,18 @@ uploaded_images = st.sidebar.file_uploader(
     accept_multiple_files=True,
     help="Vous pouvez sélectionner jusqu'à 4 photos différentes de la même plante."
 )
+# --- Import par caméra (webcam) ---
+st.sidebar.markdown("<b>Ou prenez une photo directement :</b>", unsafe_allow_html=True)
+photo_camera = st.sidebar.camera_input("Prendre une photo (webcam)")
+if photo_camera is not None:
+    try:
+        image_from_camera = Image.open(photo_camera).convert("RGB")
+        if not uploaded_images:
+            uploaded_images = []
+        uploaded_images.append(image_from_camera)
+        st.sidebar.success("Photo prise avec succès !")
+    except Exception as e:
+        st.sidebar.error(f"Erreur lors de la lecture de la photo prise : {e}")
 st.write("[DEBUG] HF_TOKEN détecté :", bool(HF_TOKEN))
 if uploaded_images:
     for idx, img in enumerate(uploaded_images):
