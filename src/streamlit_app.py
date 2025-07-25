@@ -254,6 +254,24 @@ if image_base64_input:
         st.error(f"❌ Erreur lors du décodage base64 : {e}\nVérifiez que le texte est bien une image encodée. Si vous avez collé tout le champ (data:image/...), le préfixe sera retiré automatiquement.")
         st.info("Collez uniquement la partie base64 OU tout le champ data:image/...;base64,xxxx. Utilisez un outil comme https://www.base64-image.de/ pour convertir une image.")
 
+# --- Champ chemin d'image locale (optionnel, usage local uniquement) ---
+local_image_path = st.sidebar.text_input("Chemin d'image locale (optionnel, usage local uniquement)", key="local_image_path")
+image_from_local_path = None
+if local_image_path:
+    if IS_DEMO or ("huggingface" in os.environ.get("HOSTNAME", "") or "SPACE_ID" in os.environ):
+        st.sidebar.info("L'import par chemin local n'est disponible qu'en usage local (non supporté sur Hugging Face Spaces).")
+    else:
+        import pathlib
+        path_obj = pathlib.Path(local_image_path)
+        if path_obj.exists() and path_obj.is_file():
+            try:
+                image_from_local_path = Image.open(local_image_path).convert("RGB")
+                st.sidebar.success("Image locale chargée avec succès !")
+            except Exception as e:
+                st.sidebar.error(f"Erreur lors de l'ouverture de l'image locale : {e}")
+        else:
+            st.sidebar.warning("Chemin invalide ou fichier introuvable.")
+
 # Ajoute les images alternatives à la liste des images à diagnostiquer
 if image_from_base64:
     if not uploaded_images:
@@ -263,6 +281,10 @@ if image_from_url:
     if not uploaded_images:
         uploaded_images = []
     uploaded_images.append(image_from_url)
+if image_from_local_path:
+    if not uploaded_images:
+        uploaded_images = []
+    uploaded_images.append(image_from_local_path)
 
 # --- Sélecteur de culture ---
 cultures = [
