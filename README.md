@@ -78,3 +78,45 @@ The `install_agrilens.py` script:
 - Installs all dependencies (`requirements.txt`)
 - Checks for the model in `models/`
 - Shows launch instructions
+
+---
+
+## 🇫🇷 Modes de fonctionnement (local vs Hugging Face)
+
+| Plateforme         | Modèle utilisé                        | Inférence réelle | Dépendance Internet | Remarques |
+|-------------------|---------------------------------------|------------------|---------------------|-----------|
+| Local (offline)   | Modèle téléchargé (dossier `models/`) | Oui              | Non                 | Rapide, 100% offline |
+| Hugging Face (token HF) | google/gemma-3n-E2B-it (API HF)         | Oui              | Oui                 | Espace GPU recommandé, token requis |
+| Hugging Face (public)   | Aucun (mode démo)                      | Non              | Oui                 | Réponse factice, test UI uniquement |
+
+### Instructions
+- **Local (offline)** :
+  - Placez le modèle téléchargé dans le dossier `models/`
+  - Lancez l’application normalement (`streamlit run src/streamlit_app.py`)
+  - Aucun accès Internet requis
+- **Hugging Face (inférence réelle)** :
+  - Ajoutez la variable d’environnement `HF_TOKEN` dans les settings du Space
+  - Acceptez les conditions d’utilisation du modèle sur [la page du modèle](https://huggingface.co/google/gemma-3n-E2B-it)
+  - Utilisez un Space GPU pour de meilleures performances
+- **Hugging Face (mode démo)** :
+  - Si aucun token n’est présent, l’application reste en mode démo (pas d’inférence réelle, réponse factice)
+
+## 🇬🇧 Modes of operation (local vs Hugging Face)
+
+| Platform          | Model used                            | Real inference   | Internet required   | Notes     |
+|-------------------|---------------------------------------|------------------|---------------------|-----------|
+| Local (offline)   | Downloaded model (`models/` folder)   | Yes              | No                  | Fast, 100% offline |
+| Hugging Face (HF token) | google/gemma-3n-E2B-it (HF API)           | Yes              | Yes                 | GPU Space recommended, token required |
+| Hugging Face (public)   | None (demo mode)                         | No               | Yes                 | Fictive answer, UI test only |
+
+### Instructions
+- **Local (offline)** :
+  - Put the downloaded model in the `models/` folder
+  - Launch the app normally (`streamlit run src/streamlit_app.py`)
+  - No Internet required
+- **Hugging Face (real inference)** :
+  - Add the `HF_TOKEN` environment variable in the Space settings
+  - Accept the model terms on [the model page](https://huggingface.co/google/gemma-3n-E2B-it)
+  - Use a GPU Space for best performance
+- **Hugging Face (demo mode)** :
+  - If no token is present, the app stays in demo mode (no real inference, fake answer)
