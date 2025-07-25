@@ -155,6 +155,115 @@ st.sidebar.markdown("## 🌍 Configuration")
 language = st.sidebar.selectbox(UI_TEXTS['fr']['lang_select'], options=['fr', 'en'], format_func=lambda x: 'Français' if x=='fr' else 'English', key='lang_select_box')
 T = UI_TEXTS[language]
 
+# --- Upload d'image dans la sidebar ---
+uploaded_images = st.sidebar.file_uploader(
+    T['upload_label'] + " (jusqu'à 4 images différentes : feuille, tige, fruit, racine...)",
+    type=["jpg", "jpeg", "png"],
+    key='img_upload',
+    accept_multiple_files=True,
+    help="Vous pouvez sélectionner jusqu'à 4 photos différentes de la même plante."
+)
+st.write("[DEBUG] HF_TOKEN détecté :", bool(HF_TOKEN))
+if uploaded_images:
+    for idx, img in enumerate(uploaded_images):
+        st.write(f"[DEBUG] Image {idx+1} : name={getattr(img, 'name', None)}, size={getattr(img, 'size', None)}, type={getattr(img, 'type', None)}")
+st.write("Images uploadées :", uploaded_images)
+if uploaded_images:
+    if len(uploaded_images) > 4:
+        st.warning("Vous ne pouvez uploader que 4 images maximum. Seules les 4 premières seront utilisées.")
+        uploaded_images = uploaded_images[:4]
+    robust_uploaded_images = []
+    for idx, img in enumerate(uploaded_images):
+        try:
+            img.seek(0)
+            img_bytes = img.read()
+            img_buffer = BytesIO(img_bytes)
+            pil_img = Image.open(img_buffer).convert("RGB")
+            robust_uploaded_images.append(pil_img)
+            st.image(pil_img, width=180, caption=f"Image {idx+1}")
+        except Exception as e:
+            st.error(f"❌ Erreur lors de la lecture de l'image uploadée : {e}\nEssayez un autre format ou l'import par URL/base64 si le problème persiste.")
+            st.info("Sur Hugging Face Spaces, certains formats ou appareils peuvent poser problème. Préférez le format JPG ou PNG.")
+    uploaded_images = robust_uploaded_images
+
+# === Explication sur l'import d'image ===
+st.markdown('''
+<div style='background:#fffde7; border:1px solid #ffe082; border-radius:8px; padding:1em; margin-bottom:1em;'>
+<b>ℹ️ Import d'image&nbsp;:</b><br>
+- <b>Upload</b> : Cliquez sur le bouton ou glissez-déposez une image (formats supportés : jpg, png, webp, bmp, gif).<br>
+- <b>URL directe</b> : Lien qui finit par <code>.jpg</code>, <code>.png</code>, etc. (exemple : <a href='https://static.lebulletin.com/wp-content/uploads/2014/11/corn-leaf-blight-DSC_0622-1024x685.jpg' target='_blank'>exemple</a>)<br>
+- <b>Base64</b> : Collez le texte d'une image encodée (voir <a href='https://www.base64-image.de/' target='_blank'>outil de conversion</a>).<br>
+<b>Copier/coller d'image n'est pas supporté</b> (limite technique de Streamlit).<br>
+<b>En cas d'erreur 403 ou 404</b> : Essayez un autre navigateur, une autre image, ou l'import base64.<br>
+</div>
+''', unsafe_allow_html=True)
+
+# --- Bouton exemple d'image testée ---
+col1, col2 = st.columns([3,1])
+with col2:
+    if st.button("Exemple d'image testée", help="Remplit automatiquement une URL d'image valide pour tester l'import."):
+        st.session_state['url_input'] = "https://static.lebulletin.com/wp-content/uploads/2014/11/corn-leaf-blight-DSC_0622-1024x685.jpg"
+
+# --- Import par URL ---
+image_url_input = st.text_input("URL de l'image (PNG/JPEG)", key="url_input")
+image_from_url = None
+if image_url_input:
+    # Vérification d'URL directe d'image
+    if not re.match(r"^https?://.*\\.(jpg|jpeg|png|webp|bmp|gif)$", image_url_input, re.IGNORECASE):
+        st.error("❌ L'URL doit pointer directement vers une image (.jpg, .png, .webp, .bmp, .gif). Exemple : https://static.lebulletin.com/wp-content/uploads/2014/11/corn-leaf-blight-DSC_0622-1024x685.jpg")
+    else:
+        try:
+            headers = {"User-Agent": "Mozilla/5.0"}
+            response = requests.get(image_url_input, headers=headers, timeout=10, verify=False)
+            response.raise_for_status()
+            image_from_url = Image.open(BytesIO(response.content)).convert("RGB")
+        except requests.exceptions.HTTPError as e:
+            if response.status_code == 403:
+                # Essayer via proxy weserv.nl
+                st.warning("L'accès direct à cette image est refusé (403). Tentative via un proxy public...")
+                try:
+                    # On retire le https:// ou http:// pour weserv
+                    url_no_proto = re.sub(r'^https?://', '', image_url_input)
+                    proxy_url = f"https://images.weserv.nl/?url={url_no_proto}"
+                    proxy_response = requests.get(proxy_url, headers=headers, timeout=10, verify=False)
+                    proxy_response.raise_for_status()
+                    image_from_url = Image.open(BytesIO(proxy_response.content)).convert("RGB")
+                    st.info("Image importée via proxy weserv.nl (contournement 403)")
+                except Exception as proxy_e:
+                    st.error("❌ Erreur 403 : L'accès à cette image est refusé, même via proxy. Essayez l'upload local ou l'import base64.")
+                    st.info("Certains sites protègent leurs images contre l'import externe. Préférez une image hébergée sur Wikimedia, Imgur, ou uploadez-la directement.")
+            elif response.status_code == 404:
+                st.error("❌ Erreur 404 : L'image demandée n'existe pas à cette adresse. Vérifiez l'URL ou essayez l'exemple proposé.")
+            else:
+                st.error(f"❌ Erreur lors du téléchargement de l'image : {e}")
+        except Exception as e:
+            st.error(f"❌ Erreur lors du chargement de l'image depuis l'URL : {e}\nVérifiez que l'URL est correcte et accessible.")
+            st.info("Exemple d'URL valide : https://static.lebulletin.com/wp-content/uploads/2014/11/corn-leaf-blight-DSC_0622-1024x685.jpg")
+
+# --- Import base64 (plus visible) ---
+st.markdown('''<b>Import par base64 (optionnel)</b> :<br>Collez ici le texte d'une image encodée en base64 (voir <a href='https://www.base64-image.de/' target='_blank'>outil de conversion</a>).''', unsafe_allow_html=True)
+image_base64_input = st.text_area("Image (base64)", key="base64_input", height=100)
+image_from_base64 = None
+if image_base64_input:
+    try:
+        # Retirer le préfixe data:image/...;base64, s'il existe
+        base64_clean = re.sub(r"^data:image/[^;]+;base64,", "", image_base64_input.strip())
+        image_data = base64.b64decode(base64_clean)
+        image_from_base64 = Image.open(BytesIO(image_data)).convert("RGB")
+    except Exception as e:
+        st.error(f"❌ Erreur lors du décodage base64 : {e}\nVérifiez que le texte est bien une image encodée. Si vous avez collé tout le champ (data:image/...), le préfixe sera retiré automatiquement.")
+        st.info("Collez uniquement la partie base64 OU tout le champ data:image/...;base64,xxxx. Utilisez un outil comme https://www.base64-image.de/ pour convertir une image.")
+
+# Ajoute les images alternatives à la liste des images à diagnostiquer
+if image_from_base64:
+    if not uploaded_images:
+        uploaded_images = []
+    uploaded_images.append(image_from_base64)
+if image_from_url:
+    if not uploaded_images:
+        uploaded_images = []
+    uploaded_images.append(image_from_url)
+
 # --- Sélecteur de culture ---
 cultures = [
     ('tomate', 'Tomate'),
@@ -231,113 +340,6 @@ else:
     col1, col2 = st.columns([2,1])
 
 with col1:
-    uploaded_images = st.file_uploader(
-        T['upload_label'] + " (jusqu'à 4 images différentes : feuille, tige, fruit, racine...)",
-        type=["jpg", "jpeg", "png"],
-        key='img_upload',
-        accept_multiple_files=True,
-        help="Vous pouvez sélectionner jusqu'à 4 photos différentes de la même plante."
-    )
-    st.write("[DEBUG] HF_TOKEN détecté :", bool(HF_TOKEN))
-    if uploaded_images:
-        for idx, img in enumerate(uploaded_images):
-            st.write(f"[DEBUG] Image {idx+1} : name={getattr(img, 'name', None)}, size={getattr(img, 'size', None)}, type={getattr(img, 'type', None)}")
-    st.write("Images uploadées :", uploaded_images)
-    if uploaded_images:
-        if len(uploaded_images) > 4:
-            st.warning("Vous ne pouvez uploader que 4 images maximum. Seules les 4 premières seront utilisées.")
-            uploaded_images = uploaded_images[:4]
-        robust_uploaded_images = []
-        for idx, img in enumerate(uploaded_images):
-            try:
-                img.seek(0)
-                img_bytes = img.read()
-                img_buffer = BytesIO(img_bytes)
-                pil_img = Image.open(img_buffer).convert("RGB")
-                robust_uploaded_images.append(pil_img)
-                st.image(pil_img, width=180, caption=f"Image {idx+1}")
-            except Exception as e:
-                st.error(f"❌ Erreur lors de la lecture de l'image uploadée : {e}\nEssayez un autre format ou l'import par URL/base64 si le problème persiste.")
-                st.info("Sur Hugging Face Spaces, certains formats ou appareils peuvent poser problème. Préférez le format JPG ou PNG.")
-        uploaded_images = robust_uploaded_images
-
-    # === Explication sur l'import d'image ===
-    st.markdown('''
-    <div style='background:#fffde7; border:1px solid #ffe082; border-radius:8px; padding:1em; margin-bottom:1em;'>
-    <b>ℹ️ Import d'image&nbsp;:</b><br>
-    - <b>Upload</b> : Cliquez sur le bouton ou glissez-déposez une image (formats supportés : jpg, png, webp, bmp, gif).<br>
-    - <b>URL directe</b> : Lien qui finit par <code>.jpg</code>, <code>.png</code>, etc. (exemple : <a href='https://static.lebulletin.com/wp-content/uploads/2014/11/corn-leaf-blight-DSC_0622-1024x685.jpg' target='_blank'>exemple</a>)<br>
-    - <b>Base64</b> : Collez le texte d'une image encodée (voir <a href='https://www.base64-image.de/' target='_blank'>outil de conversion</a>).<br>
-    <b>Copier/coller d'image n'est pas supporté</b> (limite technique de Streamlit).<br>
-    <b>En cas d'erreur 403 ou 404</b> : Essayez un autre navigateur, une autre image, ou l'import base64.<br>
-    </div>
-    ''', unsafe_allow_html=True)
-
-    # --- Bouton exemple d'image testée ---
-    col1, col2 = st.columns([3,1])
-    with col2:
-        if st.button("Exemple d'image testée", help="Remplit automatiquement une URL d'image valide pour tester l'import."):
-            st.session_state['url_input'] = "https://static.lebulletin.com/wp-content/uploads/2014/11/corn-leaf-blight-DSC_0622-1024x685.jpg"
-
-    # --- Import par URL ---
-    image_url_input = st.text_input("URL de l'image (PNG/JPEG)", key="url_input")
-    image_from_url = None
-    if image_url_input:
-        # Vérification d'URL directe d'image
-        if not re.match(r"^https?://.*\\.(jpg|jpeg|png|webp|bmp|gif)$", image_url_input, re.IGNORECASE):
-            st.error("❌ L'URL doit pointer directement vers une image (.jpg, .png, .webp, .bmp, .gif). Exemple : https://static.lebulletin.com/wp-content/uploads/2014/11/corn-leaf-blight-DSC_0622-1024x685.jpg")
-        else:
-            try:
-                headers = {"User-Agent": "Mozilla/5.0"}
-                response = requests.get(image_url_input, headers=headers, timeout=10, verify=False)
-                response.raise_for_status()
-                image_from_url = Image.open(BytesIO(response.content)).convert("RGB")
-            except requests.exceptions.HTTPError as e:
-                if response.status_code == 403:
-                    # Essayer via proxy weserv.nl
-                    st.warning("L'accès direct à cette image est refusé (403). Tentative via un proxy public...")
-                    try:
-                        # On retire le https:// ou http:// pour weserv
-                        url_no_proto = re.sub(r'^https?://', '', image_url_input)
-                        proxy_url = f"https://images.weserv.nl/?url={url_no_proto}"
-                        proxy_response = requests.get(proxy_url, headers=headers, timeout=10, verify=False)
-                        proxy_response.raise_for_status()
-                        image_from_url = Image.open(BytesIO(proxy_response.content)).convert("RGB")
-                        st.info("Image importée via proxy weserv.nl (contournement 403)")
-                    except Exception as proxy_e:
-                        st.error("❌ Erreur 403 : L'accès à cette image est refusé, même via proxy. Essayez l'upload local ou l'import base64.")
-                        st.info("Certains sites protègent leurs images contre l'import externe. Préférez une image hébergée sur Wikimedia, Imgur, ou uploadez-la directement.")
-                elif response.status_code == 404:
-                    st.error("❌ Erreur 404 : L'image demandée n'existe pas à cette adresse. Vérifiez l'URL ou essayez l'exemple proposé.")
-                else:
-                    st.error(f"❌ Erreur lors du téléchargement de l'image : {e}")
-            except Exception as e:
-                st.error(f"❌ Erreur lors du chargement de l'image depuis l'URL : {e}\nVérifiez que l'URL est correcte et accessible.")
-                st.info("Exemple d'URL valide : https://static.lebulletin.com/wp-content/uploads/2014/11/corn-leaf-blight-DSC_0622-1024x685.jpg")
-
-    # --- Import base64 (plus visible) ---
-    st.markdown('''<b>Import par base64 (optionnel)</b> :<br>Collez ici le texte d'une image encodée en base64 (voir <a href='https://www.base64-image.de/' target='_blank'>outil de conversion</a>).''', unsafe_allow_html=True)
-    image_base64_input = st.text_area("Image (base64)", key="base64_input", height=100)
-    image_from_base64 = None
-    if image_base64_input:
-        try:
-            image_data = base64.b64decode(image_base64_input)
-            image_from_base64 = Image.open(BytesIO(image_data)).convert("RGB")
-        except Exception as e:
-            st.error(f"❌ Erreur lors du décodage base64 : {e}\nVérifiez que le texte est bien une image encodée.")
-            st.info("Utilisez un outil comme https://www.base64-image.de/ pour convertir une image en base64.")
-
-    # Ajoute les images alternatives à la liste des images à diagnostiquer
-    if image_from_base64:
-        if not uploaded_images:
-            uploaded_images = []
-        uploaded_images.append(image_from_base64)
-    if image_from_url:
-        if not uploaded_images:
-            uploaded_images = []
-        uploaded_images.append(image_from_url)
-
-with col2:
     user_prompt = st.text_area(T['context_label'], "", key='context_area')
 
 # --- Mode rapide dans la sidebar ---
