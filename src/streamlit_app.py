@@ -482,11 +482,11 @@ tabs = st.tabs(["🖼️ Diagnostic par image", "💬 Chat diagnostic (texte)"])
 with tabs[0]:
     # --- Diagnostic image (logique existante) ---
     if st.button(T['diagnose_btn'], type="primary", use_container_width=True):
-        if not uploaded_images or len(uploaded_images) == 0:
+        # Permettre le diagnostic si image OU texte
+        if (not uploaded_images or len(uploaded_images) == 0) and not user_prompt.strip():
             st.warning(T['warn_no_img'])
         else:
             try:
-                # Juste avant le diagnostic (bouton ou logique d'appel à process_image_with_gemma_multimodal)
                 def to_pil(img):
                     if isinstance(img, Image.Image):
                         return img
@@ -495,28 +495,19 @@ with tabs[0]:
                     except Exception as e:
                         st.error(f"Impossible de lire l'image : {e}")
                         return None
-
                 images_for_inference = [to_pil(img) for img in uploaded_images if img is not None]
                 images_for_inference = [img for img in images_for_inference if img is not None]
-                if not images_for_inference:
-                    st.error("❌ Aucune image valide à diagnostiquer.")
-                    st.stop()
-
                 st.info(T['diag_in_progress'])
                 progress = st.progress(0, text="⏳ Analyse en cours...")
-                try:
+                if images_for_inference:
+                    # Diagnostic image (comme avant)
                     result, prompt_debug = process_image_with_gemma_multimodal(images_for_inference, user_prompt=user_prompt, language=language, fast_mode=fast_mode, max_tokens=max_tokens, progress=progress)
-                except RuntimeError as e:
-                    logger.error(f"Erreur lors du chargement du modèle ou de l'inférence : {e}")
-                    st.error("❌ Le modèle n'a pas pu être chargé ou l'inférence a échoué. Vérifiez la mémoire disponible ou réessayez plus tard.")
-                    st.info("💡 Astuce : Fermez d'autres applications pour libérer de la RAM, ou redémarrez l'ordinateur.")
-                    st.stop()
-                except Exception as e:
-                    logger.error(f"Erreur inattendue lors de l'inférence : {e}")
-                    st.error("❌ Une erreur inattendue est survenue lors de l'analyse. Veuillez réessayer ou contacter le support.")
-                    st.stop()
+                else:
+                    # Diagnostic texte seul (fallback)
+                    # Remplacer par un appel modèle réel si dispo
+                    result = f"[Diagnostic textuel] {user_prompt}\n(À remplacer par l'appel au modèle réel)"
+                    prompt_debug = user_prompt
                 progress.progress(100, text="✅ Analyse terminée")
-                # Nettoyage du résultat pour ne pas afficher le prompt
                 result_clean = clean_result(result, prompt_debug)
                 if result_clean and result_clean.strip():
                     st.session_state['history'].append({
@@ -538,11 +529,11 @@ with tabs[0]:
                         <button onclick=\"window.location.reload();\" style='background:#a8e063; color:#2e8b57; font-size:1.1em; padding:0.6em 2em; border:none; border-radius:8px; cursor:pointer; width:100%; margin-top:0.7em;'>{T['new_diag']}</button>
                     </div>
                     """, unsafe_allow_html=True)
-                    # PDF robuste avec nettoyage
+                    # PDF, expert mode, etc. inchangés
                     def create_pdf(text):
                         pdf = FPDF()
                         pdf.add_page()
-                        pdf.set_font("helvetica", size=12)  # Remplacement Arial -> helvetica
+                        pdf.set_font("helvetica", size=12)
                         for line in text.split('\n'):
                             pdf.multi_cell(0, 10, line)
                         pdf_bytes = BytesIO()
@@ -561,7 +552,6 @@ with tabs[0]:
                     except Exception as e:
                         logger.error(f"Erreur lors de la génération du PDF : {e}")
                         st.error(f"❌ L'export PDF a échoué. Erreur : {e}\nVeuillez réessayer ou contacter le support.")
-                    # Mode expert, etc. inchangés
                     if expert_mode:
                         st.markdown('---')
                         st.markdown('**Prompt complet envoyé au modèle :**')
@@ -571,8 +561,7 @@ with tabs[0]:
                     st.info(T['copy_tip'])
                 else:
                     st.error(T['no_result'])
-                    st.info("💡 Astuce : Essayez une photo plus nette ou un autre angle de la plante.")
-                    # Afficher le bouton PDF désactivé si pas de diagnostic
+                    st.info("💡 Astuce : Essayez une photo plus nette, un autre angle, ou une description plus détaillée.")
                     st.download_button(
                         label="⬇️ Télécharger le diagnostic en PDF",
                         data=b"",
