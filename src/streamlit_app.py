@@ -269,7 +269,13 @@ with col1:
     if image_url.strip():
         try:
             import requests
-            response = requests.get(image_url)
+            headers = {
+                "User-Agent": "Mozilla/5.0 (compatible; AgriLensAI/1.0; +https://huggingface.co/spaces/Sidoineko/AgriLensAI)"
+            }
+            response = requests.get(image_url, headers=headers, timeout=10)
+            response.raise_for_status()
+            if "image" not in response.headers.get("Content-Type", ""):
+                raise ValueError("L'URL ne pointe pas vers une image (Content-Type incorrect)")
             image_from_url = Image.open(BytesIO(response.content)).convert("RGB")
             st.image(image_from_url, caption="Image chargée depuis l'URL", width=200)
         except Exception as e:
