@@ -1,31 +1,15 @@
 import streamlit as st
 import os
-st.set_page_config(
-    page_title="AgriLens AI - Plant Disease Diagnosis",
-    page_icon="🌱",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-from transformers import AutoProcessor, AutoModelForImageTextToText
-from PIL import Image
 import torch
-import urllib.parse
-import logging
-from io import BytesIO
-from fpdf import FPDF
-import base64
-import re
+# --- Mode hybride démo/réel pour Hugging Face Spaces ---
+HF_TOKEN = os.environ.get('HF_TOKEN')
+IS_DEMO = os.environ.get('HF_SPACE', False) and not HF_TOKEN
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# --- Mode démo Hugging Face, doit être tout en haut ---
-IS_DEMO = os.environ.get('HF_SPACE', False) or os.environ.get('DEMO_MODE', False)
 if IS_DEMO:
     st.markdown("""<div style='background:#ffe082; padding:1em; border-radius:8px; text-align:center; font-size:1.1em;'>
     ⚠️ <b>Version de démonstration Hugging Face</b> :<br>
     L’inférence réelle (modèle Gemma 3n) n’est pas disponible en ligne.<br>
-    Pour un diagnostic complet, utilisez la version locale (offline).
+    Pour un diagnostic complet, utilisez la version locale (offline) ou ajoutez un token HF valide.<br>
     </div>""", unsafe_allow_html=True)
     st.image('https://huggingface.co/datasets/mishig/sample_images/resolve/main/tomato_leaf_disease.jpg', width=300, caption='Exemple de feuille malade')
     st.markdown("""**Exemple de diagnostic généré (démo)** :  
@@ -38,16 +22,33 @@ if IS_DEMO:
     """)
     st.stop()
 
+if HF_TOKEN:
+    st.markdown("""<div style='background:#c8e6c9; padding:1em; border-radius:8px; text-align:center; font-size:1.1em;'>
+    ✅ <b>Mode test réel</b> : Le modèle <code>google/gemma-3n-E2B-it</code> est chargé depuis Hugging Face.<br>
+    L’inférence peut être lente selon la puissance du Space.<br>
+    </div>""", unsafe_allow_html=True)
+    from transformers import AutoProcessor, AutoModelForImageTextToText
+    @st.cache_resource(show_spinner=True)
+    def load_gemma_hf():
+        processor = AutoProcessor.from_pretrained("google/gemma-3n-E2B-it", token=HF_TOKEN)
+        model = AutoModelForImageTextToText.from_pretrained("google/gemma-3n-E2B-it", token=HF_TOKEN).to("cuda" if torch.cuda.is_available() else "cpu")
+        return processor, model
+    # Remplace les appels à load_gemma_multimodal() par load_gemma_hf() dans le reste du code
+
+st.set_page_config(
+    page_title="AgriLens AI - Plant Disease Diagnosis",
+    page_icon="🌱",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 from transformers import AutoProcessor, AutoModelForImageTextToText
 from PIL import Image
-import torch
 import urllib.parse
 import logging
 from io import BytesIO
 from fpdf import FPDF
 import base64
 import re
-import os
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
