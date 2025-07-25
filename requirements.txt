@@ -1,6 +1,8 @@
+torch>=2.1.0
+torchvision
+numpy<2
 streamlit
 transformers>=4.53.1
-torch
 pillow
 huggingface-hub
 accelerate
