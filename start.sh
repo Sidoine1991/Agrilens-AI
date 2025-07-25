@@ -5,6 +5,10 @@
 
 set -e
 
+# Créer le dossier models avec les bonnes permissions
+mkdir -p models
+chmod -R 777 models
+
 # Vérification du modèle local
 MODEL_DIR="models/gemma-3n"
 if [ ! -d "$MODEL_DIR" ]; then
