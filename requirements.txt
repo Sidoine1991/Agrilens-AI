@@ -1,6 +1,7 @@
-streamlit
 transformers>=4.39.0
-torch
+torch>=2.1.0
+numpy<2
 Pillow
 requests
 fpdf
+streamlit
