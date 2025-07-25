@@ -163,18 +163,32 @@ uploaded_images = st.sidebar.file_uploader(
     accept_multiple_files=True,
     help="Vous pouvez sélectionner jusqu'à 4 photos différentes de la même plante."
 )
-# --- Import par caméra (webcam) ---
-st.sidebar.markdown("<b>Ou prenez une photo directement :</b>", unsafe_allow_html=True)
-photo_camera = st.sidebar.camera_input("Prendre une photo (webcam)")
-if photo_camera is not None:
-    try:
-        image_from_camera = Image.open(photo_camera).convert("RGB")
-        if not uploaded_images:
-            uploaded_images = []
-        uploaded_images.append(image_from_camera)
-        st.sidebar.success("Photo prise avec succès !")
-    except Exception as e:
-        st.sidebar.error(f"Erreur lors de la lecture de la photo prise : {e}")
+# --- Import par caméra (webcam) UX améliorée ---
+if 'show_camera' not in st.session_state:
+    st.session_state['show_camera'] = False
+if st.sidebar.button("Prendre une photo", key="open_camera_btn"):
+    st.session_state['show_camera'] = True
+if st.session_state['show_camera']:
+    photo_camera = st.sidebar.camera_input("Prenez une photo avec la webcam", key="camera_input_widget")
+    if photo_camera is not None:
+        try:
+            image_from_camera = Image.open(photo_camera).convert("RGB")
+            if 'camera_images' not in st.session_state:
+                st.session_state['camera_images'] = []
+            if not any(image_from_camera.tobytes() == img.tobytes() for img in st.session_state['camera_images']):
+                st.session_state['camera_images'].append(image_from_camera)
+                st.sidebar.success("Photo prise avec succès !")
+            st.session_state['show_camera'] = False  # Masquer la caméra après la prise de photo
+        except Exception as e:
+            st.sidebar.error(f"Erreur lors de la lecture de la photo prise : {e}")
+# Fusionner uploads classiques et caméra
+all_uploaded_images = list(uploaded_images) if uploaded_images else []
+all_uploaded_images += st.session_state['camera_images']
+# Afficher l'aperçu de toutes les images uploadées/prises
+if all_uploaded_images:
+    st.sidebar.markdown("<b>Images à diagnostiquer :</b>", unsafe_allow_html=True)
+    for idx, img in enumerate(all_uploaded_images):
+        st.sidebar.image(img, width=120, caption=f"Image {idx+1}")
 st.write("[DEBUG] HF_TOKEN détecté :", bool(HF_TOKEN))
 if uploaded_images:
     for idx, img in enumerate(uploaded_images):
@@ -504,7 +518,7 @@ with tabs[0]:
     # --- Diagnostic image (logique existante) ---
     if st.button(T['diagnose_btn'], type="primary", use_container_width=True):
         # Permettre le diagnostic si image OU texte
-        if (not uploaded_images or len(uploaded_images) == 0) and not user_prompt.strip():
+        if (not all_uploaded_images or len(all_uploaded_images) == 0) and not user_prompt.strip():
             st.warning(T['warn_no_img'])
         else:
             try:
@@ -516,7 +530,7 @@ with tabs[0]:
                     except Exception as e:
                         st.error(f"Impossible de lire l'image : {e}")
                         return None
-                images_for_inference = [to_pil(img) for img in uploaded_images if img is not None]
+                images_for_inference = [to_pil(img) for img in all_uploaded_images if img is not None]
                 images_for_inference = [img for img in images_for_inference if img is not None]
                 st.info(T['diag_in_progress'])
                 progress = st.progress(0, text="⏳ Analyse en cours...")
