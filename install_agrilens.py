@@ -20,12 +20,12 @@ def download_file_from_google_drive(id, destination):
                 f.write(chunk)
 
 def extract_tar(tar_path, extract_path):
-    with tarfile.open(tar_path, "r") as tar:
+    with tarfile.open(tar_path, "r:gz") as tar:
         tar.extractall(path=extract_path)
 
 MODEL_DIR = "models/gemma-3n-transformers-gemma-3n-e2b-it-v1"
-MODEL_TAR = "models/gemma-3n-transformers-gemma-3n-e2b-it-v1.tar"
-GDRIVE_ID = "17WZeUKSxBHqFtfqm04MkAd7Ak6Yis-FM"
+MODEL_TAR = "models/gemma-3n-transformers-gemma-3n-e2b-it-v1.tar.gz"
+GDRIVE_ID = "17WZeUKSxBHqFtfqm04MkAd7Ak6Yis-FM"  # ID du fichier .tar.gz
 
 if not os.path.isdir(MODEL_DIR):
     os.makedirs("models", exist_ok=True)
