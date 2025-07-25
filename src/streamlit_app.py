@@ -181,7 +181,9 @@ if st.session_state['show_camera']:
             st.session_state['show_camera'] = False  # Masquer la caméra après la prise de photo
         except Exception as e:
             st.sidebar.error(f"Erreur lors de la lecture de la photo prise : {e}")
-# Fusionner uploads classiques et caméra
+# Fusionner uploads classiques et caméra (robustesse)
+if 'camera_images' not in st.session_state:
+    st.session_state['camera_images'] = []
 all_uploaded_images = list(uploaded_images) if uploaded_images else []
 all_uploaded_images += st.session_state['camera_images']
 # Afficher l'aperçu de toutes les images uploadées/prises
