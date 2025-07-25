@@ -416,21 +416,26 @@ if st.button(T['diagnose_btn'], type="primary", use_container_width=True):
         st.warning(T['warn_no_img'])
     else:
         try:
-            images = []
-            for img_file in uploaded_images:
+            # Juste avant le diagnostic (bouton ou logique d'appel à process_image_with_gemma_multimodal)
+            def to_pil(img):
+                if isinstance(img, Image.Image):
+                    return img
                 try:
-                    img = Image.open(img_file).convert("RGB")
-                    img = resize_image(img, max_size=1024)
-                    images.append(img)
+                    return Image.open(img).convert("RGB")
                 except Exception as e:
-                    logger.error(f"Erreur lors de l'ouverture d'une image : {e}")
-                    st.error(f"❌ Une des images n'a pas pu être lue. Vérifiez le format ou réessayez avec une autre photo.")
-                    st.info("💡 Astuce : Utilisez des photos nettes, bien cadrées, sans reflets ni flou.")
-                    st.stop()
+                    st.error(f"Impossible de lire l'image : {e}")
+                    return None
+
+            images_for_inference = [to_pil(img) for img in uploaded_images if img is not None]
+            images_for_inference = [img for img in images_for_inference if img is not None]
+            if not images_for_inference:
+                st.error("❌ Aucune image valide à diagnostiquer.")
+                st.stop()
+
             st.info(T['diag_in_progress'])
             progress = st.progress(0, text="⏳ Analyse en cours...")
             try:
-                result, prompt_debug = process_image_with_gemma_multimodal(images, user_prompt=user_prompt, language=language, fast_mode=fast_mode, max_tokens=max_tokens, progress=progress)
+                result, prompt_debug = process_image_with_gemma_multimodal(images_for_inference, user_prompt=user_prompt, language=language, fast_mode=fast_mode, max_tokens=max_tokens, progress=progress)
             except RuntimeError as e:
                 logger.error(f"Erreur lors du chargement du modèle ou de l'inférence : {e}")
                 st.error("❌ Le modèle n'a pas pu être chargé ou l'inférence a échoué. Vérifiez la mémoire disponible ou réessayez plus tard.")
