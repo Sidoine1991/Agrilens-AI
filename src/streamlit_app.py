@@ -255,7 +255,7 @@ with col1:
     <div style='background:#fffde7; border:1px solid #ffe082; border-radius:8px; padding:1em; margin-bottom:1em;'>
     <b>ℹ️ Import d'image&nbsp;:</b><br>
     - <b>Upload</b> : Cliquez sur le bouton ou glissez-déposez une image (formats supportés : jpg, png, webp, bmp, gif).<br>
-    - <b>URL directe</b> : Lien qui finit par <code>.jpg</code>, <code>.png</code>, etc. (exemple : <a href='https://upload.wikimedia.org/wikipedia/commons/6/6e/Leaf_blight_of_rice.jpg' target='_blank'>exemple</a>)<br>
+    - <b>URL directe</b> : Lien qui finit par <code>.jpg</code>, <code>.png</code>, etc. (exemples : <a href='https://upload.wikimedia.org/wikipedia/commons/6/6e/Leaf_blight_of_rice.jpg' target='_blank'>exemple 1</a>, <a href='https://static.lebulletin.com/wp-content/uploads/2014/11/corn-leaf-blight-DSC_0622-1024x685.jpg' target='_blank'>exemple 2</a>)<br>
     - <b>Base64</b> : Collez le texte d'une image encodée (voir <a href='https://www.base64-image.de/' target='_blank'>outil de conversion</a>).<br>
     <b>Copier/coller d'image n'est pas supporté</b> (limite technique de Streamlit).<br>
     <b>En cas d'erreur 403 ou 404</b> : Essayez un autre navigateur, une autre image, ou l'import base64.<br>
@@ -265,8 +265,10 @@ with col1:
     # --- Bouton exemple d'image testée ---
     col1, col2 = st.columns([3,1])
     with col2:
-        if st.button("Exemple d'image testée", help="Remplit automatiquement une URL d'image valide pour tester l'import."):
+        if st.button("Exemple d'image testée 1", help="Remplit automatiquement une URL d'image valide pour tester l'import."):
             st.session_state['url_input'] = "https://upload.wikimedia.org/wikipedia/commons/6/6e/Leaf_blight_of_rice.jpg"
+        if st.button("Exemple d'image testée 2", help="Remplit automatiquement une URL d'image valide pour tester l'import."):
+            st.session_state['url_input'] = "https://static.lebulletin.com/wp-content/uploads/2014/11/corn-leaf-blight-DSC_0622-1024x685.jpg"
 
     # --- Import par URL ---
     image_url_input = st.text_input("URL de l'image (PNG/JPEG)", key="url_input")
@@ -274,7 +276,7 @@ with col1:
     if image_url_input:
         # Vérification d'URL directe d'image
         if not re.match(r"^https?://.*\\.(jpg|jpeg|png|webp|bmp|gif)$", image_url_input, re.IGNORECASE):
-            st.error("❌ L'URL doit pointer directement vers une image (.jpg, .png, .webp, .bmp, .gif). Exemple : https://upload.wikimedia.org/wikipedia/commons/6/6e/Leaf_blight_of_rice.jpg")
+            st.error("❌ L'URL doit pointer directement vers une image (.jpg, .png, .webp, .bmp, .gif). Exemples : https://upload.wikimedia.org/wikipedia/commons/6/6e/Leaf_blight_of_rice.jpg ou https://static.lebulletin.com/wp-content/uploads/2014/11/corn-leaf-blight-DSC_0622-1024x685.jpg")
         else:
             try:
                 headers = {"User-Agent": "Mozilla/5.0"}
@@ -285,12 +287,12 @@ with col1:
                 if response.status_code == 403:
                     st.error("❌ Erreur 403 : L'accès à cette image est refusé (protection du site). Essayez une autre image ou l'import base64.")
                 elif response.status_code == 404:
-                    st.error("❌ Erreur 404 : L'image demandée n'existe pas à cette adresse. Vérifiez l'URL ou essayez l'exemple proposé.")
+                    st.error("❌ Erreur 404 : L'image demandée n'existe pas à cette adresse. Vérifiez l'URL ou essayez l'un des exemples proposés.")
                 else:
                     st.error(f"❌ Erreur lors du téléchargement de l'image : {e}")
             except Exception as e:
                 st.error(f"❌ Erreur lors du chargement de l'image depuis l'URL : {e}\nVérifiez que l'URL est correcte et accessible.")
-                st.info("Exemple d'URL valide : https://upload.wikimedia.org/wikipedia/commons/6/6e/Leaf_blight_of_rice.jpg")
+                st.info("Exemples d'URL valides : https://upload.wikimedia.org/wikipedia/commons/6/6e/Leaf_blight_of_rice.jpg ou https://static.lebulletin.com/wp-content/uploads/2014/11/corn-leaf-blight-DSC_0622-1024x685.jpg")
 
     # --- Import base64 (plus visible) ---
     st.markdown('''<b>Import par base64 (optionnel)</b> :<br>Collez ici le texte d'une image encodée en base64 (voir <a href='https://www.base64-image.de/' target='_blank'>outil de conversion</a>).''', unsafe_allow_html=True)
