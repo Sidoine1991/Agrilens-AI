@@ -208,8 +208,8 @@ with col2:
 image_url_input = st.text_input("URL de l'image (PNG/JPEG)", key="url_input")
 image_from_url = None
 if image_url_input:
-    # Vérification d'URL directe d'image
-    if not re.match(r"^https?://.*\\.(jpg|jpeg|png|webp|bmp|gif)$", image_url_input, re.IGNORECASE):
+    # Vérification d'URL directe d'image (plus tolérante)
+    if not re.match(r"^https?://.*\.(jpg|jpeg|png|webp|bmp|gif)([?#].*)?$", image_url_input, re.IGNORECASE):
         st.error("❌ L'URL doit pointer directement vers une image (.jpg, .png, .webp, .bmp, .gif). Exemple : https://static.lebulletin.com/wp-content/uploads/2014/11/corn-leaf-blight-DSC_0622-1024x685.jpg")
     else:
         try:
