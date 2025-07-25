@@ -294,7 +294,19 @@ with col1:
                 image_from_url = Image.open(BytesIO(response.content)).convert("RGB")
             except requests.exceptions.HTTPError as e:
                 if response.status_code == 403:
-                    st.error("❌ Erreur 403 : L'accès à cette image est refusé (protection du site). Essayez une autre image ou l'import base64.")
+                    # Essayer via proxy weserv.nl
+                    st.warning("L'accès direct à cette image est refusé (403). Tentative via un proxy public...")
+                    try:
+                        # On retire le https:// ou http:// pour weserv
+                        url_no_proto = re.sub(r'^https?://', '', image_url_input)
+                        proxy_url = f"https://images.weserv.nl/?url={url_no_proto}"
+                        proxy_response = requests.get(proxy_url, headers=headers, timeout=10, verify=False)
+                        proxy_response.raise_for_status()
+                        image_from_url = Image.open(BytesIO(proxy_response.content)).convert("RGB")
+                        st.info("Image importée via proxy weserv.nl (contournement 403)")
+                    except Exception as proxy_e:
+                        st.error("❌ Erreur 403 : L'accès à cette image est refusé, même via proxy. Essayez l'upload local ou l'import base64.")
+                        st.info("Certains sites protègent leurs images contre l'import externe. Préférez une image hébergée sur Wikimedia, Imgur, ou uploadez-la directement.")
                 elif response.status_code == 404:
                     st.error("❌ Erreur 404 : L'image demandée n'existe pas à cette adresse. Vérifiez l'URL ou essayez l'exemple proposé.")
                 else:
