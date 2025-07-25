@@ -1,27 +1,6 @@
 import os
-import sys
-import subprocess
 import tarfile
 import requests
-
-VENV_DIR = "venv"
-REQUIREMENTS = "requirements.txt"
-
-FR = sys.platform.startswith("win")
-
-# 1. Créer l'environnement virtuel si besoin
-def create_venv():
-    if not os.path.isdir(VENV_DIR):
-        print("[INFO] Création de l'environnement virtuel...")
-        subprocess.check_call([sys.executable, "-m", "venv", VENV_DIR])
-    else:
-        print("[INFO] Environnement virtuel déjà présent.")
-
-# 2. Installer les dépendances
-def install_requirements():
-    pip_path = os.path.join(VENV_DIR, "Scripts" if FR else "bin", "pip")
-    print("[INFO] Installation des dépendances...")
-    subprocess.check_call([pip_path, "install", "-r", REQUIREMENTS])
 
 def download_file_from_google_drive(id, destination):
     URL = "https://docs.google.com/uc?export=download"
@@ -57,29 +36,4 @@ if not os.path.isdir(MODEL_DIR):
     extract_tar(MODEL_TAR, "models/")
     print("Modèle prêt dans:", MODEL_DIR)
 else:
-    print("Modèle déjà présent dans:", MODEL_DIR)
-
-# 3. Vérifier la présence du modèle
-def check_model():
-    if not os.path.isdir(MODEL_DIR):
-        print(f"[ERREUR] Le modèle Gemma 3n n'est pas trouvé dans {MODEL_DIR} !")
-        print("[EN] Gemma 3n model not found in", MODEL_DIR)
-        print("Veuillez placer le dossier du modèle téléchargé dans ce chemin avant de lancer l'application.")
-        sys.exit(1)
-    else:
-        print("[OK] Modèle Gemma 3n trouvé.")
-
-# 4. Instructions de lancement
-def print_instructions():
-    print("\n---")
-    print("🇫🇷 Installation terminée ! Lancez l'application avec :")
-    print(f"  {VENV_DIR}\\Scripts\\activate && streamlit run src/streamlit_app.py" if FR else f"  source {VENV_DIR}/bin/activate && streamlit run src/streamlit_app.py")
-    print("\n🇬🇧 Installation complete! Launch the app with:")
-    print(f"  {VENV_DIR}\\Scripts\\activate && streamlit run src/streamlit_app.py" if FR else f"  source {VENV_DIR}/bin/activate && streamlit run src/streamlit_app.py")
-    print("---\n")
-
-if __name__ == "__main__":
-    create_venv()
-    install_requirements()
-    check_model()
-    print_instructions() 
+    print("Modèle déjà présent dans:", MODEL_DIR) 
