@@ -440,6 +440,15 @@ def process_image_with_gemma_multimodal(images, user_prompt=None, language='fr',
         result = processor.decode(outputs[0], skip_special_tokens=True)
     return result, prompt
 
+# === Ajout : fonction d'inférence texte seule avec Gemma multimodal ===
+def process_text_with_gemma_multimodal_text_only(prompt, language='fr', max_tokens=512):
+    processor, model = load_gemma_multimodal()
+    # Adapter le prompt selon la langue si besoin
+    inputs = processor(text=prompt, return_tensors="pt")
+    output = model.generate(**inputs, max_new_tokens=max_tokens)
+    result = processor.decode(output[0], skip_special_tokens=True)
+    return result, prompt
+
 def clean_result(result, prompt):
     # Supprime le prompt recopié en début de réponse
     if result.strip().startswith(prompt.strip()[:40]):
@@ -515,10 +524,8 @@ with tabs[0]:
                     # Diagnostic image (comme avant)
                     result, prompt_debug = process_image_with_gemma_multimodal(images_for_inference, user_prompt=user_prompt, language=language, fast_mode=fast_mode, max_tokens=max_tokens, progress=progress)
                 else:
-                    # Diagnostic texte seul (fallback)
-                    # Remplacer par un appel modèle réel si dispo
-                    result = f"[Diagnostic textuel] {user_prompt}\n(À remplacer par l'appel au modèle réel)"
-                    prompt_debug = user_prompt
+                    # Diagnostic texte seul avec le modèle local
+                    result, prompt_debug = process_text_with_gemma_multimodal_text_only(user_prompt, language=language, max_tokens=max_tokens)
                 progress.progress(100, text="✅ Analyse terminée")
                 result_clean = clean_result(result, prompt_debug)
                 if result_clean and result_clean.strip():
@@ -634,12 +641,8 @@ with tabs[1]:
         if user_message.strip():
             st.session_state['chat_history'].append({"role": "user", "content": user_message})
             with st.spinner("⏳ Analyse en cours..."):
-                # Utiliser le modèle pour générer une réponse à partir du texte seul
                 try:
-                    # Si tu as un modèle LLM local, appelle-le ici. Sinon, fallback sur une réponse factice.
-                    # Par exemple :
-                    # response = model.generate_from_text(user_message)
-                    response = "[Réponse simulée] Diagnostic basé sur la description : ... (à remplacer par l'appel modèle réel)"
+                    response, _ = process_text_with_gemma_multimodal_text_only(user_message, language=language)
                     st.session_state['chat_history'].append({"role": "assistant", "content": response})
                 except Exception as e:
                     st.session_state['chat_history'].append({"role": "assistant", "content": f"❌ Erreur lors de l'analyse : {e}"})
