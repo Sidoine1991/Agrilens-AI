@@ -1,11 +1,13 @@
 import streamlit as st
 import os
 import torch
+import sys
 # --- Initialisation robuste de la clé camera_images (anti-KeyError) ---
 if 'camera_images' not in st.session_state:
     st.session_state['camera_images'] = []
 # --- Vérification et installation automatique du modèle Gemma local ---
 if not os.path.isdir("models/gemma-3n-transformers-gemma-3n-e2b-it-v1"):
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
     import install_agrilens
 # --- Mode hybride démo/réel pour Hugging Face Spaces ---
 HF_TOKEN = os.environ.get('HF_TOKEN')
