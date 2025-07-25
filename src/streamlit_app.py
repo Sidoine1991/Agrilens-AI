@@ -50,6 +50,8 @@ from io import BytesIO
 from fpdf import FPDF
 import base64
 import re
+import requests # Added for URL image import
+import urllib3  # Ajouté pour désactiver les warnings SSL
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -268,16 +270,19 @@ with col1:
     image_from_url = None
     if image_url.strip():
         try:
-            import requests
             headers = {
                 "User-Agent": "Mozilla/5.0 (compatible; AgriLensAI/1.0; +https://huggingface.co/spaces/Sidoineko/AgriLensAI)"
             }
-            response = requests.get(image_url, headers=headers, timeout=10)
+            # Désactive les warnings SSL si verify=False
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            response = requests.get(image_url, headers=headers, timeout=10, verify=False)
             response.raise_for_status()
             if "image" not in response.headers.get("Content-Type", ""):
                 raise ValueError("L'URL ne pointe pas vers une image (Content-Type incorrect)")
             image_from_url = Image.open(BytesIO(response.content)).convert("RGB")
             st.image(image_from_url, caption="Image chargée depuis l'URL", width=200)
+        except requests.exceptions.SSLError:
+            st.error("Erreur SSL : le site distant n'a pas de certificat reconnu. Utilisez une image provenant d'un site sécurisé (Wikipedia, Unsplash, etc.).")
         except Exception as e:
             st.error(f"Erreur lors du chargement de l'image depuis l'URL : {e}")
 
