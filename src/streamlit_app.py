@@ -247,8 +247,19 @@ with col1:
         if len(uploaded_images) > 4:
             st.warning("Vous ne pouvez uploader que 4 images maximum. Seules les 4 premières seront utilisées.")
             uploaded_images = uploaded_images[:4]
+        robust_uploaded_images = []
         for idx, img in enumerate(uploaded_images):
-            st.image(img, width=180, caption=f"Image {idx+1}")
+            try:
+                img.seek(0)
+                img_bytes = img.read()
+                img_buffer = BytesIO(img_bytes)
+                pil_img = Image.open(img_buffer).convert("RGB")
+                robust_uploaded_images.append(pil_img)
+                st.image(pil_img, width=180, caption=f"Image {idx+1}")
+            except Exception as e:
+                st.error(f"❌ Erreur lors de la lecture de l'image uploadée : {e}\nEssayez un autre format ou l'import par URL/base64 si le problème persiste.")
+                st.info("Sur Hugging Face Spaces, certains formats ou appareils peuvent poser problème. Préférez le format JPG ou PNG.")
+        uploaded_images = robust_uploaded_images
 
     # === Explication sur l'import d'image ===
     st.markdown('''
