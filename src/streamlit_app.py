@@ -33,7 +33,8 @@ if HF_TOKEN:
         processor = AutoProcessor.from_pretrained("google/gemma-3n-E2B-it", token=HF_TOKEN)
         model = AutoModelForImageTextToText.from_pretrained("google/gemma-3n-E2B-it", token=HF_TOKEN).to("cuda" if torch.cuda.is_available() else "cpu")
         return processor, model
-    # Remplace les appels à load_gemma_multimodal() par load_gemma_hf() dans le reste du code
+    # Remplacer load_gemma_multimodal partout par load_gemma_hf
+    load_gemma_multimodal = load_gemma_hf
 
 st.set_page_config(
     page_title="AgriLens AI - Plant Disease Diagnosis",
@@ -235,6 +236,11 @@ with col1:
         accept_multiple_files=True,
         help="Vous pouvez sélectionner jusqu'à 4 photos différentes de la même plante."
     )
+    st.write("[DEBUG] HF_TOKEN détecté :", bool(HF_TOKEN))
+    if uploaded_images:
+        for idx, img in enumerate(uploaded_images):
+            st.write(f"[DEBUG] Image {idx+1} : name={getattr(img, 'name', None)}, size={getattr(img, 'size', None)}, type={getattr(img, 'type', None)}")
+    st.write("Images uploadées :", uploaded_images)
     if uploaded_images:
         if len(uploaded_images) > 4:
             st.warning("Vous ne pouvez uploader que 4 images maximum. Seules les 4 premières seront utilisées.")
