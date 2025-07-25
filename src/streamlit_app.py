@@ -472,7 +472,7 @@ if st.button(T['diagnose_btn'], type="primary", use_container_width=True):
                 def create_pdf(text):
                     pdf = FPDF()
                     pdf.add_page()
-                    pdf.set_font("Arial", size=12)
+                    pdf.set_font("helvetica", size=12)  # Remplacement Arial -> helvetica
                     for line in text.split('\n'):
                         pdf.multi_cell(0, 10, line)
                     pdf_bytes = BytesIO()
@@ -490,7 +490,7 @@ if st.button(T['diagnose_btn'], type="primary", use_container_width=True):
                     )
                 except Exception as e:
                     logger.error(f"Erreur lors de la génération du PDF : {e}")
-                    st.error("❌ L'export PDF a échoué. Veuillez réessayer ou contacter le support.")
+                    st.error(f"❌ L'export PDF a échoué. Erreur : {e}\nVeuillez réessayer ou contacter le support.")
                 # Mode expert, etc. inchangés
                 if expert_mode:
                     st.markdown('---')
@@ -502,6 +502,16 @@ if st.button(T['diagnose_btn'], type="primary", use_container_width=True):
             else:
                 st.error(T['no_result'])
                 st.info("💡 Astuce : Essayez une photo plus nette ou un autre angle de la plante.")
+                # Afficher le bouton PDF désactivé si pas de diagnostic
+                st.download_button(
+                    label="⬇️ Télécharger le diagnostic en PDF",
+                    data=b"",
+                    file_name="diagnostic_agri.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                    disabled=True,
+                    help="Générez d'abord un diagnostic pour activer l'export PDF."
+                )
         except Exception as e:
             logger.error(f"Erreur critique : {e}")
             st.error("❌ Une erreur critique est survenue. Veuillez réessayer ou contacter le support technique.")
