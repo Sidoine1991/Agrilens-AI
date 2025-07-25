@@ -1,6 +1,9 @@
 import streamlit as st
 import os
 import torch
+# --- Initialisation robuste de la clé camera_images (anti-KeyError) ---
+if 'camera_images' not in st.session_state:
+    st.session_state['camera_images'] = []
 # --- Mode hybride démo/réel pour Hugging Face Spaces ---
 HF_TOKEN = os.environ.get('HF_TOKEN')
 IS_DEMO = os.environ.get('HF_SPACE', False) and not HF_TOKEN
@@ -182,8 +185,6 @@ if st.session_state['show_camera']:
         except Exception as e:
             st.sidebar.error(f"Erreur lors de la lecture de la photo prise : {e}")
 # Fusionner uploads classiques et caméra (robustesse)
-if 'camera_images' not in st.session_state:
-    st.session_state['camera_images'] = []
 all_uploaded_images = list(uploaded_images) if uploaded_images else []
 all_uploaded_images += st.session_state['camera_images']
 # Afficher l'aperçu de toutes les images uploadées/prises
