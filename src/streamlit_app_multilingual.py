@@ -563,7 +563,7 @@ with tab1:
                 st.info("💡 Essayez de reprendre la photo")
         
         if image is not None:
-                
+            try:
                 # Redimensionner l'image si nécessaire
                 original_size = image.size
                 image, was_resized = resize_image_if_needed(image, max_size=(800, 800))
@@ -602,7 +602,6 @@ with tab1:
                         st.markdown(t("analysis_results"))
                         st.markdown("---")
                         st.markdown(result)
-                        
             except Exception as e:
                 error_msg = str(e)
                 if "403" in error_msg or "Forbidden" in error_msg:
@@ -616,20 +615,6 @@ with tab1:
                 else:
                     st.error(f"❌ Erreur lors du traitement de l'image : {e}")
                     st.info("💡 Essayez avec une image différente ou un format différent (PNG, JPG, JPEG)")
-                
-    except Exception as e:
-        error_msg = str(e)
-        if "403" in error_msg or "Forbidden" in error_msg:
-            st.error("❌ Erreur 403 - Accès refusé lors de l'upload")
-            st.warning("🔒 Cette erreur indique un problème d'autorisation côté serveur.")
-            st.info("💡 Solutions possibles :")
-            st.info("• Vérifiez les logs de votre espace Hugging Face")
-            st.info("• Essayez avec une image plus petite (< 1MB)")
-            st.info("• Rafraîchissez la page et réessayez")
-            st.info("• Contactez le support Hugging Face si le problème persiste")
-        else:
-            st.error(f"❌ Erreur lors de l'upload : {e}")
-            st.info("💡 Vérifiez que votre navigateur autorise les uploads de fichiers")
 
 with tab2:
     st.header(t("text_analysis_title"))
