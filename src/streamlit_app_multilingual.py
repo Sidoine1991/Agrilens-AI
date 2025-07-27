@@ -189,88 +189,153 @@ def load_model():
         return None, None
 
 def analyze_image_multilingual(image, prompt=""):
-    """Analyse une image avec le modèle Gemma 2B + Gemini pour diagnostic précis"""
-    if not st.session_state.model_loaded:
-        return "❌ Modèle non chargé. Veuillez le charger dans les réglages."
-    
+    """Analyse une image avec Gemini pour diagnostic précis"""
     try:
-        model, tokenizer = st.session_state.model
+        # Vérifier si Gemini est disponible
+        if not gemini_model:
+            return "❌ Gemini API non configurée. Veuillez configurer votre clé API Google pour analyser les images."
         
-        # Première analyse avec Gemma
+        # Préparer le prompt pour Gemini
         if st.session_state.language == "fr":
             if prompt:
-                text_prompt = f"<start_of_turn>user\nAnalyse cette image de plante et décris en détail ce que tu vois : {prompt}<end_of_turn>\n<start_of_turn>model\n"
+                gemini_prompt = f"""
+Tu es un expert en pathologie végétale. Analyse cette image de plante et fournis un diagnostic précis.
+
+**Question spécifique :** {prompt}
+
+**Instructions :**
+1. **Diagnostic précis** : Identifie la maladie spécifique avec son nom scientifique
+2. **Causes** : Explique les causes probables (champignons, bactéries, virus, carences, etc.)
+3. **Symptômes détaillés** : Liste tous les symptômes observables dans l'image
+4. **Traitement spécifique** : Donne des recommandations de traitement précises
+5. **Actions préventives** : Conseils pour éviter la propagation
+6. **Urgence** : Indique si c'est urgent ou non
+
+**Format de réponse :**
+## 🔍 **Diagnostic Précis**
+[Nom de la maladie et causes]
+
+## 📋 **Symptômes Détaillés**
+[Liste des symptômes observés]
+
+## 💊 **Traitement Recommandé**
+[Actions spécifiques à entreprendre]
+
+## 🛡️ **Actions Préventives**
+[Mesures pour éviter la propagation]
+
+## ⚠️ **Niveau d'Urgence**
+[Urgent/Modéré/Faible]
+
+Réponds de manière structurée et précise.
+"""
             else:
-                text_prompt = "<start_of_turn>user\nAnalyse cette image de plante et décris en détail les symptômes visibles, les couleurs, les taches, et tout ce que tu observes.<end_of_turn>\n<start_of_turn>model\n"
+                gemini_prompt = """
+Tu es un expert en pathologie végétale. Analyse cette image de plante et fournis un diagnostic précis.
+
+**Instructions :**
+1. **Diagnostic précis** : Identifie la maladie spécifique avec son nom scientifique
+2. **Causes** : Explique les causes probables (champignons, bactéries, virus, carences, etc.)
+3. **Symptômes détaillés** : Liste tous les symptômes observables dans l'image
+4. **Traitement spécifique** : Donne des recommandations de traitement précises
+5. **Actions préventives** : Conseils pour éviter la propagation
+6. **Urgence** : Indique si c'est urgent ou non
+
+**Format de réponse :**
+## 🔍 **Diagnostic Précis**
+[Nom de la maladie et causes]
+
+## 📋 **Symptômes Détaillés**
+[Liste des symptômes observés]
+
+## 💊 **Traitement Recommandé**
+[Actions spécifiques à entreprendre]
+
+## 🛡️ **Actions Préventives**
+[Mesures pour éviter la propagation]
+
+## ⚠️ **Niveau d'Urgence**
+[Urgent/Modéré/Faible]
+
+Réponds de manière structurée et précise.
+"""
         else:
             if prompt:
-                text_prompt = f"<start_of_turn>user\nAnalyze this plant image and describe in detail what you see: {prompt}<end_of_turn>\n<start_of_turn>model\n"
-            else:
-                text_prompt = "<start_of_turn>user\nAnalyze this plant image and describe in detail the visible symptoms, colors, spots, and everything you observe.<end_of_turn>\n<start_of_turn>model\n"
-        
-        inputs = tokenizer(text_prompt, return_tensors="pt").to(model.device)
-        
-        with torch.inference_mode():
-            generation = model.generate(
-                **inputs,
-                max_new_tokens=300,
-                do_sample=True,
-                temperature=0.7,
-                top_p=0.9,
-                repetition_penalty=1.1,
-                pad_token_id=tokenizer.eos_token_id
-            )
-            generation = generation[0][inputs["input_ids"].shape[-1]:]
-        
-        gemma_response = tokenizer.decode(generation, skip_special_tokens=True)
-        gemma_response = gemma_response.replace("<end_of_turn>", "").strip()
-        
-        # Informations sur l'image pour Gemini
-        image_info = f"Format: {image.format}, Taille: {image.size[0]}x{image.size[1]} pixels, Mode: {image.mode}"
-        
-        # Analyse approfondie avec Gemini
-        if gemini_model:
-            gemini_analysis = analyze_with_gemini(gemma_response, image_info)
-            
-            # Combiner les résultats
-            if st.session_state.language == "fr":
-                combined_response = f"""
-## 🔍 **Analyse Initiale (Gemma)**
-{gemma_response}
+                gemini_prompt = f"""
+You are an expert in plant pathology. Analyze this plant image and provide a precise diagnosis.
 
----
+**Specific Question:** {prompt}
 
-## 🧠 **Diagnostic Précis (Gemini)**
-{gemini_analysis}
+**Instructions:**
+1. **Precise Diagnosis**: Identify the specific disease with its scientific name
+2. **Causes**: Explain probable causes (fungi, bacteria, viruses, deficiencies, etc.)
+3. **Detailed Symptoms**: List all observable symptoms in the image
+4. **Specific Treatment**: Give precise treatment recommendations
+5. **Preventive Actions**: Advice to prevent spread
+6. **Urgency**: Indicate if urgent or not
+
+**Response Format:**
+## 🔍 **Precise Diagnosis**
+[Disease name and causes]
+
+## 📋 **Detailed Symptoms**
+[List of observed symptoms]
+
+## 💊 **Recommended Treatment**
+[Specific actions to take]
+
+## 🛡️ **Preventive Actions**
+[Measures to prevent spread]
+
+## ⚠️ **Urgency Level**
+[Urgent/Moderate/Low]
+
+Respond in a structured and precise manner.
 """
             else:
-                combined_response = f"""
-## 🔍 **Initial Analysis (Gemma)**
-{gemma_response}
+                gemini_prompt = """
+You are an expert in plant pathology. Analyze this plant image and provide a precise diagnosis.
 
----
+**Instructions:**
+1. **Precise Diagnosis**: Identify the specific disease with its scientific name
+2. **Causes**: Explain probable causes (fungi, bacteria, viruses, deficiencies, etc.)
+3. **Detailed Symptoms**: List all observable symptoms in the image
+4. **Specific Treatment**: Give precise treatment recommendations
+5. **Preventive Actions**: Advice to prevent spread
+6. **Urgency**: Indicate if urgent or not
 
-## 🧠 **Precise Diagnosis (Gemini)**
-{gemini_analysis}
+**Response Format:**
+## 🔍 **Precise Diagnosis**
+[Disease name and causes]
+
+## 📋 **Detailed Symptoms**
+[List of observed symptoms]
+
+## 💊 **Recommended Treatment**
+[Specific actions to take]
+
+## 🛡️ **Preventive Actions**
+[Measures to prevent spread]
+
+## ⚠️ **Urgency Level**
+[Urgent/Moderate/Low]
+
+Respond in a structured and precise manner.
+"""
+        
+        # Analyser l'image directement avec Gemini
+        response = gemini_model.generate_content([gemini_prompt, image])
+        
+        if st.session_state.language == "fr":
+            return f"""
+## 🧠 **Diagnostic Précis (Gemini AI)**
+{response.text}
 """
         else:
-            # Fallback si Gemini n'est pas disponible
-            if st.session_state.language == "fr":
-                combined_response = f"""
-## 🔍 **Analyse de l'Image**
-{gemma_response}
-
-**Note :** Pour un diagnostic plus précis, configurez votre clé API Google Gemini.
+            return f"""
+## 🧠 **Precise Diagnosis (Gemini AI)**
+{response.text}
 """
-            else:
-                combined_response = f"""
-## 🔍 **Image Analysis**
-{gemma_response}
-
-**Note :** For more precise diagnosis, configure your Google Gemini API key.
-"""
-        
-        return combined_response
         
     except Exception as e:
         return f"❌ Erreur lors de l'analyse d'image : {e}"
@@ -483,9 +548,10 @@ with tab1:
                     height=100
                 )
                 
-                if st.button(t("analyze_button"), disabled=not st.session_state.model_loaded, type="primary"):
-                    if not st.session_state.model_loaded:
-                        st.error("❌ Veuillez d'abord charger le modèle dans les réglages")
+                if st.button(t("analyze_button"), disabled=not gemini_model, type="primary"):
+                    if not gemini_model:
+                        st.error("❌ Gemini API non configurée. Veuillez configurer votre clé API Google pour analyser les images.")
+                        st.info("💡 L'analyse d'image nécessite Gemini API. Configurez GOOGLE_API_KEY dans les variables d'environnement.")
                     else:
                         with st.spinner("🔍 Analyse en cours..."):
                             result = analyze_image_multilingual(image, question)
