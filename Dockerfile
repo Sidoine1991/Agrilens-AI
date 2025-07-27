@@ -32,5 +32,5 @@ ENV HF_HOME=/app/cache/huggingface
 # Configuration Streamlit
 WORKDIR /app
 
-# Commande de démarrage - VERSION FINALE
-CMD ["streamlit", "run", "src/streamlit_app_final.py", "--server.port=7860", "--server.address=0.0.0.0"]
+# Commande de démarrage - VERSION MULTILINGUE
+CMD ["streamlit", "run", "src/streamlit_app_multilingual.py", "--server.port=7860", "--server.address=0.0.0.0"]
