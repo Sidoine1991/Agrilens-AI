@@ -5,15 +5,15 @@ WORKDIR /app
 # Installation des dépendances système
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Copie des requirements d'abord pour le cache Docker
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
 
-# Installer torch/torchvision et opencv-python-headless AVANT le reste
+# Installer PyTorch et torchvision AVANT le reste
 RUN pip install --no-cache-dir --default-timeout=600 \
-    torch==2.0.1+cpu torchvision==0.15.2+cpu opencv-python-headless==4.11.0.86 \
+    torch>=2.1.0 torchvision>=0.16.0 \
     -f https://download.pytorch.org/whl/torch_stable.html
 
 # Installer le reste des dépendances
@@ -27,8 +27,7 @@ RUN mkdir -p /app/cache/huggingface && chmod -R 777 /app/cache/huggingface
 ENV HF_HOME=/app/cache/huggingface
 
 # Configuration Streamlit
-# Pas besoin de variables d'environnement spécifiques pour Hugging Face Spaces
 WORKDIR /app
 
-# Commande de démarrage
-CMD ["streamlit", "run", "src/streamlit_app.py", "--server.port=7860", "--server.address=0.0.0.0"]
+# Commande de démarrage - VERSION SIMPLIFIÉE
+CMD ["streamlit", "run", "src/streamlit_app_simple.py", "--server.port=7860", "--server.address=0.0.0.0"]
