@@ -328,12 +328,12 @@ Respond in a structured and precise manner.
         
         if st.session_state.language == "fr":
             return f"""
-## 🧠 **Diagnostic Précis (Gemini AI)**
+## 🧠 **Analyse par Gemini AI**
 {response.text}
 """
         else:
             return f"""
-## 🧠 **Precise Diagnosis (Gemini AI)**
+## 🧠 **Analysis by Gemini AI**
 {response.text}
 """
         
@@ -511,18 +511,58 @@ with tab1:
     st.header(t("image_analysis_title"))
     st.markdown(t("image_analysis_desc"))
     
-    try:
-        uploaded_file = st.file_uploader(
-            t("choose_image"), 
-            type=['png', 'jpg', 'jpeg'],
-            help="Formats acceptés : PNG, JPG, JPEG (max 200MB)",
-            accept_multiple_files=False,
-            key="image_uploader"
+    # Options de capture d'image
+    capture_option = st.radio(
+        "Choisissez votre méthode :" if st.session_state.language == "fr" else "Choose your method:",
+        ["📁 Upload d'image" if st.session_state.language == "fr" else "📁 Upload Image", 
+         "📷 Capture par webcam" if st.session_state.language == "fr" else "📷 Webcam Capture"],
+        horizontal=True
+    )
+    
+    uploaded_file = None
+    captured_image = None
+    
+    if capture_option == "📁 Upload d'image" or capture_option == "📁 Upload Image":
+        try:
+            uploaded_file = st.file_uploader(
+                t("choose_image"), 
+                type=['png', 'jpg', 'jpeg'],
+                help="Formats acceptés : PNG, JPG, JPEG (max 200MB)" if st.session_state.language == "fr" else "Accepted formats: PNG, JPG, JPEG (max 200MB)",
+                accept_multiple_files=False,
+                key="image_uploader"
+            )
+        except Exception as e:
+            st.error(f"❌ Erreur lors de l'upload : {e}")
+    
+    else:  # Webcam capture
+        st.markdown("**📷 Capture d'image par webcam**" if st.session_state.language == "fr" else "**📷 Webcam Image Capture**")
+        st.info("💡 Positionnez votre plante malade devant la webcam et cliquez sur 'Prendre une photo'" if st.session_state.language == "fr" else "💡 Position your diseased plant in front of the webcam and click 'Take Photo'")
+        
+        captured_image = st.camera_input(
+            "Prendre une photo de la plante" if st.session_state.language == "fr" else "Take a photo of the plant",
+            key="webcam_capture"
         )
+        
+        # Traitement de l'image (upload ou webcam)
+        image = None
+        image_source = None
         
         if uploaded_file is not None:
             try:
                 image = Image.open(uploaded_file)
+                image_source = "upload"
+            except Exception as e:
+                st.error(f"❌ Erreur lors du traitement de l'image uploadée : {e}")
+                st.info("💡 Essayez avec une image différente ou un format différent (PNG, JPG, JPEG)")
+        elif captured_image is not None:
+            try:
+                image = Image.open(captured_image)
+                image_source = "webcam"
+            except Exception as e:
+                st.error(f"❌ Erreur lors du traitement de l'image capturée : {e}")
+                st.info("💡 Essayez de reprendre la photo")
+        
+        if image is not None:
                 
                 # Redimensionner l'image si nécessaire
                 original_size = image.size
@@ -530,7 +570,10 @@ with tab1:
                 
                 col1, col2 = st.columns([1, 1])
                 with col1:
-                    st.image(image, caption="Image uploadée", use_container_width=True)
+                    if image_source == "upload":
+                        st.image(image, caption="Image uploadée" if st.session_state.language == "fr" else "Uploaded Image", use_container_width=True)
+                    else:
+                        st.image(image, caption="Image capturée par webcam" if st.session_state.language == "fr" else "Webcam Captured Image", use_container_width=True)
                 
                 with col2:
                     st.markdown("**Informations de l'image :**")
