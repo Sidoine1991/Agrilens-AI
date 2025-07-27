@@ -16,6 +16,9 @@ RUN pip install --no-cache-dir --default-timeout=600 \
     torch>=2.1.0 torchvision>=0.16.0 \
     -f https://download.pytorch.org/whl/torch_stable.html
 
+# Installer timm pour les modèles de vision
+RUN pip install --no-cache-dir timm>=0.9.0
+
 # Installer le reste des dépendances
 RUN pip install --no-cache-dir --default-timeout=600 -r requirements.txt -i https://pypi.org/simple
 
@@ -29,5 +32,5 @@ ENV HF_HOME=/app/cache/huggingface
 # Configuration Streamlit
 WORKDIR /app
 
-# Commande de démarrage - VERSION SIMPLIFIÉE
-CMD ["streamlit", "run", "src/streamlit_app_simple.py", "--server.port=7860", "--server.address=0.0.0.0"]
+# Commande de démarrage - VERSION BASIQUE
+CMD ["streamlit", "run", "src/streamlit_app_basic.py", "--server.port=7860", "--server.address=0.0.0.0"]
