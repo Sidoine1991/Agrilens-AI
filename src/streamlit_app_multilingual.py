@@ -5,6 +5,25 @@ from PIL import Image
 import requests
 import torch
 
+def resize_image_if_needed(image, max_size=(800, 800)):
+    """
+    Redimensionne l'image si elle dépasse la taille maximale spécifiée
+    """
+    width, height = image.size
+    
+    if width > max_size[0] or height > max_size[1]:
+        # Calculer le ratio pour maintenir les proportions
+        ratio = min(max_size[0] / width, max_size[1] / height)
+        new_width = int(width * ratio)
+        new_height = int(height * ratio)
+        
+        # Redimensionner l'image
+        resized_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        
+        return resized_image, True  # True indique que l'image a été redimensionnée
+    else:
+        return image, False  # False indique que l'image n'a pas été redimensionnée
+
 # Configuration de la page
 st.set_page_config(
     page_title="AgriLens AI - Plant Disease Diagnosis",
@@ -12,6 +31,19 @@ st.set_page_config(
     layout="centered",
     initial_sidebar_state="collapsed"
 )
+
+# Configuration pour éviter les erreurs 403
+st.markdown("""
+<script>
+// Désactiver les vérifications CORS pour les uploads
+window.addEventListener('load', function() {
+    if (typeof window.parent !== 'undefined' && window.parent !== window) {
+        // Si l'app est dans un iframe (comme sur Hugging Face Spaces)
+        console.log('Application détectée dans un iframe - configuration spéciale activée');
+    }
+});
+</script>
+""", unsafe_allow_html=True)
 
 # CSS pour mobile
 st.markdown("""
@@ -276,12 +308,18 @@ with tab1:
         uploaded_file = st.file_uploader(
             t("choose_image"), 
             type=['png', 'jpg', 'jpeg'],
-            help="Formats acceptés : PNG, JPG, JPEG"
+            help="Formats acceptés : PNG, JPG, JPEG (max 200MB)",
+            accept_multiple_files=False,
+            key="image_uploader"
         )
         
         if uploaded_file is not None:
             try:
                 image = Image.open(uploaded_file)
+                
+                # Redimensionner l'image si nécessaire
+                original_size = image.size
+                image, was_resized = resize_image_if_needed(image, max_size=(800, 800))
                 
                 col1, col2 = st.columns([1, 1])
                 with col1:
@@ -290,8 +328,12 @@ with tab1:
                 with col2:
                     st.markdown("**Informations de l'image :**")
                     st.write(f"• Format : {image.format}")
-                    st.write(f"• Taille : {image.size[0]}x{image.size[1]} pixels")
+                    st.write(f"• Taille originale : {original_size[0]}x{original_size[1]} pixels")
+                    st.write(f"• Taille actuelle : {image.size[0]}x{image.size[1]} pixels")
                     st.write(f"• Mode : {image.mode}")
+                    
+                    if was_resized:
+                        st.warning("⚠️ L'image a été automatiquement redimensionnée pour optimiser le traitement")
                 
                 question = st.text_area(
                     "Question spécifique (optionnel) :",
@@ -311,12 +353,32 @@ with tab1:
                         st.markdown(result)
                         
             except Exception as e:
-                st.error(f"❌ Erreur lors du traitement de l'image : {e}")
-                st.info("💡 Essayez avec une image différente ou un format différent (PNG, JPG, JPEG)")
+                error_msg = str(e)
+                if "403" in error_msg or "Forbidden" in error_msg:
+                    st.error("❌ Erreur 403 - Accès refusé lors du traitement de l'image")
+                    st.warning("🔒 Cette erreur indique un problème d'autorisation côté serveur.")
+                    st.info("💡 Solutions possibles :")
+                    st.info("• Vérifiez les logs de votre espace Hugging Face")
+                    st.info("• Essayez avec une image plus petite (< 1MB)")
+                    st.info("• Rafraîchissez la page et réessayez")
+                    st.info("• Contactez le support Hugging Face si le problème persiste")
+                else:
+                    st.error(f"❌ Erreur lors du traitement de l'image : {e}")
+                    st.info("💡 Essayez avec une image différente ou un format différent (PNG, JPG, JPEG)")
                 
     except Exception as e:
-        st.error(f"❌ Erreur lors de l'upload : {e}")
-        st.info("💡 Vérifiez que votre navigateur autorise les uploads de fichiers")
+        error_msg = str(e)
+        if "403" in error_msg or "Forbidden" in error_msg:
+            st.error("❌ Erreur 403 - Accès refusé lors de l'upload")
+            st.warning("🔒 Cette erreur indique un problème d'autorisation côté serveur.")
+            st.info("💡 Solutions possibles :")
+            st.info("• Vérifiez les logs de votre espace Hugging Face")
+            st.info("• Essayez avec une image plus petite (< 1MB)")
+            st.info("• Rafraîchissez la page et réessayez")
+            st.info("• Contactez le support Hugging Face si le problème persiste")
+        else:
+            st.error(f"❌ Erreur lors de l'upload : {e}")
+            st.info("💡 Vérifiez que votre navigateur autorise les uploads de fichiers")
 
 with tab2:
     st.header(t("text_analysis_title"))

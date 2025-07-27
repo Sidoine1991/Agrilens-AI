@@ -32,5 +32,8 @@ ENV HF_HOME=/app/cache/huggingface
 # Configuration Streamlit
 WORKDIR /app
 
-# Commande de démarrage - VERSION MULTILINGUE
-CMD ["streamlit", "run", "src/streamlit_app_multilingual.py", "--server.port=7860", "--server.address=0.0.0.0"]
+# Copier la configuration spécifique pour Hugging Face Spaces
+COPY .streamlit/config_hf.toml .streamlit/config.toml
+
+# Commande de démarrage - VERSION MULTILINGUE avec configuration optimisée
+CMD ["streamlit", "run", "src/streamlit_app_multilingual.py", "--server.port=7860", "--server.address=0.0.0.0", "--server.enableCORS=false", "--server.enableXsrfProtection=false"]

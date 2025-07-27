@@ -3,9 +3,11 @@ developmentMode = false
 
 [server]
 headless = true
-enableCORS = true
-enableXsrfProtection = true
-port = 8501
+enableCORS = false
+enableXsrfProtection = false
+port = 7860
+maxUploadSize = 200
+fileWatcherType = "none"
 
 [browser]
 gatherUsageStats = false
