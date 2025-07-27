@@ -1,39 +1,36 @@
+from huggingface_hub import hf_hub_download
 import os
-import tarfile
-import requests
 
-def download_file_from_google_drive(id, destination):
-    URL = "https://docs.google.com/uc?export=download"
-    session = requests.Session()
-    response = session.get(URL, params={'id': id}, stream=True)
-    token = None
-    for key, value in response.cookies.items():
-        if key.startswith('download_warning'):
-            token = value
-    if token:
-        params = {'id': id, 'confirm': token}
-        response = session.get(URL, params=params, stream=True)
-    CHUNK_SIZE = 32768
-    with open(destination, "wb") as f:
-        for chunk in response.iter_content(CHUNK_SIZE):
-            if chunk:
-                f.write(chunk)
+MODEL_DIR = "models/model_gemma"
+os.makedirs(MODEL_DIR, exist_ok=True)
 
-def extract_tar(tar_path, extract_path):
-    with tarfile.open(tar_path, "r:gz") as tar:
-        tar.extractall(path=extract_path)
+# Liste des fichiers à adapter selon le contenu réel de ton modèle
+dataset_repo = "Sidoineko/data_gemma"
+model_files = [
+    "chat_template.jinja",
+    "config",
+    "generation_config",
+    "model.safetensors.index",
+    "model-00001-of-00003.safetensors",
+    "model-00002-of-00003.safetensors",
+    "model-00003-of-00003.safetensors",
+    "preprocessor_config",
+    "processor_config",
+    "README.md",
+    "special_tokens_map",
+    "tokenizer",
+    "tokenizer.model",
+    "tokenizer_config",
+]
 
-MODEL_DIR = "models/gemma-3n-transformers-gemma-3n-e2b-it-v1"
-MODEL_TAR = "models/gemma-3n-transformers-gemma-3n-e2b-it-v1.tar.gz"
-GDRIVE_ID = "17WZeUKSxBHqFtfqm04MkAd7Ak6Yis-FM"  # ID du fichier .tar.gz
-
-if not os.path.isdir(MODEL_DIR):
-    os.makedirs("models", exist_ok=True)
-    if not os.path.isfile(MODEL_TAR):
-        print("Téléchargement du modèle depuis Google Drive...")
-        download_file_from_google_drive(GDRIVE_ID, MODEL_TAR)
-    print("Décompression du modèle...")
-    extract_tar(MODEL_TAR, "models/")
-    print("Modèle prêt dans:", MODEL_DIR)
-else:
-    print("Modèle déjà présent dans:", MODEL_DIR) 
+for fname in model_files:
+    print(f"Téléchargement de {fname} depuis Hugging Face Datasets...")
+    hf_hub_download(
+        repo_id=dataset_repo,
+        repo_type="dataset",
+        filename=f"model_gemma/{fname}",
+        local_dir=MODEL_DIR,
+        local_dir_use_symlinks=False
+    )
+print(f"Modèle prêt dans : {MODEL_DIR}")
+# Si besoin, ajoute une vérification de présence de tous les fichiers 
