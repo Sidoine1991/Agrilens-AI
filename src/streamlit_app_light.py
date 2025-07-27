@@ -60,18 +60,16 @@ def load_model():
         # Utiliser un modèle plus léger (Gemma 2B au lieu de 3n)
         model_name = "google/gemma-2b-it"
         
-        # Charger le tokenizer et le modèle avec timeout
+        # Charger le tokenizer et le modèle
         tokenizer = AutoTokenizer.from_pretrained(
             model_name,
-            trust_remote_code=True,
-            timeout=300  # 5 minutes de timeout
+            trust_remote_code=True
         )
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
             device_map="auto",
             torch_dtype=torch.float32,
-            trust_remote_code=True,
-            timeout=300  # 5 minutes de timeout
+            trust_remote_code=True
         )
         
         st.success("Modèle Gemma 2B chargé avec succès !")
