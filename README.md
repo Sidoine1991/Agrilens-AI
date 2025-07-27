@@ -1,12 +1,13 @@
 ---
-title: AgriLens AI
+title: AgriLens AI - Plant Disease Diagnosis
 emoji: 🌱
 colorFrom: green
 colorTo: yellow
 sdk: docker
 sdk_version: "1.0.0"
-app_file: src/streamlit_app_local_models.py
+app_file: app.py
 pinned: false
+license: mit
 ---
 
 # 🌱 AgriLens AI - Plant Disease Diagnosis
@@ -28,12 +29,13 @@ AgriLens AI is an innovative **plant disease diagnosis application** using artif
 - **📱 Mobile Responsive** : Optimized for smartphones and tablets
 - **🔧 Practical Recommendations** : Concrete actions to take
 - **⚡ Real-time Processing** : Fast AI-powered analysis
+- **🧠 Advanced AI** : Gemini API integration for precise diagnosis
 
 ## 🚀 Live Demo
 
 ### 🌐 Online Version
 - **Hugging Face Spaces** : [AgriLens AI Demo](https://huggingface.co/spaces/Sidoineko/AgriLensAI)
-- **Status** : ✅ Fully functional with multilingual support
+- **Status** : ✅ Fully functional with multilingual support and Gemini AI
 
 ### 📱 Mobile Access
 - Open the demo link on your smartphone
@@ -46,6 +48,7 @@ AgriLens AI is an innovative **plant disease diagnosis application** using artif
 - Python 3.11+
 - Modern web browser
 - Internet connection (for model loading)
+- Google API Key (optional, for enhanced diagnosis)
 
 ### Local Installation
 
@@ -60,6 +63,9 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
+
+# Set up environment variables (optional)
+echo "GOOGLE_API_KEY=your_api_key_here" > .env
 
 # Run the application
 streamlit run src/streamlit_app_multilingual.py
@@ -93,118 +99,83 @@ docker run -p 8501:7860 agrilens-ai
 ### Core Technologies
 - **Framework** : [Streamlit](https://streamlit.io/) - Web application framework
 - **AI Model** : [Gemma 2B](https://huggingface.co/google/gemma-2b-it) - Google's lightweight language model
+- **Advanced AI** : [Gemini API](https://ai.google.dev/) - Google's advanced AI for precise diagnosis
 - **Deployment** : [Hugging Face Spaces](https://huggingface.co/spaces) - Cloud hosting platform
 - **Languages** : Python, HTML, CSS
 
 ### Key Libraries
 - **Transformers** : Hugging Face's AI model library
+- **Google Generative AI** : Gemini API integration
 - **PyTorch** : Deep learning framework
 - **Pillow** : Image processing
 - **Streamlit** : Web interface
 
-## 🎨 Features in Detail
+## 🎯 Performance Metrics
 
-### 📸 Image Analysis
-- **Supported Formats** : PNG, JPG, JPEG
-- **Quality Optimization** : Automatic image processing
-- **Smart Cropping** : Focus on diseased areas
-- **Batch Processing** : Multiple images support
+### Accuracy
+- **Image Recognition** : High accuracy in disease identification
+- **Diagnostic Precision** : Enhanced with Gemini AI integration
+- **Response Time** : < 30 seconds for complete analysis
 
-### 💬 Text Analysis
-- **Symptom Description** : Natural language input
-- **Context Awareness** : Plant type and conditions
-- **Progressive Analysis** : Step-by-step diagnosis
-- **Preventive Advice** : Long-term care recommendations
-
-### 🌐 Multilingual Interface
-- **French** : Interface complète en français
-- **English** : Complete English interface
-- **Dynamic Switching** : Real-time language change
-- **Localized Content** : Culturally adapted responses
-
-## 📊 Performance
-
-### Model Performance
-- **Loading Time** : ~30 seconds (first time)
-- **Analysis Speed** : 2-5 seconds per image
-- **Accuracy** : High precision for common diseases
-- **Memory Usage** : Optimized for cloud deployment
-
-### System Requirements
-- **RAM** : 4GB minimum (8GB recommended)
-- **Storage** : 2GB for model and dependencies
-- **Network** : Stable internet for model loading
+### Supported Plant Types
+- **Vegetables** : Tomatoes, peppers, cucumbers, lettuce
+- **Fruits** : Apples, grapes, citrus
+- **Grains** : Corn, wheat, rice
+- **Ornamentals** : Roses, flowers, shrubs
 
 ## 👨‍💻 Creator Information
 
 ### **Sidoine Kolaolé YEBADOKPO**
-- 📍 **Location** : Bohicon, Benin Republic
-- 📞 **Phone** : +229 01 96 91 13 46
-- 📧 **Email** : syebadokpo@gmail.com
-- 🔗 **LinkedIn** : [linkedin.com/in/sidoineko](https://linkedin.com/in/sidoineko)
-- 📁 **Portfolio** : [Hugging Face Portfolio: Sidoineko/portfolio](https://huggingface.co/Sidoineko/portfolio)
+- **Location** : Bohicon, Republic of Benin
+- **Phone** : +229 01 96 91 13 46
+- **Email** : syebadokpo@gmail.com
+- **LinkedIn** : [linkedin.com/in/sidoineko](https://linkedin.com/in/sidoineko)
+- **Hugging Face Portfolio** : [Sidoineko/portfolio](https://huggingface.co/Sidoineko/portfolio)
 
 ### 🏆 Competition Version
-This first version of AgriLens AI was specifically developed to participate in the **Kaggle competition**. It represents our first public production and demonstrates our expertise in AI applied to agriculture.
+This first version of AgriLens AI was specifically developed to participate in the **Kaggle competition**. It represents our initial public production and demonstrates our expertise in AI applied to agriculture.
 
-## 🔧 Configuration
+## ⚙️ Configuration
 
 ### Environment Variables
 ```bash
-# Optional: Hugging Face token for private models
-HF_TOKEN=your_token_here
+# Required for enhanced diagnosis
+GOOGLE_API_KEY=your_google_api_key_here
 
-# Optional: Custom model path
-MODEL_PATH=/path/to/local/model
+# Optional Hugging Face token
+HF_TOKEN=your_huggingface_token_here
 ```
 
-### Streamlit Configuration
-```toml
-# .streamlit/config.toml
-[server]
-port = 8501
-headless = true
-enableCORS = true
-enableXsrfProtection = true
+### Model Configuration
+- **Primary Model** : Gemma 2B (Google)
+- **Enhanced AI** : Gemini 1.5 Flash (Google)
+- **Processing** : CPU optimized for deployment
 
-[theme]
-primaryColor = "#00FF00"
-backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F0F2F6"
-textColor = "#262730"
-```
+## 🗺️ Roadmap
 
-## 📈 Roadmap
+### Version 1.0 (Current)
+- ✅ Basic image analysis
+- ✅ Text-based diagnosis
+- ✅ Multilingual support
+- ✅ Mobile responsiveness
+- ✅ Gemini AI integration
 
-### Version 1.1 (Planned)
-- [ ] Additional language support (Spanish, Portuguese)
-- [ ] Offline model capability
-- [ ] Batch image processing
-- [ ] Export results to PDF
-
-### Version 1.2 (Future)
-- [ ] Mobile app development
-- [ ] Advanced disease database
-- [ ] Treatment recommendation engine
-- [ ] Community features
+### Future Versions
+- 🔄 Real-time video analysis
+- 🔄 Offline mode support
+- 🔄 More plant species
+- 🔄 Community features
+- 🔄 Expert consultation system
 
 ## 🤝 Contributing
 
 We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
 
-### Development Setup
-```bash
-# Fork and clone the repository
-git clone https://github.com/your-username/AgriLensAI.git
-
-# Install development dependencies
-pip install -r requirements-dev.txt
-
-# Run tests
-pytest tests/
-
-# Submit a pull request
-```
+### How to Contribute
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
 
 ## 📄 License
 
@@ -212,28 +183,15 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## ⚠️ Disclaimer
 
-**Important Warning** : The results provided by AgriLens AI are for informational purposes only. For professional diagnosis, consult a qualified expert. The application is not a substitute for professional agricultural advice.
+This application is designed to assist farmers and gardeners in identifying plant diseases. While we strive for accuracy, the diagnosis should not replace professional agricultural advice. Always consult with local agricultural experts for critical decisions.
 
-## 📞 Support
+## 🙏 Acknowledgments
 
-### Getting Help
-1. **Documentation** : Check the user manuals above
-2. **Application** : Use the "About" tab in the app
-3. **Direct Contact** : Email syebadokpo@gmail.com
-4. **Community** : Join agricultural forums
-
-### Bug Reports
-Please report bugs and issues on our [GitHub Issues](https://github.com/Sidoineko/AgriLensAI/issues) page.
-
-## 🎉 Acknowledgments
-
-- **Google** : For the Gemma 2B model
-- **Hugging Face** : For the deployment platform
+- **Google** : For providing Gemma and Gemini AI models
+- **Hugging Face** : For the deployment platform and transformers library
 - **Streamlit** : For the web framework
-- **Kaggle** : For hosting the competition
+- **Kaggle** : For hosting the competition that inspired this project
 
 ---
 
-**Made with ❤️ by Sidoine Kolaolé YEBADOKPO**
-
-*AgriLens AI - Intelligent plant diagnosis with AI* 🌱
+*AgriLens AI - Intelligent plant disease diagnosis with AI* 🌱

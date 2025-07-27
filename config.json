@@ -1,0 +1,11 @@
+{
+  "title": "AgriLens AI - Plant Disease Diagnosis",
+  "emoji": "🌱",
+  "colorFrom": "green",
+  "colorTo": "yellow",
+  "sdk": "docker",
+  "sdk_version": "1.0.0",
+  "app_file": "app.py",
+  "pinned": false,
+  "license": "mit"
+} 
