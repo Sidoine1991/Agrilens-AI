@@ -4,6 +4,7 @@ import io
 from PIL import Image
 import requests
 import torch
+import google.generativeai as genai
 
 def resize_image_if_needed(image, max_size=(800, 800)):
     """
@@ -81,6 +82,14 @@ if 'model_status' not in st.session_state:
     st.session_state.model_status = "Non chargé"
 if 'language' not in st.session_state:
     st.session_state.language = "fr"
+
+# Configuration Gemini API
+GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+if GOOGLE_API_KEY:
+    genai.configure(api_key=GOOGLE_API_KEY)
+    gemini_model = genai.GenerativeModel('gemini-1.5-flash')
+else:
+    gemini_model = None
 
 # Dictionnaires de traductions
 translations = {
@@ -180,30 +189,31 @@ def load_model():
         return None, None
 
 def analyze_image_multilingual(image, prompt=""):
-    """Analyse une image avec le modèle Gemma 2B"""
+    """Analyse une image avec le modèle Gemma 2B + Gemini pour diagnostic précis"""
     if not st.session_state.model_loaded:
         return "❌ Modèle non chargé. Veuillez le charger dans les réglages."
     
     try:
         model, tokenizer = st.session_state.model
         
+        # Première analyse avec Gemma
         if st.session_state.language == "fr":
             if prompt:
-                text_prompt = f"<start_of_turn>user\nAnalyse cette image de plante : {prompt}<end_of_turn>\n<start_of_turn>model\n"
+                text_prompt = f"<start_of_turn>user\nAnalyse cette image de plante et décris en détail ce que tu vois : {prompt}<end_of_turn>\n<start_of_turn>model\n"
             else:
-                text_prompt = "<start_of_turn>user\nAnalyse cette image de plante et décris les maladies présentes avec des recommandations pratiques.<end_of_turn>\n<start_of_turn>model\n"
+                text_prompt = "<start_of_turn>user\nAnalyse cette image de plante et décris en détail les symptômes visibles, les couleurs, les taches, et tout ce que tu observes.<end_of_turn>\n<start_of_turn>model\n"
         else:
             if prompt:
-                text_prompt = f"<start_of_turn>user\nAnalyze this plant image: {prompt}<end_of_turn>\n<start_of_turn>model\n"
+                text_prompt = f"<start_of_turn>user\nAnalyze this plant image and describe in detail what you see: {prompt}<end_of_turn>\n<start_of_turn>model\n"
             else:
-                text_prompt = "<start_of_turn>user\nAnalyze this plant image and describe the diseases present with practical recommendations.<end_of_turn>\n<start_of_turn>model\n"
+                text_prompt = "<start_of_turn>user\nAnalyze this plant image and describe in detail the visible symptoms, colors, spots, and everything you observe.<end_of_turn>\n<start_of_turn>model\n"
         
         inputs = tokenizer(text_prompt, return_tensors="pt").to(model.device)
         
         with torch.inference_mode():
             generation = model.generate(
                 **inputs,
-                max_new_tokens=400,
+                max_new_tokens=300,
                 do_sample=True,
                 temperature=0.7,
                 top_p=0.9,
@@ -212,17 +222,55 @@ def analyze_image_multilingual(image, prompt=""):
             )
             generation = generation[0][inputs["input_ids"].shape[-1]:]
         
-        response = tokenizer.decode(generation, skip_special_tokens=True)
-        response = response.replace("<end_of_turn>", "").strip()
+        gemma_response = tokenizer.decode(generation, skip_special_tokens=True)
+        gemma_response = gemma_response.replace("<end_of_turn>", "").strip()
         
-        if st.session_state.language == "fr":
-            if "recommandation" not in response.lower() and "action" not in response.lower():
-                response += "\n\n**Recommandations ou actions urgentes :**\n• Isolez la plante malade si possible\n• Appliquez un traitement adapté\n• Surveillez les autres plantes\n• Consultez un expert si nécessaire"
+        # Informations sur l'image pour Gemini
+        image_info = f"Format: {image.format}, Taille: {image.size[0]}x{image.size[1]} pixels, Mode: {image.mode}"
+        
+        # Analyse approfondie avec Gemini
+        if gemini_model:
+            gemini_analysis = analyze_with_gemini(gemma_response, image_info)
+            
+            # Combiner les résultats
+            if st.session_state.language == "fr":
+                combined_response = f"""
+## 🔍 **Analyse Initiale (Gemma)**
+{gemma_response}
+
+---
+
+## 🧠 **Diagnostic Précis (Gemini)**
+{gemini_analysis}
+"""
+            else:
+                combined_response = f"""
+## 🔍 **Initial Analysis (Gemma)**
+{gemma_response}
+
+---
+
+## 🧠 **Precise Diagnosis (Gemini)**
+{gemini_analysis}
+"""
         else:
-            if "recommendation" not in response.lower() and "action" not in response.lower():
-                response += "\n\n**Recommendations or urgent actions:**\n• Isolate the diseased plant if possible\n• Apply appropriate treatment\n• Monitor other plants\n• Consult an expert if necessary"
+            # Fallback si Gemini n'est pas disponible
+            if st.session_state.language == "fr":
+                combined_response = f"""
+## 🔍 **Analyse de l'Image**
+{gemma_response}
+
+**Note :** Pour un diagnostic plus précis, configurez votre clé API Google Gemini.
+"""
+            else:
+                combined_response = f"""
+## 🔍 **Image Analysis**
+{gemma_response}
+
+**Note :** For more precise diagnosis, configure your Google Gemini API key.
+"""
         
-        return response
+        return combined_response
         
     except Exception as e:
         return f"❌ Erreur lors de l'analyse d'image : {e}"
@@ -260,6 +308,93 @@ def analyze_text_multilingual(text):
     except Exception as e:
         return f"❌ Erreur lors de l'analyse de texte : {e}"
 
+def analyze_with_gemini(gemma_description, image_info=""):
+    """
+    Analyse approfondie avec Gemini API pour diagnostic précis
+    """
+    if not gemini_model:
+        return "❌ Gemini API non configurée. Vérifiez votre clé API Google."
+    
+    try:
+        if st.session_state.language == "fr":
+            prompt = f"""
+Tu es un expert en pathologie végétale et en agriculture. Analyse cette description d'une plante malade et fournis un diagnostic précis.
+
+**Description de Gemma :**
+{gemma_description}
+
+**Informations supplémentaires :**
+{image_info}
+
+**Instructions :**
+1. **Diagnostic précis** : Identifie la maladie spécifique avec son nom scientifique
+2. **Causes** : Explique les causes probables (champignons, bactéries, virus, carences, etc.)
+3. **Symptômes détaillés** : Liste tous les symptômes observables
+4. **Traitement spécifique** : Donne des recommandations de traitement précises
+5. **Actions préventives** : Conseils pour éviter la propagation
+6. **Urgence** : Indique si c'est urgent ou non
+
+**Format de réponse :**
+## 🔍 **Diagnostic Précis**
+[Nom de la maladie et causes]
+
+## 📋 **Symptômes Détaillés**
+[Liste des symptômes]
+
+## 💊 **Traitement Recommandé**
+[Actions spécifiques à entreprendre]
+
+## 🛡️ **Actions Préventives**
+[Mesures pour éviter la propagation]
+
+## ⚠️ **Niveau d'Urgence**
+[Urgent/Modéré/Faible]
+
+Réponds de manière structurée et précise.
+"""
+        else:
+            prompt = f"""
+You are an expert in plant pathology and agriculture. Analyze this description of a diseased plant and provide a precise diagnosis.
+
+**Gemma's Description:**
+{gemma_description}
+
+**Additional Information:**
+{image_info}
+
+**Instructions:**
+1. **Precise Diagnosis**: Identify the specific disease with its scientific name
+2. **Causes**: Explain probable causes (fungi, bacteria, viruses, deficiencies, etc.)
+3. **Detailed Symptoms**: List all observable symptoms
+4. **Specific Treatment**: Give precise treatment recommendations
+5. **Preventive Actions**: Advice to prevent spread
+6. **Urgency**: Indicate if urgent or not
+
+**Response Format:**
+## 🔍 **Precise Diagnosis**
+[Disease name and causes]
+
+## 📋 **Detailed Symptoms**
+[List of symptoms]
+
+## 💊 **Recommended Treatment**
+[Specific actions to take]
+
+## 🛡️ **Preventive Actions**
+[Measures to prevent spread]
+
+## ⚠️ **Urgency Level**
+[Urgent/Moderate/Low]
+
+Respond in a structured and precise manner.
+"""
+        
+        response = gemini_model.generate_content(prompt)
+        return response.text
+        
+    except Exception as e:
+        return f"❌ Erreur lors de l'analyse Gemini : {e}"
+
 # Interface principale
 st.title(t("title"))
 st.markdown(t("subtitle"))
@@ -296,6 +431,13 @@ with st.sidebar:
                 st.error("Échec du chargement du modèle" if st.session_state.language == "fr" else "Model loading failed")
     
     st.info(f"{t('model_status')} {st.session_state.model_status}")
+    
+    # Statut Gemini API
+    if gemini_model:
+        st.success("✅ Gemini API configurée")
+    else:
+        st.warning("⚠️ Gemini API non configurée")
+        st.info("Ajoutez GOOGLE_API_KEY dans les variables d'environnement pour un diagnostic précis")
 
 # Onglets principaux
 tab1, tab2, tab3, tab4 = st.tabs(t("tabs"))
