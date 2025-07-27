@@ -162,43 +162,49 @@ def t(key):
 
 @st.cache_resource(show_spinner=False)
 def load_model():
-    """Charge un modèle plus léger depuis Hugging Face"""
+    """Charge le modèle Gemma 3n E4B IT depuis Hugging Face"""
     try:
-        st.info("Chargement du modèle Gemma 2B depuis Hugging Face...")
+        st.info("Chargement du modèle Gemma 3n E4B IT depuis Hugging Face...")
         
-        from transformers import AutoTokenizer, AutoModelForCausalLM
+        from transformers import AutoProcessor, Gemma3nForConditionalGeneration
         
-        model_name = "google/gemma-2b-it"
+        model_name = "google/gemma-3n-e4b-it"
         
-        tokenizer = AutoTokenizer.from_pretrained(
+        processor = AutoProcessor.from_pretrained(
             model_name,
             trust_remote_code=True
         )
-        model = AutoModelForCausalLM.from_pretrained(
+        model = Gemma3nForConditionalGeneration.from_pretrained(
             model_name,
             device_map="auto",
             torch_dtype=torch.float32,
             trust_remote_code=True
         )
         
-        st.success("Modèle Gemma 2B chargé avec succès !")
-        return model, tokenizer
+        st.success("Modèle Gemma 3n E4B IT chargé avec succès !")
+        return model, processor
         
     except Exception as e:
         st.error(f"Erreur lors du chargement du modèle : {e}")
         return None, None
 
 def analyze_image_multilingual(image, prompt=""):
-    """Analyse une image avec Gemini pour diagnostic précis"""
+    """Analyse une image avec Gemma 3n E4B IT pour diagnostic précis"""
     try:
-        # Vérifier si Gemini est disponible
-        if not gemini_model:
-            return "❌ Gemini API non configurée. Veuillez configurer votre clé API Google pour analyser les images."
+        # Vérifier si le modèle Gemma est chargé
+        if not st.session_state.model_loaded:
+            return "❌ Modèle Gemma non chargé. Veuillez d'abord charger le modèle dans les réglages."
         
-        # Préparer le prompt pour Gemini
+        # Récupérer le modèle et le processeur
+        model, processor = st.session_state.model, st.session_state.processor
+        
+        if not model or not processor:
+            return "❌ Modèle Gemma non disponible. Veuillez recharger le modèle."
+        
+        # Préparer le prompt pour Gemma 3n
         if st.session_state.language == "fr":
             if prompt:
-                gemini_prompt = f"""
+                gemma_prompt = f"""
 Tu es un expert en pathologie végétale. Analyse cette image de plante et fournis un diagnostic précis.
 
 **Question spécifique :** {prompt}
@@ -230,7 +236,7 @@ Tu es un expert en pathologie végétale. Analyse cette image de plante et fourn
 Réponds de manière structurée et précise.
 """
             else:
-                gemini_prompt = """
+                gemma_prompt = """
 Tu es un expert en pathologie végétale. Analyse cette image de plante et fournis un diagnostic précis.
 
 **Instructions :**
@@ -261,7 +267,7 @@ Réponds de manière structurée et précise.
 """
         else:
             if prompt:
-                gemini_prompt = f"""
+                gemma_prompt = f"""
 You are an expert in plant pathology. Analyze this plant image and provide a precise diagnosis.
 
 **Specific Question:** {prompt}
@@ -293,7 +299,7 @@ You are an expert in plant pathology. Analyze this plant image and provide a pre
 Respond in a structured and precise manner.
 """
             else:
-                gemini_prompt = """
+                gemma_prompt = """
 You are an expert in plant pathology. Analyze this plant image and provide a precise diagnosis.
 
 **Instructions:**
@@ -323,18 +329,56 @@ You are an expert in plant pathology. Analyze this plant image and provide a pre
 Respond in a structured and precise manner.
 """
         
-        # Analyser l'image directement avec Gemini
-        response = gemini_model.generate_content([gemini_prompt, image])
+        # Préparer les messages pour Gemma 3n
+        messages = [
+            {
+                "role": "system",
+                "content": [{"type": "text", "text": "You are an expert in plant pathology."}]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image", "image": image},
+                    {"type": "text", "text": gemma_prompt}
+                ]
+            }
+        ]
+        
+        # Traiter les entrées avec le processeur
+        inputs = processor.apply_chat_template(
+            messages,
+            add_generation_prompt=True,
+            tokenize=True,
+            return_dict=True,
+            return_tensors="pt",
+        ).to(model.device)
+        
+        input_len = inputs["input_ids"].shape[-1]
+        
+        # Générer la réponse
+        with torch.inference_mode():
+            generation = model.generate(
+                **inputs, 
+                max_new_tokens=500, 
+                do_sample=True,
+                temperature=0.7,
+                top_p=0.9,
+                repetition_penalty=1.1
+            )
+            generation = generation[0][input_len:]
+        
+        # Décoder la réponse
+        response_text = processor.decode(generation, skip_special_tokens=True)
         
         if st.session_state.language == "fr":
             return f"""
-## 🧠 **Analyse par Gemini AI**
-{response.text}
+## 🧠 **Analyse par Gemma 3n E4B IT**
+{response_text}
 """
         else:
             return f"""
-## 🧠 **Analysis by Gemini AI**
-{response.text}
+## 🧠 **Analysis by Gemma 3n E4B IT**
+{response_text}
 """
         
     except Exception as e:
@@ -484,12 +528,13 @@ with st.sidebar:
     # Chargement du modèle
     if st.button(t("load_model"), type="primary"):
         with st.spinner("Chargement du modèle..." if st.session_state.language == "fr" else "Loading model..."):
-            model, tokenizer = load_model()
-            if model and tokenizer:
-                st.session_state.model = (model, tokenizer)
+            model, processor = load_model()
+            if model and processor:
+                st.session_state.model = model
+                st.session_state.processor = processor
                 st.session_state.model_loaded = True
                 st.session_state.model_status = t("loaded")
-                st.success("Modèle chargé avec succès !" if st.session_state.language == "fr" else "Model loaded successfully!")
+                st.success("Modèle Gemma 3n E4B IT chargé avec succès !" if st.session_state.language == "fr" else "Gemma 3n E4B IT model loaded successfully!")
             else:
                 st.session_state.model_loaded = False
                 st.session_state.model_status = t("error")
@@ -497,12 +542,13 @@ with st.sidebar:
     
     st.info(f"{t('model_status')} {st.session_state.model_status}")
     
-    # Statut Gemini API
-    if gemini_model:
-        st.success("✅ Gemini API configurée")
+    # Statut du modèle Gemma 3n E4B IT
+    if st.session_state.model_loaded:
+        st.success("✅ Modèle Gemma 3n E4B IT chargé")
+        st.info("Le modèle est prêt pour l'analyse d'images et de texte")
     else:
-        st.warning("⚠️ Gemini API non configurée")
-        st.info("Ajoutez GOOGLE_API_KEY dans les variables d'environnement pour un diagnostic précis")
+        st.warning("⚠️ Modèle Gemma 3n E4B IT non chargé")
+        st.info("Cliquez sur 'Charger le modèle' pour activer l'analyse")
 
 # Onglets principaux
 tab1, tab2, tab3, tab4 = st.tabs(t("tabs"))
@@ -591,10 +637,10 @@ with tab1:
                     height=100
                 )
                 
-                if st.button(t("analyze_button"), disabled=not gemini_model, type="primary"):
-                    if not gemini_model:
-                        st.error("❌ Gemini API non configurée. Veuillez configurer votre clé API Google pour analyser les images.")
-                        st.info("💡 L'analyse d'image nécessite Gemini API. Configurez GOOGLE_API_KEY dans les variables d'environnement.")
+                if st.button(t("analyze_button"), disabled=not st.session_state.model_loaded, type="primary"):
+                    if not st.session_state.model_loaded:
+                        st.error("❌ Modèle Gemma non chargé. Veuillez d'abord charger le modèle dans les réglages.")
+                        st.info("💡 L'analyse d'image nécessite le modèle Gemma 3n E4B IT. Chargez-le dans les réglages.")
                     else:
                         with st.spinner("🔍 Analyse en cours..."):
                             result = analyze_image_multilingual(image, question)
