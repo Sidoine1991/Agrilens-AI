@@ -224,37 +224,53 @@ if 'language' not in st.session_state:
 # === AJOUT : Chargement automatique du modèle local au démarrage ===
 is_local = os.path.exists("models/gemma-3n-transformers-gemma-3n-e2b-it-v1")
 if is_local and not st.session_state.model_loaded:
-    st.info("🔄 Chargement automatique du modèle local : models/gemma-3n-transformers-gemma-3n-e2b-it-v1 ...")
-    try:
-        from transformers import AutoProcessor, Gemma3nForConditionalGeneration
-        model_path = "models/gemma-3n-transformers-gemma-3n-e2b-it-v1"
-        
-        # Nettoyer la mémoire avant le chargement
-        gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-        
-        # Charger le processeur avec la configuration locale
-        processor = AutoProcessor.from_pretrained(model_path, trust_remote_code=True)
-        
-        # Charger le modèle avec la configuration locale (ultra-conservateur)
-        model = Gemma3nForConditionalGeneration.from_pretrained(
-            model_path,
-            torch_dtype=torch.float32,
-            trust_remote_code=True,
-            low_cpu_mem_usage=True
-        )
-        
-        st.session_state.model = model
-        st.session_state.processor = processor
-        st.session_state.model_loaded = True
-        st.session_state.model_status = "Chargé automatiquement (local)"
-        st.session_state.model_load_time = time.time()
-        st.success("✅ Modèle local chargé automatiquement au démarrage !")
-    except Exception as e:
-        st.session_state.model_loaded = False
-        st.session_state.model_status = "Erreur chargement automatique"
-        st.error(f"❌ Erreur lors du chargement automatique du modèle local : {e}")
+                st.info("🔄 Chargement automatique du modèle local : models/gemma-3n-transformers-gemma-3n-e2b-it-v1 ...")
+                try:
+                    from transformers import AutoProcessor, Gemma3nForConditionalGeneration
+                    model_path = "models/gemma-3n-transformers-gemma-3n-e2b-it-v1"
+                    
+                    # Nettoyer la mémoire avant le chargement
+                    gc.collect()
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                    
+                    # Afficher la RAM disponible avant chargement
+                    afficher_ram_disponible("AVANT chargement automatique")
+                    
+                    # Charger le processeur avec la configuration locale
+                    processor = AutoProcessor.from_pretrained(model_path, trust_remote_code=True)
+                    
+                    # Charger le modèle avec la configuration locale (ultra-agressive)
+                    # Utiliser bfloat16 comme spécifié dans config.json et forcer CPU
+                    model = Gemma3nForConditionalGeneration.from_pretrained(
+                        model_path,
+                        torch_dtype=torch.bfloat16,  # Utiliser bfloat16 comme dans config.json
+                        trust_remote_code=True,
+                        low_cpu_mem_usage=True,
+                        device_map=None,  # Forcer CPU
+                        max_memory=None,  # Pas de limite de mémoire
+                        offload_folder=None,  # Pas d'offload
+                        offload_state_dict=False,  # Pas d'offload
+                        load_in_4bit=False,  # Pas de quantification
+                        load_in_8bit=False,  # Pas de quantification
+                        attn_implementation="eager"  # Implémentation CPU
+                    )
+                    
+                    st.session_state.model = model
+                    st.session_state.processor = processor
+                    st.session_state.model_loaded = True
+                    st.session_state.model_status = "Chargé automatiquement (local)"
+                    st.session_state.model_load_time = time.time()
+                    
+                    # Afficher la RAM disponible après chargement
+                    afficher_ram_disponible("APRÈS chargement automatique")
+                    
+                    st.success("✅ Modèle local chargé automatiquement au démarrage !")
+                except Exception as e:
+                    st.session_state.model_loaded = False
+                    st.session_state.model_status = "Erreur chargement automatique"
+                    st.error(f"❌ Erreur lors du chargement automatique du modèle local : {e}")
+                    st.write(f"🔍 DEBUG: Exception détaillée: {str(e)}")
 elif not is_local and not st.session_state.model_loaded:
     st.info("🔄 Chargement direct du modèle Hugging Face : google/gemma-3n-E4B-it ...")
     try:
@@ -389,7 +405,7 @@ def load_model():
                 afficher_ram_disponible("avant chargement")
                 model = Gemma3nForConditionalGeneration.from_pretrained(
                     model_path,
-                    torch_dtype=torch.float32,
+                    torch_dtype=torch.bfloat16,  # Utiliser bfloat16 comme dans config.json
                     trust_remote_code=True,
                     low_cpu_mem_usage=True
                 )
@@ -427,7 +443,7 @@ def load_model():
                 model = Gemma3nForConditionalGeneration.from_pretrained(
                     model_path,
                     device_map="cpu",
-                    torch_dtype=torch.float32,
+                    torch_dtype=torch.bfloat16,  # Utiliser bfloat16 comme dans config.json
                     trust_remote_code=True,
                     low_cpu_mem_usage=True
                 )
