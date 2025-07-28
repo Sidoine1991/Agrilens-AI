@@ -123,93 +123,81 @@ def t(key):
     return translations[st.session_state.language].get(key, key)
 
 def load_model():
-    """Charge le modèle avec gestion d'erreurs améliorée"""
+    """Charge le modèle avec gestion d'erreurs améliorée et priorité au cache local"""
     try:
         from transformers import AutoProcessor, Gemma3nForConditionalGeneration
         
-        # Limiter les tentatives de chargement
         if st.session_state.load_attempt_count >= 3:
             st.error("🔄 Trop de tentatives de chargement. Redémarrez l'application.")
             return None, None
-        
         st.session_state.load_attempt_count += 1
-        
-        # Diagnostic
         st.info("🔍 Diagnostic de l'environnement...")
         issues = diagnose_loading_issues()
         if issues:
             with st.expander("📊 Diagnostic système", expanded=False):
                 for issue in issues:
                     st.write(issue)
-        
-        # Nettoyer la mémoire
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-        
-        # Détecter l'environnement
         is_local = os.path.exists("models/gemma-3n-transformers-gemma-3n-e2b-it-v1")
-        
         if is_local:
-            # Mode LOCAL
             st.info("Chargement du modèle depuis le dossier local...")
             model_path = "models/gemma-3n-transformers-gemma-3n-e2b-it-v1"
-            
             processor = AutoProcessor.from_pretrained(
                 model_path,
                 trust_remote_code=True
             )
-            
             model = Gemma3nForConditionalGeneration.from_pretrained(
                 model_path,
                 torch_dtype=torch.bfloat16,
                 trust_remote_code=True,
                 low_cpu_mem_usage=True
             )
-            
             st.success("✅ Modèle chargé avec succès (local)")
-            
         else:
-            # Mode HUGGING FACE avec timeout
-            st.info("Chargement du modèle depuis Hugging Face...")
             model_id = "google/gemma-3n-E4B-it"
-            
-            # Charger le processeur avec timeout
+            # Essayer d'abord en local_files_only=True
             try:
+                st.info("🔄 Chargement direct du modèle Hugging Face (cache local uniquement)...")
                 processor = AutoProcessor.from_pretrained(
                     model_id,
                     trust_remote_code=True,
-                    timeout=60
+                    local_files_only=True
                 )
-                st.success("✅ Processeur téléchargé")
-            except Exception as e:
-                st.error(f"❌ Erreur processeur: {e}")
-                return None, None
-            
-            # Charger le modèle avec timeout
-            try:
                 model = Gemma3nForConditionalGeneration.from_pretrained(
                     model_id,
                     torch_dtype=torch.bfloat16,
                     trust_remote_code=True,
                     low_cpu_mem_usage=True,
-                    timeout=120
+                    local_files_only=True
                 )
-                st.success("✅ Modèle téléchargé")
+                st.success("✅ Modèle chargé depuis le cache Hugging Face !")
             except Exception as e:
-                st.error(f"❌ Erreur modèle: {e}")
-                return None, None
-        
-        # Stocker dans session_state
+                st.warning(f"⚠️ Modèle non trouvé en cache local : {e}")
+                st.info("🔄 Téléchargement du modèle Hugging Face (en ligne)...")
+                try:
+                    processor = AutoProcessor.from_pretrained(
+                        model_id,
+                        trust_remote_code=True
+                    )
+                    model = Gemma3nForConditionalGeneration.from_pretrained(
+                        model_id,
+                        torch_dtype=torch.bfloat16,
+                        trust_remote_code=True,
+                        low_cpu_mem_usage=True
+                    )
+                    st.success("✅ Modèle téléchargé depuis Hugging Face !")
+                except Exception as e2:
+                    st.error(f"❌ Erreur modèle Hugging Face : {e2}")
+                    return None, None
         st.session_state.model = model
         st.session_state.processor = processor
         st.session_state.model_loaded = True
         st.session_state.model_status = "Chargé"
         st.session_state.model_load_time = time.time()
-        st.session_state.load_attempt_count = 0  # Reset counter
-        
+        st.session_state.load_attempt_count = 0
         return model, processor
-        
     except Exception as e:
         st.error(f"❌ Erreur lors du chargement: {e}")
         return None, None
