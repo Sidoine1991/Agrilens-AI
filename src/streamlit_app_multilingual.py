@@ -97,7 +97,7 @@ translations = {
         "title": "🌱 AgriLens AI - Diagnostic des Plantes",
         "subtitle": "**Application de diagnostic des maladies de plantes avec IA**",
         "config_title": "⚙️ Configuration",
-        "load_model": "Charger le modèle Gemma 2B",
+        "load_model": "Charger le modèle Gemma 3n E4B IT",
         "model_status": "**Statut du modèle :**",
         "not_loaded": "Non chargé",
         "loaded": "✅ Chargé",
@@ -128,7 +128,7 @@ translations = {
         "title": "🌱 AgriLens AI - Plant Disease Diagnosis",
         "subtitle": "**AI-powered plant disease diagnosis application**",
         "config_title": "⚙️ Configuration",
-        "load_model": "Load Gemma 2B Model",
+        "load_model": "Load Gemma 3n E4B IT Model",
         "model_status": "**Model Status:**",
         "not_loaded": "Not loaded",
         "loaded": "✅ Loaded",
@@ -162,27 +162,120 @@ def t(key):
 
 @st.cache_resource(show_spinner=False)
 def load_model():
-    """Charge le modèle Gemma 3n E4B IT depuis Hugging Face"""
+    """Charge le modèle Gemma 3n E4B IT depuis Hugging Face avec gestion robuste de la mémoire"""
     try:
         st.info("Chargement du modèle Gemma 3n E4B IT depuis Hugging Face...")
         
         from transformers import AutoProcessor, Gemma3nForConditionalGeneration
         
-        model_name = "google/gemma-3n-e4b-it"
+        model_id = "google/gemma-3n-E4B-it"
         
+        # Charger le processeur
         processor = AutoProcessor.from_pretrained(
-            model_name,
-            trust_remote_code=True
-        )
-        model = Gemma3nForConditionalGeneration.from_pretrained(
-            model_name,
-            device_map="auto",
-            torch_dtype=torch.float32,
+            model_id,
             trust_remote_code=True
         )
         
-        st.success("Modèle Gemma 3n E4B IT chargé avec succès !")
-        return model, processor
+        # Stratégie 1: Chargement conservateur avec gestion mémoire stricte
+        def load_conservative():
+            st.info("Chargement en mode conservateur (CPU uniquement)...")
+            return Gemma3nForConditionalGeneration.from_pretrained(
+                model_id,
+                device_map="cpu",
+                torch_dtype=torch.float32,
+                trust_remote_code=True,
+                low_cpu_mem_usage=True,
+                max_memory={"cpu": "8GB"}  # Limiter l'utilisation mémoire CPU
+            )
+        
+        # Stratégie 2: Chargement avec 8-bit quantization
+        def load_8bit():
+            st.info("Chargement avec quantification 8-bit...")
+            return Gemma3nForConditionalGeneration.from_pretrained(
+                model_id,
+                device_map="auto",
+                torch_dtype=torch.float16,
+                trust_remote_code=True,
+                low_cpu_mem_usage=True,
+                load_in_8bit=True
+            )
+        
+        # Stratégie 3: Chargement avec 4-bit quantization
+        def load_4bit():
+            st.info("Chargement avec quantification 4-bit...")
+            return Gemma3nForConditionalGeneration.from_pretrained(
+                model_id,
+                device_map="auto",
+                torch_dtype=torch.float16,
+                trust_remote_code=True,
+                low_cpu_mem_usage=True,
+                load_in_4bit=True,
+                bnb_4bit_compute_dtype=torch.float16
+            )
+        
+        # Stratégie 4: Chargement avec gestion mémoire personnalisée
+        def load_custom_memory():
+            st.info("Chargement avec gestion mémoire personnalisée...")
+            return Gemma3nForConditionalGeneration.from_pretrained(
+                model_id,
+                device_map="auto",
+                torch_dtype=torch.float16,
+                trust_remote_code=True,
+                low_cpu_mem_usage=True,
+                max_memory={
+                    0: "4GB",  # GPU
+                    "cpu": "8GB"  # CPU
+                }
+            )
+        
+        # Vérifier la mémoire disponible
+        if torch.cuda.is_available():
+            gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1024**3  # GB
+            st.info(f"Mémoire GPU disponible : {gpu_memory:.1f} GB")
+            
+            # Essayer différentes stratégies selon la mémoire disponible
+            strategies = []
+            
+            if gpu_memory >= 8:
+                strategies = [load_custom_memory, load_4bit, load_8bit, load_conservative]
+            elif gpu_memory >= 4:
+                strategies = [load_4bit, load_8bit, load_conservative]
+            else:
+                strategies = [load_8bit, load_conservative]
+            
+            # Essayer chaque stratégie jusqu'à ce qu'une fonctionne
+            for i, strategy in enumerate(strategies):
+                try:
+                    st.info(f"Tentative {i+1}/{len(strategies)} : {strategy.__name__}")
+                    model = strategy()
+                    st.success(f"Modèle chargé avec succès via {strategy.__name__} !")
+                    return model, processor
+                except Exception as e:
+                    error_msg = str(e)
+                    if "disk_offload" in error_msg:
+                        st.warning(f"Stratégie {strategy.__name__} échouée (disk_offload). Tentative suivante...")
+                        continue
+                    elif "out of memory" in error_msg.lower():
+                        st.warning(f"Stratégie {strategy.__name__} échouée (mémoire insuffisante). Tentative suivante...")
+                        continue
+                    else:
+                        st.warning(f"Stratégie {strategy.__name__} échouée : {error_msg}. Tentative suivante...")
+                        continue
+            
+            # Si toutes les stratégies ont échoué
+            st.error("Toutes les stratégies de chargement ont échoué.")
+            return None, None
+            
+        else:
+            # Mode CPU uniquement
+            st.warning("GPU non disponible, utilisation du CPU (plus lent)")
+            try:
+                model = load_conservative()
+                st.success("Modèle chargé avec succès en mode CPU !")
+                return model, processor
+            except Exception as e:
+                st.error(f"Échec du chargement en mode CPU : {e}")
+                return None, None
         
     except Exception as e:
         st.error(f"Erreur lors du chargement du modèle : {e}")
@@ -385,20 +478,38 @@ Respond in a structured and precise manner.
         return f"❌ Erreur lors de l'analyse d'image : {e}"
 
 def analyze_text_multilingual(text):
-    """Analyse un texte avec le modèle Gemma 2B"""
+    """Analyse un texte avec le modèle Gemma 3n E4B IT"""
     if not st.session_state.model_loaded:
         return "❌ Modèle non chargé. Veuillez le charger dans les réglages."
     
     try:
-        model, tokenizer = st.session_state.model
+        model, processor = st.session_state.model, st.session_state.processor
         
         if st.session_state.language == "fr":
-            prompt = f"<start_of_turn>user\nTu es un assistant agricole expert. Analyse ce problème : {text}<end_of_turn>\n<start_of_turn>model\n"
+            prompt = f"Tu es un assistant agricole expert. Analyse ce problème : {text}"
         else:
-            prompt = f"<start_of_turn>user\nYou are an expert agricultural assistant. Analyze this problem: {text}<end_of_turn>\n<start_of_turn>model\n"
+            prompt = f"You are an expert agricultural assistant. Analyze this problem: {text}"
         
-        inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+        # Préparer les messages
+        messages = [
+            {
+                "role": "user",
+                "content": [{"type": "text", "text": prompt}]
+            }
+        ]
         
+        # Traiter les entrées
+        inputs = processor.apply_chat_template(
+            messages,
+            add_generation_prompt=True,
+            tokenize=True,
+            return_dict=True,
+            return_tensors="pt",
+        ).to(model.device)
+        
+        input_len = inputs["input_ids"].shape[-1]
+        
+        # Générer la réponse
         with torch.inference_mode():
             generation = model.generate(
                 **inputs,
@@ -406,12 +517,11 @@ def analyze_text_multilingual(text):
                 do_sample=True,
                 temperature=0.7,
                 top_p=0.9,
-                pad_token_id=tokenizer.eos_token_id
+                repetition_penalty=1.1
             )
-            generation = generation[0][inputs["input_ids"].shape[-1]:]
+            generation = generation[0][input_len:]
         
-        response = tokenizer.decode(generation, skip_special_tokens=True)
-        response = response.replace("<end_of_turn>", "").strip()
+        response = processor.decode(generation, skip_special_tokens=True)
         return response
         
     except Exception as e:
@@ -534,7 +644,7 @@ with st.sidebar:
                 st.session_state.processor = processor
                 st.session_state.model_loaded = True
                 st.session_state.model_status = t("loaded")
-                st.success("Modèle Gemma 3n E4B IT chargé avec succès !" if st.session_state.language == "fr" else "Gemma 3n E4B IT model loaded successfully!")
+                st.success("Modèle Gemma 3n E4B IT chargé avec succès depuis Hugging Face !" if st.session_state.language == "fr" else "Gemma 3n E4B IT model loaded successfully from Hugging Face!")
             else:
                 st.session_state.model_loaded = False
                 st.session_state.model_status = t("error")
@@ -542,9 +652,9 @@ with st.sidebar:
     
     st.info(f"{t('model_status')} {st.session_state.model_status}")
     
-    # Statut du modèle Gemma 3n E4B IT
+    # Statut du modèle Gemma 3n E4B IT (Hugging Face)
     if st.session_state.model_loaded:
-        st.success("✅ Modèle Gemma 3n E4B IT chargé")
+        st.success("✅ Modèle Gemma 3n E4B IT chargé (Hugging Face)")
         st.info("Le modèle est prêt pour l'analyse d'images et de texte")
     else:
         st.warning("⚠️ Modèle Gemma 3n E4B IT non chargé")
@@ -588,79 +698,79 @@ with tab1:
             "Prendre une photo de la plante" if st.session_state.language == "fr" else "Take a photo of the plant",
             key="webcam_capture"
         )
-        
-        # Traitement de l'image (upload ou webcam)
-        image = None
-        image_source = None
-        
-        if uploaded_file is not None:
-            try:
-                image = Image.open(uploaded_file)
-                image_source = "upload"
-            except Exception as e:
-                st.error(f"❌ Erreur lors du traitement de l'image uploadée : {e}")
-                st.info("💡 Essayez avec une image différente ou un format différent (PNG, JPG, JPEG)")
-        elif captured_image is not None:
-            try:
-                image = Image.open(captured_image)
-                image_source = "webcam"
-            except Exception as e:
-                st.error(f"❌ Erreur lors du traitement de l'image capturée : {e}")
-                st.info("💡 Essayez de reprendre la photo")
-        
-        if image is not None:
-            try:
-                # Redimensionner l'image si nécessaire
-                original_size = image.size
-                image, was_resized = resize_image_if_needed(image, max_size=(800, 800))
-                
-                col1, col2 = st.columns([1, 1])
-                with col1:
-                    if image_source == "upload":
-                        st.image(image, caption="Image uploadée" if st.session_state.language == "fr" else "Uploaded Image", use_container_width=True)
-                    else:
-                        st.image(image, caption="Image capturée par webcam" if st.session_state.language == "fr" else "Webcam Captured Image", use_container_width=True)
-                
-                with col2:
-                    st.markdown("**Informations de l'image :**")
-                    st.write(f"• Format : {image.format}")
-                    st.write(f"• Taille originale : {original_size[0]}x{original_size[1]} pixels")
-                    st.write(f"• Taille actuelle : {image.size[0]}x{image.size[1]} pixels")
-                    st.write(f"• Mode : {image.mode}")
-                    
-                    if was_resized:
-                        st.warning("⚠️ L'image a été automatiquement redimensionnée pour optimiser le traitement")
-                
-                question = st.text_area(
-                    "Question spécifique (optionnel) :",
-                    placeholder="Ex: Quelle est cette maladie ? Que faire pour la traiter ?",
-                    height=100
-                )
-                
-                if st.button(t("analyze_button"), disabled=not st.session_state.model_loaded, type="primary"):
-                    if not st.session_state.model_loaded:
-                        st.error("❌ Modèle Gemma non chargé. Veuillez d'abord charger le modèle dans les réglages.")
-                        st.info("💡 L'analyse d'image nécessite le modèle Gemma 3n E4B IT. Chargez-le dans les réglages.")
-                    else:
-                        with st.spinner("🔍 Analyse en cours..."):
-                            result = analyze_image_multilingual(image, question)
-                        
-                        st.markdown(t("analysis_results"))
-                        st.markdown("---")
-                        st.markdown(result)
-            except Exception as e:
-                error_msg = str(e)
-                if "403" in error_msg or "Forbidden" in error_msg:
-                    st.error("❌ Erreur 403 - Accès refusé lors du traitement de l'image")
-                    st.warning("🔒 Cette erreur indique un problème d'autorisation côté serveur.")
-                    st.info("💡 Solutions possibles :")
-                    st.info("• Vérifiez les logs de votre espace Hugging Face")
-                    st.info("• Essayez avec une image plus petite (< 1MB)")
-                    st.info("• Rafraîchissez la page et réessayez")
-                    st.info("• Contactez le support Hugging Face si le problème persiste")
+    
+    # Traitement de l'image (upload ou webcam)
+    image = None
+    image_source = None
+    
+    if uploaded_file is not None:
+        try:
+            image = Image.open(uploaded_file)
+            image_source = "upload"
+        except Exception as e:
+            st.error(f"❌ Erreur lors du traitement de l'image uploadée : {e}")
+            st.info("💡 Essayez avec une image différente ou un format différent (PNG, JPG, JPEG)")
+    elif captured_image is not None:
+        try:
+            image = Image.open(captured_image)
+            image_source = "webcam"
+        except Exception as e:
+            st.error(f"❌ Erreur lors du traitement de l'image capturée : {e}")
+            st.info("💡 Essayez de reprendre la photo")
+    
+    if image is not None:
+        try:
+            # Redimensionner l'image si nécessaire
+            original_size = image.size
+            image, was_resized = resize_image_if_needed(image, max_size=(800, 800))
+            
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                if image_source == "upload":
+                    st.image(image, caption="Image uploadée" if st.session_state.language == "fr" else "Uploaded Image", use_container_width=True)
                 else:
-                    st.error(f"❌ Erreur lors du traitement de l'image : {e}")
-                    st.info("💡 Essayez avec une image différente ou un format différent (PNG, JPG, JPEG)")
+                    st.image(image, caption="Image capturée par webcam" if st.session_state.language == "fr" else "Webcam Captured Image", use_container_width=True)
+            
+            with col2:
+                st.markdown("**Informations de l'image :**")
+                st.write(f"• Format : {image.format}")
+                st.write(f"• Taille originale : {original_size[0]}x{original_size[1]} pixels")
+                st.write(f"• Taille actuelle : {image.size[0]}x{image.size[1]} pixels")
+                st.write(f"• Mode : {image.mode}")
+                
+                if was_resized:
+                    st.warning("⚠️ L'image a été automatiquement redimensionnée pour optimiser le traitement")
+            
+            question = st.text_area(
+                "Question spécifique (optionnel) :",
+                placeholder="Ex: Quelle est cette maladie ? Que faire pour la traiter ?",
+                height=100
+            )
+            
+            if st.button(t("analyze_button"), disabled=not st.session_state.model_loaded, type="primary"):
+                if not st.session_state.model_loaded:
+                    st.error("❌ Modèle Gemma non chargé. Veuillez d'abord charger le modèle dans les réglages.")
+                    st.info("💡 L'analyse d'image nécessite le modèle Gemma 3n E4B IT. Chargez-le dans les réglages.")
+                else:
+                    with st.spinner("🔍 Analyse en cours..."):
+                        result = analyze_image_multilingual(image, question)
+                    
+                    st.markdown(t("analysis_results"))
+                    st.markdown("---")
+                    st.markdown(result)
+        except Exception as e:
+            error_msg = str(e)
+            if "403" in error_msg or "Forbidden" in error_msg:
+                st.error("❌ Erreur 403 - Accès refusé lors du traitement de l'image")
+                st.warning("🔒 Cette erreur indique un problème d'autorisation côté serveur.")
+                st.info("💡 Solutions possibles :")
+                st.info("• Vérifiez les logs de votre espace Hugging Face")
+                st.info("• Essayez avec une image plus petite (< 1MB)")
+                st.info("• Rafraîchissez la page et réessayez")
+                st.info("• Contactez le support Hugging Face si le problème persiste")
+            else:
+                st.error(f"❌ Erreur lors du traitement de l'image : {e}")
+                st.info("💡 Essayez avec une image différente ou un format différent (PNG, JPG, JPEG)")
 
 with tab2:
     st.header(t("text_analysis_title"))
@@ -774,7 +884,7 @@ with tab4:
     
     st.markdown("### 🔧 Technologie / Technology")
     st.markdown("""
-    • **Modèle** : Gemma 2B (version finale)
+    • **Modèle** : Gemma 3n E4B IT (Hugging Face)
     • **Framework** : Streamlit
     • **Déploiement** : Hugging Face Spaces
     """)
