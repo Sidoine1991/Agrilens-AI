@@ -221,29 +221,24 @@ if 'model_status' not in st.session_state:
 if 'language' not in st.session_state:
     st.session_state.language = "fr"
 
-# === AJOUT : Chargement automatique du modèle Hugging Face au démarrage ===
-# Détecter si on est en mode Hugging Face (pas de modèle local)
+# === AJOUT : Chargement direct du modèle Hugging Face au démarrage ===
 is_local = os.path.exists("D:/Dev/model_gemma")
 if not is_local and not st.session_state.model_loaded:
-    # Tenter de charger automatiquement le modèle Hugging Face
-    st.info("🔄 Tentative de chargement automatique du modèle Hugging Face...")
+    st.info("🔄 Chargement direct du modèle Hugging Face : google/gemma-3n-E4B-it ...")
     try:
-        model, processor = load_model()
-        if model and processor:
-            st.session_state.model = model
-            st.session_state.processor = processor
-            st.session_state.model_loaded = True
-            st.session_state.model_status = "Chargé automatiquement (Hugging Face)"
-            st.session_state.model_load_time = time.time()
-            st.success("✅ Modèle Hugging Face chargé automatiquement au démarrage !")
-        else:
-            st.session_state.model_loaded = False
-            st.session_state.model_status = "Erreur auto-chargement"
-            st.warning("⚠️ Échec du chargement automatique du modèle Hugging Face. Cliquez sur 'Charger le modèle'.")
+        from transformers import AutoProcessor, Gemma3nForConditionalGeneration
+        processor = AutoProcessor.from_pretrained("google/gemma-3n-E4B-it", trust_remote_code=True)
+        model = Gemma3nForConditionalGeneration.from_pretrained("google/gemma-3n-E4B-it", trust_remote_code=True, low_cpu_mem_usage=True)
+        st.session_state.model = model
+        st.session_state.processor = processor
+        st.session_state.model_loaded = True
+        st.session_state.model_status = "Chargé direct (Hugging Face)"
+        st.session_state.model_load_time = time.time()
+        st.success("✅ Modèle Hugging Face chargé directement au démarrage !")
     except Exception as e:
         st.session_state.model_loaded = False
-        st.session_state.model_status = "Erreur auto-chargement"
-        st.error(f"❌ Erreur lors du chargement automatique du modèle Hugging Face : {e}")
+        st.session_state.model_status = "Erreur chargement direct"
+        st.error(f"❌ Erreur lors du chargement direct du modèle Hugging Face : {e}")
 
 # Configuration Gemini API
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
