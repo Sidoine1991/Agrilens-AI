@@ -8,6 +8,7 @@ import google.generativeai as genai
 import gc
 import time
 import sys
+import psutil
 
 # Cache global pour le modèle (persiste entre les reruns)
 if 'global_model_cache' not in st.session_state:
@@ -155,6 +156,12 @@ def resize_image_if_needed(image, max_size=(800, 800)):
         return resized_image, True  # True indique que l'image a été redimensionnée
     else:
         return image, False  # False indique que l'image n'a pas été redimensionnée
+
+def afficher_ram_disponible(context=""):
+    mem = psutil.virtual_memory()
+    st.info(f"💾 RAM disponible {context}: {mem.available // (1024**2)} MB ({mem.available // (1024**3)} GB)")
+    if mem.available < 4 * 1024**3:
+        st.warning("⚠️ Moins de 4GB de RAM disponible, le chargement du modèle risque d'échouer !")
 
 # Configuration de la page
 st.set_page_config(
@@ -349,45 +356,85 @@ def load_model():
             # Stratégies de chargement pour le mode local
             def load_local_ultra_conservative():
                 st.info("Chargement local ultra-conservateur (CPU uniquement, sans device_map)...")
-                return Gemma3nForConditionalGeneration.from_pretrained(
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                afficher_ram_disponible("avant chargement")
+                model = Gemma3nForConditionalGeneration.from_pretrained(
                     model_path,
                     torch_dtype=torch.float32,
                     trust_remote_code=True,
                     low_cpu_mem_usage=True
                 )
+                afficher_ram_disponible("après chargement")
+                st.success("Modèle Gemma 3n E4B IT chargé avec succès depuis le dossier local !")
+                
+                # Log de débogage
+                st.write("🔍 DEBUG: Modèle chargé avec succès (local)")
+                st.write(f"🔍 DEBUG: Type du modèle: {type(model).__name__}")
+                st.write(f"🔍 DEBUG: Modèle non-null: {model is not None}")
+                
+                # Stocker immédiatement dans session_state
+                st.session_state.model = model
+                st.session_state.processor = processor
+                st.session_state.model_loaded = True
+                st.session_state.model_status = "Chargé (local)"
+                st.session_state.model_load_time = time.time()
+                
+                st.write("🔍 DEBUG: Modèle stocké dans session_state")
+                st.write(f"🔍 DEBUG: model_loaded = {st.session_state.model_loaded}")
+                
+                # Forcer la persistance
+                st.write("🔍 DEBUG: Appel de force_model_persistence()...")
+                persistence_result = force_model_persistence()
+                st.write(f"🔍 DEBUG: Résultat de la persistance: {persistence_result}")
+                
+                return model, processor
             
             def load_local_conservative():
                 st.info("Chargement local conservateur (device_map CPU)...")
-                return Gemma3nForConditionalGeneration.from_pretrained(
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                afficher_ram_disponible("avant chargement")
+                model = Gemma3nForConditionalGeneration.from_pretrained(
                     model_path,
                     device_map="cpu",
                     torch_dtype=torch.float32,
                     trust_remote_code=True,
                     low_cpu_mem_usage=True
                 )
+                afficher_ram_disponible("après chargement")
+                st.success("Modèle Gemma 3n E4B IT chargé avec succès depuis le dossier local !")
+                
+                # Log de débogage
+                st.write("🔍 DEBUG: Modèle chargé avec succès (local)")
+                st.write(f"🔍 DEBUG: Type du modèle: {type(model).__name__}")
+                st.write(f"🔍 DEBUG: Modèle non-null: {model is not None}")
+                
+                # Stocker immédiatement dans session_state
+                st.session_state.model = model
+                st.session_state.processor = processor
+                st.session_state.model_loaded = True
+                st.session_state.model_status = "Chargé (local)"
+                st.session_state.model_load_time = time.time()
+                
+                st.write("🔍 DEBUG: Modèle stocké dans session_state")
+                st.write(f"🔍 DEBUG: model_loaded = {st.session_state.model_loaded}")
+                
+                # Forcer la persistance
+                st.write("🔍 DEBUG: Appel de force_model_persistence()...")
+                persistence_result = force_model_persistence()
+                st.write(f"🔍 DEBUG: Résultat de la persistance: {persistence_result}")
+                
+                return model, processor
             
             # Essayer les stratégies de chargement local
             strategies = [load_local_ultra_conservative, load_local_conservative]
             
             for strategy in strategies:
                 try:
-                    model = strategy()
-                    st.success("Modèle Gemma 3n E4B IT chargé avec succès depuis le dossier local !")
-                    
-                    # Log de débogage
-                    st.write("🔍 DEBUG: Modèle chargé avec succès (local)")
-                    st.write(f"🔍 DEBUG: Type du modèle: {type(model).__name__}")
-                    st.write(f"🔍 DEBUG: Modèle non-null: {model is not None}")
-                    
-                    # Stocker immédiatement dans session_state
-                    st.session_state.model = model
-                    st.session_state.processor = processor
-                    st.session_state.model_loaded = True
-                    st.session_state.model_status = "Chargé (local)"
-                    st.session_state.model_load_time = time.time()
-                    
-                    st.write("🔍 DEBUG: Modèle stocké dans session_state")
-                    st.write(f"🔍 DEBUG: model_loaded = {st.session_state.model_loaded}")
+                    model, processor = strategy()
                     
                     # Forcer la persistance
                     st.write("🔍 DEBUG: Appel de force_model_persistence()...")
@@ -450,28 +497,88 @@ def load_model():
             # Stratégie 1: Chargement ultra-conservateur (CPU uniquement, sans device_map)
             def load_ultra_conservative():
                 st.info("Chargement ultra-conservateur (CPU uniquement, sans device_map)...")
-                return Gemma3nForConditionalGeneration.from_pretrained(
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                afficher_ram_disponible("avant chargement")
+                model = Gemma3nForConditionalGeneration.from_pretrained(
                     model_id,
                     torch_dtype=torch.float32,
                     trust_remote_code=True,
                     low_cpu_mem_usage=True
                 )
+                afficher_ram_disponible("après chargement")
+                st.success(f"Modèle chargé avec succès via {strategy.__name__} !")
+                
+                # Log de débogage
+                st.write("🔍 DEBUG: Modèle chargé avec succès (GPU)")
+                st.write(f"🔍 DEBUG: Type du modèle: {type(model).__name__}")
+                st.write(f"🔍 DEBUG: Modèle non-null: {model is not None}")
+                
+                # Stocker immédiatement dans session_state
+                st.session_state.model = model
+                st.session_state.processor = processor
+                st.session_state.model_loaded = True
+                st.session_state.model_status = "Chargé (GPU)"
+                st.session_state.model_load_time = time.time()
+                
+                st.write("🔍 DEBUG: Modèle stocké dans session_state")
+                st.write(f"🔍 DEBUG: model_loaded = {st.session_state.model_loaded}")
+                
+                # Forcer la persistance
+                st.write("🔍 DEBUG: Appel de force_model_persistence()...")
+                persistence_result = force_model_persistence()
+                st.write(f"🔍 DEBUG: Résultat de la persistance: {persistence_result}")
+                
+                return model, processor
             
             # Stratégie 2: Chargement conservateur avec device_map CPU
             def load_conservative():
                 st.info("Chargement conservateur (device_map CPU)...")
-                return Gemma3nForConditionalGeneration.from_pretrained(
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                afficher_ram_disponible("avant chargement")
+                model = Gemma3nForConditionalGeneration.from_pretrained(
                     model_id,
                     device_map="cpu",
                     torch_dtype=torch.float32,
                     trust_remote_code=True,
                     low_cpu_mem_usage=True
                 )
+                afficher_ram_disponible("après chargement")
+                st.success(f"Modèle chargé avec succès via {strategy.__name__} !")
+                
+                # Log de débogage
+                st.write("🔍 DEBUG: Modèle chargé avec succès (GPU)")
+                st.write(f"🔍 DEBUG: Type du modèle: {type(model).__name__}")
+                st.write(f"🔍 DEBUG: Modèle non-null: {model is not None}")
+                
+                # Stocker immédiatement dans session_state
+                st.session_state.model = model
+                st.session_state.processor = processor
+                st.session_state.model_loaded = True
+                st.session_state.model_status = "Chargé (GPU)"
+                st.session_state.model_load_time = time.time()
+                
+                st.write("🔍 DEBUG: Modèle stocké dans session_state")
+                st.write(f"🔍 DEBUG: model_loaded = {st.session_state.model_loaded}")
+                
+                # Forcer la persistance
+                st.write("🔍 DEBUG: Appel de force_model_persistence()...")
+                persistence_result = force_model_persistence()
+                st.write(f"🔍 DEBUG: Résultat de la persistance: {persistence_result}")
+                
+                return model, processor
             
             # Stratégie 3: Chargement avec 8-bit quantization
             def load_8bit():
                 st.info("Chargement avec quantification 8-bit...")
-                return Gemma3nForConditionalGeneration.from_pretrained(
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                afficher_ram_disponible("avant chargement")
+                model = Gemma3nForConditionalGeneration.from_pretrained(
                     model_id,
                     device_map="auto",
                     torch_dtype=torch.float16,
@@ -479,11 +586,39 @@ def load_model():
                     low_cpu_mem_usage=True,
                     load_in_8bit=True
                 )
+                afficher_ram_disponible("après chargement")
+                st.success(f"Modèle chargé avec succès via {strategy.__name__} !")
+                
+                # Log de débogage
+                st.write("🔍 DEBUG: Modèle chargé avec succès (GPU)")
+                st.write(f"🔍 DEBUG: Type du modèle: {type(model).__name__}")
+                st.write(f"🔍 DEBUG: Modèle non-null: {model is not None}")
+                
+                # Stocker immédiatement dans session_state
+                st.session_state.model = model
+                st.session_state.processor = processor
+                st.session_state.model_loaded = True
+                st.session_state.model_status = "Chargé (GPU)"
+                st.session_state.model_load_time = time.time()
+                
+                st.write("🔍 DEBUG: Modèle stocké dans session_state")
+                st.write(f"🔍 DEBUG: model_loaded = {st.session_state.model_loaded}")
+                
+                # Forcer la persistance
+                st.write("🔍 DEBUG: Appel de force_model_persistence()...")
+                persistence_result = force_model_persistence()
+                st.write(f"🔍 DEBUG: Résultat de la persistance: {persistence_result}")
+                
+                return model, processor
             
             # Stratégie 4: Chargement avec 4-bit quantization
             def load_4bit():
                 st.info("Chargement avec quantification 4-bit...")
-                return Gemma3nForConditionalGeneration.from_pretrained(
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                afficher_ram_disponible("avant chargement")
+                model = Gemma3nForConditionalGeneration.from_pretrained(
                     model_id,
                     device_map="auto",
                     torch_dtype=torch.float16,
@@ -492,17 +627,69 @@ def load_model():
                     load_in_4bit=True,
                     bnb_4bit_compute_dtype=torch.float16
                 )
+                afficher_ram_disponible("après chargement")
+                st.success(f"Modèle chargé avec succès via {strategy.__name__} !")
+                
+                # Log de débogage
+                st.write("🔍 DEBUG: Modèle chargé avec succès (GPU)")
+                st.write(f"🔍 DEBUG: Type du modèle: {type(model).__name__}")
+                st.write(f"🔍 DEBUG: Modèle non-null: {model is not None}")
+                
+                # Stocker immédiatement dans session_state
+                st.session_state.model = model
+                st.session_state.processor = processor
+                st.session_state.model_loaded = True
+                st.session_state.model_status = "Chargé (GPU)"
+                st.session_state.model_load_time = time.time()
+                
+                st.write("🔍 DEBUG: Modèle stocké dans session_state")
+                st.write(f"🔍 DEBUG: model_loaded = {st.session_state.model_loaded}")
+                
+                # Forcer la persistance
+                st.write("🔍 DEBUG: Appel de force_model_persistence()...")
+                persistence_result = force_model_persistence()
+                st.write(f"🔍 DEBUG: Résultat de la persistance: {persistence_result}")
+                
+                return model, processor
             
             # Stratégie 5: Chargement avec gestion mémoire personnalisée (sans max_memory)
             def load_custom_memory():
                 st.info("Chargement avec gestion mémoire personnalisée...")
-                return Gemma3nForConditionalGeneration.from_pretrained(
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                afficher_ram_disponible("avant chargement")
+                model = Gemma3nForConditionalGeneration.from_pretrained(
                     model_id,
                     device_map="auto",
                     torch_dtype=torch.float16,
                     trust_remote_code=True,
                     low_cpu_mem_usage=True
                 )
+                afficher_ram_disponible("après chargement")
+                st.success(f"Modèle chargé avec succès via {strategy.__name__} !")
+                
+                # Log de débogage
+                st.write("🔍 DEBUG: Modèle chargé avec succès (GPU)")
+                st.write(f"🔍 DEBUG: Type du modèle: {type(model).__name__}")
+                st.write(f"🔍 DEBUG: Modèle non-null: {model is not None}")
+                
+                # Stocker immédiatement dans session_state
+                st.session_state.model = model
+                st.session_state.processor = processor
+                st.session_state.model_loaded = True
+                st.session_state.model_status = "Chargé (GPU)"
+                st.session_state.model_load_time = time.time()
+                
+                st.write("🔍 DEBUG: Modèle stocké dans session_state")
+                st.write(f"🔍 DEBUG: model_loaded = {st.session_state.model_loaded}")
+                
+                # Forcer la persistance
+                st.write("🔍 DEBUG: Appel de force_model_persistence()...")
+                persistence_result = force_model_persistence()
+                st.write(f"🔍 DEBUG: Résultat de la persistance: {persistence_result}")
+                
+                return model, processor
             
             # Vérifier la mémoire disponible
             if torch.cuda.is_available():
@@ -523,7 +710,7 @@ def load_model():
                 for i, strategy in enumerate(strategies):
                     try:
                         st.info(f"Tentative {i+1}/{len(strategies)} : {strategy.__name__}")
-                        model = strategy()
+                        model, processor = strategy()
                         st.success(f"Modèle chargé avec succès via {strategy.__name__} !")
                         
                         # Log de débogage
@@ -583,7 +770,12 @@ def load_model():
                 for i, strategy in enumerate(cpu_strategies):
                     try:
                         st.info(f"Tentative CPU {i+1}/{len(cpu_strategies)} : {strategy.__name__}")
-                        model = strategy()
+                        gc.collect()
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
+                        afficher_ram_disponible("avant chargement")
+                        model, processor = strategy()
+                        afficher_ram_disponible("après chargement")
                         st.success(f"Modèle chargé avec succès en mode CPU via {strategy.__name__} !")
                         
                         # Log de débogage
