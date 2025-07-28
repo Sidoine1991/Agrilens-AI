@@ -140,60 +140,25 @@ def load_model():
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-        is_local = os.path.exists("models/gemma-3n-transformers-gemma-3n-e2b-it-v1")
-        if is_local:
-            st.info("Chargement du modèle depuis le dossier local...")
-            model_path = "models/gemma-3n-transformers-gemma-3n-e2b-it-v1"
+        # Utilisation d'un chemin local explicite pour le modèle
+        model_id = "models/gemma-3n-E4B-it"
+        if os.path.exists(model_id):
+            st.info("Chargement du modèle depuis le dossier local explicite...")
             processor = AutoProcessor.from_pretrained(
-                model_path,
+                model_id,
                 trust_remote_code=True
             )
             model = Gemma3nForConditionalGeneration.from_pretrained(
-                model_path,
+                model_id,
                 torch_dtype=torch.bfloat16,
                 trust_remote_code=True,
                 low_cpu_mem_usage=True,
-                device_map="cpu"  # Forcer le chargement sur CPU
+                device_map="cpu"
             )
-            st.success("✅ Modèle chargé avec succès (local)")
+            st.success("✅ Modèle chargé avec succès (local explicite)")
         else:
-            model_id = "google/gemma-3n-E4B-it"
-            # Essayer d'abord en local_files_only=True
-            try:
-                st.info("🔄 Chargement direct du modèle Hugging Face (cache local uniquement)...")
-                processor = AutoProcessor.from_pretrained(
-                    model_id,
-                    trust_remote_code=True,
-                    local_files_only=True
-                )
-                model = Gemma3nForConditionalGeneration.from_pretrained(
-                    model_id,
-                    torch_dtype=torch.bfloat16,
-                    trust_remote_code=True,
-                    low_cpu_mem_usage=True,
-                    local_files_only=True,
-                    device_map="cpu"  # Forcer le chargement sur CPU
-                )
-                st.success("✅ Modèle chargé depuis le cache Hugging Face !")
-            except Exception as e:
-                st.warning(f"⚠️ Modèle non trouvé en cache local : {e}")
-                st.info("🔄 Téléchargement du modèle Hugging Face (en ligne)...")
-                try:
-                    processor = AutoProcessor.from_pretrained(
-                        model_id,
-                        trust_remote_code=True
-                    )
-                    model = Gemma3nForConditionalGeneration.from_pretrained(
-                        model_id,
-                        torch_dtype=torch.bfloat16,
-                        trust_remote_code=True,
-                        low_cpu_mem_usage=True,
-                        device_map="cpu"  # Forcer le chargement sur CPU
-                    )
-                    st.success("✅ Modèle téléchargé depuis Hugging Face !")
-                except Exception as e2:
-                    st.error(f"❌ Erreur modèle Hugging Face : {e2}")
-                    return None, None
+            st.error(f"❌ Dossier du modèle local non trouvé : {model_id}")
+            return None, None
         st.session_state.model = model
         st.session_state.processor = processor
         st.session_state.model_loaded = True
