@@ -1,0 +1,25 @@
+[global]
+developmentMode = true
+
+[server]
+headless = false
+enableCORS = true
+enableXsrfProtection = true
+port = 8501
+address = "localhost"
+maxUploadSize = 200
+fileWatcherType = "auto"
+maxMessageSize = 200
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+primaryColor = "#00FF00"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F0F2F6"
+textColor = "#262730"
+
+[client]
+showErrorDetails = true
+toolbarMode = "minimal" 
