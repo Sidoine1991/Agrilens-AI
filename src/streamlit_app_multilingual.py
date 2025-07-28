@@ -221,9 +221,41 @@ if 'model_status' not in st.session_state:
 if 'language' not in st.session_state:
     st.session_state.language = "fr"
 
-# === AJOUT : Chargement direct du modèle Hugging Face au démarrage ===
-is_local = os.path.exists("D:/Dev/model_gemma")
-if not is_local and not st.session_state.model_loaded:
+# === AJOUT : Chargement automatique du modèle local au démarrage ===
+is_local = os.path.exists("models/gemma-3n-transformers-gemma-3n-e2b-it-v1")
+if is_local and not st.session_state.model_loaded:
+    st.info("🔄 Chargement automatique du modèle local : models/gemma-3n-transformers-gemma-3n-e2b-it-v1 ...")
+    try:
+        from transformers import AutoProcessor, Gemma3nForConditionalGeneration
+        model_path = "models/gemma-3n-transformers-gemma-3n-e2b-it-v1"
+        
+        # Nettoyer la mémoire avant le chargement
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        
+        # Charger le processeur avec la configuration locale
+        processor = AutoProcessor.from_pretrained(model_path, trust_remote_code=True)
+        
+        # Charger le modèle avec la configuration locale (ultra-conservateur)
+        model = Gemma3nForConditionalGeneration.from_pretrained(
+            model_path,
+            torch_dtype=torch.float32,
+            trust_remote_code=True,
+            low_cpu_mem_usage=True
+        )
+        
+        st.session_state.model = model
+        st.session_state.processor = processor
+        st.session_state.model_loaded = True
+        st.session_state.model_status = "Chargé automatiquement (local)"
+        st.session_state.model_load_time = time.time()
+        st.success("✅ Modèle local chargé automatiquement au démarrage !")
+    except Exception as e:
+        st.session_state.model_loaded = False
+        st.session_state.model_status = "Erreur chargement automatique"
+        st.error(f"❌ Erreur lors du chargement automatique du modèle local : {e}")
+elif not is_local and not st.session_state.model_loaded:
     st.info("🔄 Chargement direct du modèle Hugging Face : google/gemma-3n-E4B-it ...")
     try:
         from transformers import AutoProcessor, Gemma3nForConditionalGeneration
@@ -335,12 +367,12 @@ def load_model():
             torch.cuda.empty_cache()
         
         # Détecter l'environnement
-        is_local = os.path.exists("D:/Dev/model_gemma")
+        is_local = os.path.exists("models/gemma-3n-transformers-gemma-3n-e2b-it-v1")
         
         if is_local:
             # Mode LOCAL - Utiliser le modèle téléchargé
-            st.info("Chargement du modèle Gemma 3n E4B IT depuis D:/Dev/model_gemma (mode local)...")
-            model_path = "D:/Dev/model_gemma"
+            st.info("Chargement du modèle Gemma 3n E4B IT depuis models/gemma-3n-transformers-gemma-3n-e2b-it-v1 (mode local)...")
+            model_path = "models/gemma-3n-transformers-gemma-3n-e2b-it-v1"
             
             # Charger le processeur
             processor = AutoProcessor.from_pretrained(
