@@ -37,10 +37,17 @@ def force_model_persistence():
             st.session_state.global_model_cache['model'] = st.session_state.model
             st.session_state.global_model_cache['processor'] = st.session_state.processor
             st.session_state.global_model_cache['load_time'] = time.time()
+            st.session_state.global_model_cache['model_type'] = type(st.session_state.model).__name__
+            st.session_state.global_model_cache['processor_type'] = type(st.session_state.processor).__name__
             
             # Vérification immédiate
             if st.session_state.global_model_cache.get('model') is not None:
                 st.session_state.model_persistence_check = True
+                
+                # Vérification supplémentaire
+                if hasattr(st.session_state.global_model_cache['model'], 'device'):
+                    st.session_state.global_model_cache['device'] = st.session_state.global_model_cache['model'].device
+                
                 return True
         return False
     except Exception as e:
@@ -50,14 +57,24 @@ def force_model_persistence():
 def restore_model_from_cache():
     """Restaure le modèle depuis le cache global"""
     try:
-        if 'model' in st.session_state.global_model_cache:
-            st.session_state.model = st.session_state.global_model_cache['model']
-            st.session_state.processor = st.session_state.global_model_cache['processor']
-            st.session_state.model_loaded = True
-            st.session_state.model_status = "Chargé (cache)"
-            return True
+        if 'model' in st.session_state.global_model_cache and st.session_state.global_model_cache['model'] is not None:
+            # Vérifier que le modèle est toujours valide
+            cached_model = st.session_state.global_model_cache['model']
+            if hasattr(cached_model, 'device'):
+                # Le modèle semble valide
+                st.session_state.model = cached_model
+                st.session_state.processor = st.session_state.global_model_cache['processor']
+                st.session_state.model_loaded = True
+                st.session_state.model_status = "Chargé (cache)"
+                
+                # Mettre à jour le temps de chargement si disponible
+                if 'load_time' in st.session_state.global_model_cache:
+                    st.session_state.model_load_time = st.session_state.global_model_cache['load_time']
+                
+                return True
         return False
-    except Exception:
+    except Exception as e:
+        st.error(f"Erreur lors de la restauration depuis le cache : {e}")
         return False
 
 def diagnose_loading_issues():
@@ -309,6 +326,17 @@ def load_model():
                 try:
                     model = strategy()
                     st.success("Modèle Gemma 3n E4B IT chargé avec succès depuis le dossier local !")
+                    
+                    # Stocker immédiatement dans session_state
+                    st.session_state.model = model
+                    st.session_state.processor = processor
+                    st.session_state.model_loaded = True
+                    st.session_state.model_status = "Chargé (local)"
+                    st.session_state.model_load_time = time.time()
+                    
+                    # Forcer la persistance
+                    force_model_persistence()
+                    
                     return model, processor
                 except Exception as e:
                     error_msg = str(e)
@@ -440,6 +468,17 @@ def load_model():
                         st.info(f"Tentative {i+1}/{len(strategies)} : {strategy.__name__}")
                         model = strategy()
                         st.success(f"Modèle chargé avec succès via {strategy.__name__} !")
+                        
+                        # Stocker immédiatement dans session_state
+                        st.session_state.model = model
+                        st.session_state.processor = processor
+                        st.session_state.model_loaded = True
+                        st.session_state.model_status = "Chargé (GPU)"
+                        st.session_state.model_load_time = time.time()
+                        
+                        # Forcer la persistance
+                        force_model_persistence()
+                        
                         return model, processor
                     except Exception as e:
                         error_msg = str(e)
@@ -479,6 +518,17 @@ def load_model():
                         st.info(f"Tentative CPU {i+1}/{len(cpu_strategies)} : {strategy.__name__}")
                         model = strategy()
                         st.success(f"Modèle chargé avec succès en mode CPU via {strategy.__name__} !")
+                        
+                        # Stocker immédiatement dans session_state
+                        st.session_state.model = model
+                        st.session_state.processor = processor
+                        st.session_state.model_loaded = True
+                        st.session_state.model_status = "Chargé (CPU)"
+                        st.session_state.model_load_time = time.time()
+                        
+                        # Forcer la persistance
+                        force_model_persistence()
+                        
                         return model, processor
                     except Exception as e:
                         error_msg = str(e)
@@ -877,6 +927,24 @@ Respond in a structured and precise manner.
 st.title(t("title"))
 st.markdown(t("subtitle"))
 
+# Vérification automatique de la persistance du modèle au démarrage
+if 'model_loaded' not in st.session_state:
+    st.session_state.model_loaded = False
+if 'model_status' not in st.session_state:
+    st.session_state.model_status = "Non chargé"
+
+# Vérification automatique de la persistance
+if st.session_state.model_loaded:
+    # Vérifier si le modèle est toujours disponible
+    if not check_model_persistence():
+        # Essayer de restaurer depuis le cache
+        if restore_model_from_cache():
+            st.success("🔄 Modèle restauré automatiquement depuis le cache")
+        else:
+            st.warning("⚠️ Modèle perdu en mémoire - rechargement nécessaire")
+            st.session_state.model_loaded = False
+            st.session_state.model_status = "Non chargé"
+
 # Sidebar pour la configuration
 with st.sidebar:
     st.header(t("config_title"))
@@ -935,7 +1003,18 @@ with st.sidebar:
                 st.session_state.model_status = t("error")
                 st.error(f"Erreur lors du chargement : {e}")
     
-    st.info(f"{t('model_status')} {st.session_state.model_status}")
+    # Affichage du statut avec indicateur de persistance
+    status_emoji = "✅" if st.session_state.model_loaded else "❌"
+    persistence_emoji = "🔒" if st.session_state.model_persistence_check else "⚠️"
+    
+    st.info(f"{status_emoji} {t('model_status')} {st.session_state.model_status} {persistence_emoji}")
+    
+    # Indicateur de persistance
+    if st.session_state.model_loaded:
+        if st.session_state.model_persistence_check:
+            st.success("🔒 Modèle persisté en cache - stable entre les sessions")
+        else:
+            st.warning("⚠️ Modèle chargé mais pas encore persisté")
     
     # Vérification de la persistance du modèle
     if st.session_state.model_loaded or check_model_persistence():
