@@ -152,7 +152,8 @@ def load_model():
                 model_path,
                 torch_dtype=torch.bfloat16,
                 trust_remote_code=True,
-                low_cpu_mem_usage=True
+                low_cpu_mem_usage=True,
+                device_map="cpu"  # Forcer le chargement sur CPU
             )
             st.success("✅ Modèle chargé avec succès (local)")
         else:
@@ -170,7 +171,8 @@ def load_model():
                     torch_dtype=torch.bfloat16,
                     trust_remote_code=True,
                     low_cpu_mem_usage=True,
-                    local_files_only=True
+                    local_files_only=True,
+                    device_map="cpu"  # Forcer le chargement sur CPU
                 )
                 st.success("✅ Modèle chargé depuis le cache Hugging Face !")
             except Exception as e:
@@ -185,7 +187,8 @@ def load_model():
                         model_id,
                         torch_dtype=torch.bfloat16,
                         trust_remote_code=True,
-                        low_cpu_mem_usage=True
+                        low_cpu_mem_usage=True,
+                        device_map="cpu"  # Forcer le chargement sur CPU
                     )
                     st.success("✅ Modèle téléchargé depuis Hugging Face !")
                 except Exception as e2:
