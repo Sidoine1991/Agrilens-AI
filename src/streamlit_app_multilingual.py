@@ -33,6 +33,11 @@ def force_model_persistence():
     """Force la persistance du modèle en mémoire"""
     try:
         if hasattr(st.session_state, 'model') and st.session_state.model is not None:
+            # Log de débogage
+            st.write("🔍 DEBUG: Tentative de persistance du modèle...")
+            st.write(f"🔍 DEBUG: Modèle présent: {st.session_state.model is not None}")
+            st.write(f"🔍 DEBUG: Type du modèle: {type(st.session_state.model).__name__}")
+            
             # Créer une référence forte au modèle
             st.session_state.global_model_cache['model'] = st.session_state.model
             st.session_state.global_model_cache['processor'] = st.session_state.processor
@@ -48,18 +53,30 @@ def force_model_persistence():
                 if hasattr(st.session_state.global_model_cache['model'], 'device'):
                     st.session_state.global_model_cache['device'] = st.session_state.global_model_cache['model'].device
                 
+                st.write("🔍 DEBUG: Persistance réussie!")
+                st.write(f"🔍 DEBUG: Cache contient: {list(st.session_state.global_model_cache.keys())}")
                 return True
+            else:
+                st.write("🔍 DEBUG: Échec de la persistance - modèle non trouvé dans le cache")
+        else:
+            st.write("🔍 DEBUG: Échec de la persistance - modèle non présent dans session_state")
         return False
     except Exception as e:
         st.error(f"Erreur lors de la persistance forcée : {e}")
+        st.write(f"🔍 DEBUG: Exception lors de la persistance: {e}")
         return False
 
 def restore_model_from_cache():
     """Restaure le modèle depuis le cache global"""
     try:
+        st.write("🔍 DEBUG: Tentative de restauration depuis le cache...")
+        st.write(f"🔍 DEBUG: Cache disponible: {list(st.session_state.global_model_cache.keys())}")
+        
         if 'model' in st.session_state.global_model_cache and st.session_state.global_model_cache['model'] is not None:
             # Vérifier que le modèle est toujours valide
             cached_model = st.session_state.global_model_cache['model']
+            st.write(f"🔍 DEBUG: Modèle trouvé dans le cache: {cached_model is not None}")
+            
             if hasattr(cached_model, 'device'):
                 # Le modèle semble valide
                 st.session_state.model = cached_model
@@ -71,10 +88,16 @@ def restore_model_from_cache():
                 if 'load_time' in st.session_state.global_model_cache:
                     st.session_state.model_load_time = st.session_state.global_model_cache['load_time']
                 
+                st.write("🔍 DEBUG: Restauration réussie!")
                 return True
+            else:
+                st.write("🔍 DEBUG: Modèle dans le cache mais pas d'attribut 'device'")
+        else:
+            st.write("🔍 DEBUG: Modèle non trouvé dans le cache")
         return False
     except Exception as e:
         st.error(f"Erreur lors de la restauration depuis le cache : {e}")
+        st.write(f"🔍 DEBUG: Exception lors de la restauration: {e}")
         return False
 
 def diagnose_loading_issues():
@@ -327,6 +350,11 @@ def load_model():
                     model = strategy()
                     st.success("Modèle Gemma 3n E4B IT chargé avec succès depuis le dossier local !")
                     
+                    # Log de débogage
+                    st.write("🔍 DEBUG: Modèle chargé avec succès (local)")
+                    st.write(f"🔍 DEBUG: Type du modèle: {type(model).__name__}")
+                    st.write(f"🔍 DEBUG: Modèle non-null: {model is not None}")
+                    
                     # Stocker immédiatement dans session_state
                     st.session_state.model = model
                     st.session_state.processor = processor
@@ -334,8 +362,13 @@ def load_model():
                     st.session_state.model_status = "Chargé (local)"
                     st.session_state.model_load_time = time.time()
                     
+                    st.write("🔍 DEBUG: Modèle stocké dans session_state")
+                    st.write(f"🔍 DEBUG: model_loaded = {st.session_state.model_loaded}")
+                    
                     # Forcer la persistance
-                    force_model_persistence()
+                    st.write("🔍 DEBUG: Appel de force_model_persistence()...")
+                    persistence_result = force_model_persistence()
+                    st.write(f"🔍 DEBUG: Résultat de la persistance: {persistence_result}")
                     
                     return model, processor
                 except Exception as e:
@@ -469,6 +502,11 @@ def load_model():
                         model = strategy()
                         st.success(f"Modèle chargé avec succès via {strategy.__name__} !")
                         
+                        # Log de débogage
+                        st.write("🔍 DEBUG: Modèle chargé avec succès (GPU)")
+                        st.write(f"🔍 DEBUG: Type du modèle: {type(model).__name__}")
+                        st.write(f"🔍 DEBUG: Modèle non-null: {model is not None}")
+                        
                         # Stocker immédiatement dans session_state
                         st.session_state.model = model
                         st.session_state.processor = processor
@@ -476,8 +514,13 @@ def load_model():
                         st.session_state.model_status = "Chargé (GPU)"
                         st.session_state.model_load_time = time.time()
                         
+                        st.write("🔍 DEBUG: Modèle stocké dans session_state")
+                        st.write(f"🔍 DEBUG: model_loaded = {st.session_state.model_loaded}")
+                        
                         # Forcer la persistance
-                        force_model_persistence()
+                        st.write("🔍 DEBUG: Appel de force_model_persistence()...")
+                        persistence_result = force_model_persistence()
+                        st.write(f"🔍 DEBUG: Résultat de la persistance: {persistence_result}")
                         
                         return model, processor
                     except Exception as e:
@@ -519,6 +562,11 @@ def load_model():
                         model = strategy()
                         st.success(f"Modèle chargé avec succès en mode CPU via {strategy.__name__} !")
                         
+                        # Log de débogage
+                        st.write("🔍 DEBUG: Modèle chargé avec succès (CPU)")
+                        st.write(f"🔍 DEBUG: Type du modèle: {type(model).__name__}")
+                        st.write(f"🔍 DEBUG: Modèle non-null: {model is not None}")
+                        
                         # Stocker immédiatement dans session_state
                         st.session_state.model = model
                         st.session_state.processor = processor
@@ -526,8 +574,13 @@ def load_model():
                         st.session_state.model_status = "Chargé (CPU)"
                         st.session_state.model_load_time = time.time()
                         
+                        st.write("🔍 DEBUG: Modèle stocké dans session_state")
+                        st.write(f"🔍 DEBUG: model_loaded = {st.session_state.model_loaded}")
+                        
                         # Forcer la persistance
-                        force_model_persistence()
+                        st.write("🔍 DEBUG: Appel de force_model_persistence()...")
+                        persistence_result = force_model_persistence()
+                        st.write(f"🔍 DEBUG: Résultat de la persistance: {persistence_result}")
                         
                         return model, processor
                     except Exception as e:
@@ -1053,7 +1106,7 @@ with st.sidebar:
                     st.write(f"**Cache global :** {'✅ Actif' if st.session_state.global_model_cache else '❌ Inactif'}")
                 
                 # Boutons de gestion
-                col1, col2 = st.columns(2)
+                col1, col2, col3 = st.columns(3)
                 with col1:
                     if st.button("🔄 Recharger le modèle", type="secondary"):
                         st.session_state.model_loaded = False
@@ -1067,6 +1120,19 @@ with st.sidebar:
                             st.success("✅ Persistance forcée avec succès")
                         else:
                             st.error("❌ Échec de la persistance forcée")
+                        st.rerun()
+                with col3:
+                    if st.button("🔍 Debug Cache", type="secondary"):
+                        st.write("=== DEBUG CACHE ===")
+                        st.write(f"Session state keys: {list(st.session_state.keys())}")
+                        st.write(f"Global cache keys: {list(st.session_state.global_model_cache.keys())}")
+                        st.write(f"Model loaded: {st.session_state.model_loaded}")
+                        st.write(f"Model in session: {hasattr(st.session_state, 'model') and st.session_state.model is not None}")
+                        st.write(f"Model in cache: {'model' in st.session_state.global_model_cache and st.session_state.global_model_cache['model'] is not None}")
+                        if 'model' in st.session_state.global_model_cache:
+                            cached_model = st.session_state.global_model_cache['model']
+                            st.write(f"Cached model type: {type(cached_model).__name__}")
+                            st.write(f"Cached model has device: {hasattr(cached_model, 'device')}")
                         st.rerun()
             else:
                 st.warning("⚠️ Processeur manquant - rechargement nécessaire")
