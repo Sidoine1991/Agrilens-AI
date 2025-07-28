@@ -5,6 +5,59 @@ from PIL import Image
 import requests
 import torch
 import google.generativeai as genai
+import gc
+import time
+
+# Cache global pour le modèle (persiste entre les reruns)
+if 'global_model_cache' not in st.session_state:
+    st.session_state.global_model_cache = {}
+if 'model_load_time' not in st.session_state:
+    st.session_state.model_load_time = None
+if 'model_persistence_check' not in st.session_state:
+    st.session_state.model_persistence_check = False
+
+def check_model_persistence():
+    """Vérifie si le modèle est toujours persistant en mémoire"""
+    try:
+        if hasattr(st.session_state, 'model') and st.session_state.model is not None:
+            # Test simple pour vérifier que le modèle fonctionne
+            if hasattr(st.session_state.model, 'device'):
+                device = st.session_state.model.device
+                return True
+        return False
+    except Exception:
+        return False
+
+def force_model_persistence():
+    """Force la persistance du modèle en mémoire"""
+    try:
+        if hasattr(st.session_state, 'model') and st.session_state.model is not None:
+            # Créer une référence forte au modèle
+            st.session_state.global_model_cache['model'] = st.session_state.model
+            st.session_state.global_model_cache['processor'] = st.session_state.processor
+            st.session_state.global_model_cache['load_time'] = time.time()
+            
+            # Vérification immédiate
+            if st.session_state.global_model_cache.get('model') is not None:
+                st.session_state.model_persistence_check = True
+                return True
+        return False
+    except Exception as e:
+        st.error(f"Erreur lors de la persistance forcée : {e}")
+        return False
+
+def restore_model_from_cache():
+    """Restaure le modèle depuis le cache global"""
+    try:
+        if 'model' in st.session_state.global_model_cache:
+            st.session_state.model = st.session_state.global_model_cache['model']
+            st.session_state.processor = st.session_state.global_model_cache['processor']
+            st.session_state.model_loaded = True
+            st.session_state.model_status = "Chargé (cache)"
+            return True
+        return False
+    except Exception:
+        return False
 
 def resize_image_if_needed(image, max_size=(800, 800)):
     """
@@ -161,119 +214,223 @@ def t(key):
     return translations[st.session_state.language][key]
 
 def load_model():
-    """Charge le modèle Gemma 3n E4B IT depuis Hugging Face avec gestion robuste de la mémoire"""
+    """Charge le modèle Gemma 3n E4B IT selon l'environnement (local ou Hugging Face)"""
     try:
-        st.info("Chargement du modèle Gemma 3n E4B IT depuis Hugging Face...")
-        
         from transformers import AutoProcessor, Gemma3nForConditionalGeneration
         
-        model_id = "google/gemma-3n-E4B-it"
-        
-        # Charger le processeur
-        processor = AutoProcessor.from_pretrained(
-            model_id,
-            trust_remote_code=True
-        )
-        
-        # Stratégie 1: Chargement conservateur avec gestion mémoire stricte
-        def load_conservative():
-            st.info("Chargement en mode conservateur (CPU uniquement)...")
-            return Gemma3nForConditionalGeneration.from_pretrained(
-                model_id,
-                device_map="cpu",
-                torch_dtype=torch.float32,
-                trust_remote_code=True,
-                low_cpu_mem_usage=True,
-                max_memory={"cpu": "8GB"}  # Limiter l'utilisation mémoire CPU
-            )
-        
-        # Stratégie 2: Chargement avec 8-bit quantization
-        def load_8bit():
-            st.info("Chargement avec quantification 8-bit...")
-            return Gemma3nForConditionalGeneration.from_pretrained(
-                model_id,
-                device_map="auto",
-                torch_dtype=torch.float16,
-                trust_remote_code=True,
-                low_cpu_mem_usage=True,
-                load_in_8bit=True
-            )
-        
-        # Stratégie 3: Chargement avec 4-bit quantization
-        def load_4bit():
-            st.info("Chargement avec quantification 4-bit...")
-            return Gemma3nForConditionalGeneration.from_pretrained(
-                model_id,
-                device_map="auto",
-                torch_dtype=torch.float16,
-                trust_remote_code=True,
-                low_cpu_mem_usage=True,
-                load_in_4bit=True,
-                bnb_4bit_compute_dtype=torch.float16
-            )
-        
-        # Stratégie 4: Chargement avec gestion mémoire personnalisée
-        def load_custom_memory():
-            st.info("Chargement avec gestion mémoire personnalisée...")
-            return Gemma3nForConditionalGeneration.from_pretrained(
-                model_id,
-                device_map="auto",
-                torch_dtype=torch.float16,
-                trust_remote_code=True,
-                low_cpu_mem_usage=True,
-                max_memory={
-                    0: "4GB",  # GPU
-                    "cpu": "8GB"  # CPU
-                }
-            )
-        
-        # Vérifier la mémoire disponible
+        # Nettoyer la mémoire avant le chargement
+        gc.collect()
         if torch.cuda.is_available():
-            gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1024**3  # GB
-            st.info(f"Mémoire GPU disponible : {gpu_memory:.1f} GB")
+            torch.cuda.empty_cache()
+        
+        # Détecter l'environnement
+        is_local = os.path.exists("D:/Dev/model_gemma")
+        
+        if is_local:
+            # Mode LOCAL - Utiliser le modèle téléchargé
+            st.info("Chargement du modèle Gemma 3n E4B IT depuis D:/Dev/model_gemma (mode local)...")
+            model_path = "D:/Dev/model_gemma"
             
-            # Essayer différentes stratégies selon la mémoire disponible
-            strategies = []
+            # Charger le processeur
+            processor = AutoProcessor.from_pretrained(
+                model_path,
+                trust_remote_code=True
+            )
             
-            if gpu_memory >= 8:
-                strategies = [load_custom_memory, load_4bit, load_8bit, load_conservative]
-            elif gpu_memory >= 4:
-                strategies = [load_4bit, load_8bit, load_conservative]
-            else:
-                strategies = [load_8bit, load_conservative]
+            # Stratégies de chargement pour le mode local
+            def load_local_ultra_conservative():
+                st.info("Chargement local ultra-conservateur (CPU uniquement, sans device_map)...")
+                return Gemma3nForConditionalGeneration.from_pretrained(
+                    model_path,
+                    torch_dtype=torch.float32,
+                    trust_remote_code=True,
+                    low_cpu_mem_usage=True
+                )
             
-            # Essayer chaque stratégie jusqu'à ce qu'une fonctionne
-            for i, strategy in enumerate(strategies):
+            def load_local_conservative():
+                st.info("Chargement local conservateur (device_map CPU)...")
+                return Gemma3nForConditionalGeneration.from_pretrained(
+                    model_path,
+                    device_map="cpu",
+                    torch_dtype=torch.float32,
+                    trust_remote_code=True,
+                    low_cpu_mem_usage=True
+                )
+            
+            # Essayer les stratégies de chargement local
+            strategies = [load_local_ultra_conservative, load_local_conservative]
+            
+            for strategy in strategies:
                 try:
-                    st.info(f"Tentative {i+1}/{len(strategies)} : {strategy.__name__}")
                     model = strategy()
-                    st.success(f"Modèle chargé avec succès via {strategy.__name__} !")
+                    st.success("Modèle Gemma 3n E4B IT chargé avec succès depuis le dossier local !")
                     return model, processor
                 except Exception as e:
                     error_msg = str(e)
-                    if "disk_offload" in error_msg:
+                    if "disk_offload" in error_msg.lower():
                         st.warning(f"Stratégie {strategy.__name__} échouée (disk_offload). Tentative suivante...")
+                        gc.collect()
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
                         continue
                     elif "out of memory" in error_msg.lower():
                         st.warning(f"Stratégie {strategy.__name__} échouée (mémoire insuffisante). Tentative suivante...")
+                        gc.collect()
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
                         continue
                     else:
                         st.warning(f"Stratégie {strategy.__name__} échouée : {error_msg}. Tentative suivante...")
+                        gc.collect()
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
                         continue
             
-            # Si toutes les stratégies ont échoué
-            st.error("Toutes les stratégies de chargement ont échoué.")
+            # Si toutes les stratégies échouent
+            st.error("Toutes les stratégies de chargement local ont échoué.")
             return None, None
             
         else:
-            # Mode CPU uniquement
-            st.warning("GPU non disponible, utilisation du CPU (plus lent)")
-            try:
-                model = load_conservative()
-                st.success("Modèle chargé avec succès en mode CPU !")
-                return model, processor
-            except Exception as e:
-                st.error(f"Échec du chargement en mode CPU : {e}")
+            # Mode HUGGING FACE - Utiliser le modèle en ligne
+            st.info("Chargement du modèle Gemma 3n E4B IT depuis Hugging Face (mode en ligne)...")
+            model_id = "google/gemma-3n-E4B-it"
+            
+            # Charger le processeur
+            processor = AutoProcessor.from_pretrained(
+                model_id,
+                trust_remote_code=True
+            )
+            
+            # Stratégie 1: Chargement ultra-conservateur (CPU uniquement, sans device_map)
+            def load_ultra_conservative():
+                st.info("Chargement ultra-conservateur (CPU uniquement, sans device_map)...")
+                return Gemma3nForConditionalGeneration.from_pretrained(
+                    model_id,
+                    torch_dtype=torch.float32,
+                    trust_remote_code=True,
+                    low_cpu_mem_usage=True
+                )
+            
+            # Stratégie 2: Chargement conservateur avec device_map CPU
+            def load_conservative():
+                st.info("Chargement conservateur (device_map CPU)...")
+                return Gemma3nForConditionalGeneration.from_pretrained(
+                    model_id,
+                    device_map="cpu",
+                    torch_dtype=torch.float32,
+                    trust_remote_code=True,
+                    low_cpu_mem_usage=True
+                )
+            
+            # Stratégie 3: Chargement avec 8-bit quantization
+            def load_8bit():
+                st.info("Chargement avec quantification 8-bit...")
+                return Gemma3nForConditionalGeneration.from_pretrained(
+                    model_id,
+                    device_map="auto",
+                    torch_dtype=torch.float16,
+                    trust_remote_code=True,
+                    low_cpu_mem_usage=True,
+                    load_in_8bit=True
+                )
+            
+            # Stratégie 4: Chargement avec 4-bit quantization
+            def load_4bit():
+                st.info("Chargement avec quantification 4-bit...")
+                return Gemma3nForConditionalGeneration.from_pretrained(
+                    model_id,
+                    device_map="auto",
+                    torch_dtype=torch.float16,
+                    trust_remote_code=True,
+                    low_cpu_mem_usage=True,
+                    load_in_4bit=True,
+                    bnb_4bit_compute_dtype=torch.float16
+                )
+            
+            # Stratégie 5: Chargement avec gestion mémoire personnalisée (sans max_memory)
+            def load_custom_memory():
+                st.info("Chargement avec gestion mémoire personnalisée...")
+                return Gemma3nForConditionalGeneration.from_pretrained(
+                    model_id,
+                    device_map="auto",
+                    torch_dtype=torch.float16,
+                    trust_remote_code=True,
+                    low_cpu_mem_usage=True
+                )
+            
+            # Vérifier la mémoire disponible
+            if torch.cuda.is_available():
+                gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1024**3  # GB
+                st.info(f"Mémoire GPU disponible : {gpu_memory:.1f} GB")
+                
+                # Essayer différentes stratégies selon la mémoire disponible
+                strategies = []
+                
+                if gpu_memory >= 8:
+                    strategies = [load_custom_memory, load_4bit, load_8bit, load_conservative, load_ultra_conservative]
+                elif gpu_memory >= 4:
+                    strategies = [load_4bit, load_8bit, load_conservative, load_ultra_conservative]
+                else:
+                    strategies = [load_8bit, load_conservative, load_ultra_conservative]
+                
+                # Essayer chaque stratégie jusqu'à ce qu'une fonctionne
+                for i, strategy in enumerate(strategies):
+                    try:
+                        st.info(f"Tentative {i+1}/{len(strategies)} : {strategy.__name__}")
+                        model = strategy()
+                        st.success(f"Modèle chargé avec succès via {strategy.__name__} !")
+                        return model, processor
+                    except Exception as e:
+                        error_msg = str(e)
+                        if "disk_offload" in error_msg.lower():
+                            st.warning(f"Stratégie {strategy.__name__} échouée (disk_offload). Tentative suivante...")
+                            # Nettoyer la mémoire avant la prochaine tentative
+                            gc.collect()
+                            if torch.cuda.is_available():
+                                torch.cuda.empty_cache()
+                            continue
+                        elif "out of memory" in error_msg.lower():
+                            st.warning(f"Stratégie {strategy.__name__} échouée (mémoire insuffisante). Tentative suivante...")
+                            # Nettoyer la mémoire avant la prochaine tentative
+                            gc.collect()
+                            if torch.cuda.is_available():
+                                torch.cuda.empty_cache()
+                            continue
+                        else:
+                            st.warning(f"Stratégie {strategy.__name__} échouée : {error_msg}. Tentative suivante...")
+                            # Nettoyer la mémoire avant la prochaine tentative
+                            gc.collect()
+                            if torch.cuda.is_available():
+                                torch.cuda.empty_cache()
+                            continue
+                
+                # Si toutes les stratégies ont échoué
+                st.error("Toutes les stratégies de chargement ont échoué.")
+                return None, None
+                
+            else:
+                # Mode CPU uniquement - essayer plusieurs stratégies
+                st.warning("GPU non disponible, utilisation du CPU (plus lent)")
+                cpu_strategies = [load_ultra_conservative, load_conservative]
+                
+                for i, strategy in enumerate(cpu_strategies):
+                    try:
+                        st.info(f"Tentative CPU {i+1}/{len(cpu_strategies)} : {strategy.__name__}")
+                        model = strategy()
+                        st.success(f"Modèle chargé avec succès en mode CPU via {strategy.__name__} !")
+                        return model, processor
+                    except Exception as e:
+                        error_msg = str(e)
+                        if "disk_offload" in error_msg.lower():
+                            st.warning(f"Stratégie CPU {strategy.__name__} échouée (disk_offload). Tentative suivante...")
+                            gc.collect()
+                            continue
+                        else:
+                            st.warning(f"Stratégie CPU {strategy.__name__} échouée : {error_msg}. Tentative suivante...")
+                            gc.collect()
+                            continue
+                
+                st.error("Toutes les stratégies de chargement CPU ont échoué.")
                 return None, None
         
     except Exception as e:
@@ -283,14 +440,22 @@ def load_model():
 def analyze_image_multilingual(image, prompt=""):
     """Analyse une image avec Gemma 3n E4B IT pour diagnostic précis"""
     try:
-        # Vérification complète du modèle
-        if not st.session_state.model_loaded:
-            return "❌ Modèle Gemma non chargé. Veuillez d'abord charger le modèle dans les réglages."
+        # Vérification complète du modèle avec cache
+        if not st.session_state.model_loaded and not check_model_persistence():
+            # Essayer de restaurer depuis le cache
+            if restore_model_from_cache():
+                st.info("🔄 Modèle restauré depuis le cache pour l'analyse")
+            else:
+                return "❌ Modèle Gemma non chargé. Veuillez d'abord charger le modèle dans les réglages."
         
         # Vérifier que le modèle et le processeur sont disponibles
         if not hasattr(st.session_state, 'model') or st.session_state.model is None:
-            st.session_state.model_loaded = False
-            return "❌ Modèle perdu en mémoire. Veuillez recharger le modèle."
+            # Essayer de restaurer depuis le cache
+            if restore_model_from_cache():
+                st.info("🔄 Modèle restauré depuis le cache")
+            else:
+                st.session_state.model_loaded = False
+                return "❌ Modèle perdu en mémoire. Veuillez recharger le modèle."
         
         if not hasattr(st.session_state, 'processor') or st.session_state.processor is None:
             st.session_state.model_loaded = False
@@ -489,14 +654,22 @@ Respond in a structured and precise manner.
 
 def analyze_text_multilingual(text):
     """Analyse un texte avec le modèle Gemma 3n E4B IT"""
-    # Vérification complète du modèle
-    if not st.session_state.model_loaded:
-        return "❌ Modèle non chargé. Veuillez le charger dans les réglages."
+    # Vérification complète du modèle avec cache
+    if not st.session_state.model_loaded and not check_model_persistence():
+        # Essayer de restaurer depuis le cache
+        if restore_model_from_cache():
+            st.info("🔄 Modèle restauré depuis le cache pour l'analyse")
+        else:
+            return "❌ Modèle non chargé. Veuillez le charger dans les réglages."
     
     # Vérifier que le modèle et le processeur sont disponibles
     if not hasattr(st.session_state, 'model') or st.session_state.model is None:
-        st.session_state.model_loaded = False
-        return "❌ Modèle perdu en mémoire. Veuillez recharger le modèle."
+        # Essayer de restaurer depuis le cache
+        if restore_model_from_cache():
+            st.info("🔄 Modèle restauré depuis le cache")
+        else:
+            st.session_state.model_loaded = False
+            return "❌ Modèle perdu en mémoire. Veuillez recharger le modèle."
     
     if not hasattr(st.session_state, 'processor') or st.session_state.processor is None:
         st.session_state.model_loaded = False
@@ -660,6 +833,14 @@ with st.sidebar:
     else:
         st.session_state.language = "en"
     
+    # Vérification automatique de la persistance du modèle
+    if not st.session_state.model_loaded and not check_model_persistence():
+        # Essayer de restaurer depuis le cache
+        if restore_model_from_cache():
+            st.success("✅ Modèle restauré depuis le cache")
+        else:
+            st.info("🔄 Modèle non trouvé en cache - chargement nécessaire")
+    
     # Chargement du modèle
     if st.button(t("load_model"), type="primary"):
         with st.spinner("Chargement du modèle..." if st.session_state.language == "fr" else "Loading model..."):
@@ -671,13 +852,18 @@ with st.sidebar:
                     st.session_state.processor = processor
                     st.session_state.model_loaded = True
                     st.session_state.model_status = t("loaded")
-                    st.success("Modèle Gemma 3n E4B IT chargé avec succès depuis Hugging Face !" if st.session_state.language == "fr" else "Gemma 3n E4B IT model loaded successfully from Hugging Face!")
+                    st.session_state.model_load_time = time.time()
                     
-                    # Vérification immédiate que le modèle est bien stocké
-                    if hasattr(st.session_state, 'model') and st.session_state.model is not None:
-                        st.info("✅ Modèle correctement stocké en mémoire")
+                    # Forcer la persistance en cache global
+                    if force_model_persistence():
+                        if is_local:
+                            st.success("✅ Modèle Gemma 3n E4B IT chargé et persisté avec succès (mode local) !")
+                            st.info("🔄 Le modèle local est maintenant sauvegardé en cache pour la persistance")
+                        else:
+                            st.success("✅ Modèle Gemma 3n E4B IT chargé et persisté avec succès (mode Hugging Face) !")
+                            st.info("🔄 Le modèle en ligne est maintenant sauvegardé en cache pour la persistance")
                     else:
-                        st.warning("⚠️ Problème de stockage du modèle")
+                        st.warning("⚠️ Modèle chargé mais problème de persistance détecté")
                         
                 else:
                     st.session_state.model_loaded = False
@@ -691,26 +877,57 @@ with st.sidebar:
     st.info(f"{t('model_status')} {st.session_state.model_status}")
     
     # Vérification de la persistance du modèle
-    if st.session_state.model_loaded:
+    if st.session_state.model_loaded or check_model_persistence():
         # Vérifier que le modèle est toujours disponible
         if hasattr(st.session_state, 'model') and st.session_state.model is not None:
             if hasattr(st.session_state, 'processor') and st.session_state.processor is not None:
-                st.success("✅ Modèle Gemma 3n E4B IT chargé et persistant (Hugging Face)")
-                st.info("Le modèle est prêt pour l'analyse d'images et de texte")
+                # Détecter l'environnement pour l'affichage
+                is_local = os.path.exists("D:/Dev/model_gemma")
+                
+                # Afficher le statut de persistance
+                if st.session_state.model_persistence_check:
+                    if is_local:
+                        st.success("✅ Modèle Gemma 3n E4B IT chargé et PERSISTANT (mode local - cache activé)")
+                        st.info("🔄 Le modèle local est sauvegardé en cache et persiste entre les sessions")
+                    else:
+                        st.success("✅ Modèle Gemma 3n E4B IT chargé et PERSISTANT (mode Hugging Face - cache activé)")
+                        st.info("🔄 Le modèle en ligne est sauvegardé en cache et persiste entre les sessions")
+                else:
+                    if is_local:
+                        st.success("✅ Modèle Gemma 3n E4B IT chargé (mode local)")
+                        st.info("Le modèle local est prêt pour l'analyse d'images et de texte")
+                    else:
+                        st.success("✅ Modèle Gemma 3n E4B IT chargé (mode Hugging Face)")
+                        st.info("Le modèle en ligne est prêt pour l'analyse d'images et de texte")
                 
                 # Diagnostic du modèle
                 with st.expander("🔍 Diagnostic du modèle"):
+                    st.write(f"**Mode d'exécution :** {'🏠 Local (D:/Dev/model_gemma)' if is_local else '🌐 Hugging Face (en ligne)'}")
                     st.write(f"**Modèle chargé :** {type(st.session_state.model).__name__}")
                     st.write(f"**Processeur chargé :** {type(st.session_state.processor).__name__}")
                     st.write(f"**Device du modèle :** {st.session_state.model.device}")
                     st.write(f"**Mémoire utilisée :** {torch.cuda.memory_allocated() / 1024**3:.2f} GB" if torch.cuda.is_available() else "CPU uniquement")
+                    if st.session_state.model_load_time:
+                        load_time_str = time.strftime('%H:%M:%S', time.localtime(st.session_state.model_load_time))
+                        st.write(f"**Heure de chargement :** {load_time_str}")
+                    st.write(f"**Cache global :** {'✅ Actif' if st.session_state.global_model_cache else '❌ Inactif'}")
                 
-                # Bouton de rechargement pour forcer la persistance
-                if st.button("🔄 Recharger le modèle (si problème)", type="secondary"):
-                    st.session_state.model_loaded = False
-                    st.session_state.model = None
-                    st.session_state.processor = None
-                    st.rerun()
+                # Boutons de gestion
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("🔄 Recharger le modèle", type="secondary"):
+                        st.session_state.model_loaded = False
+                        st.session_state.model = None
+                        st.session_state.processor = None
+                        st.session_state.global_model_cache.clear()
+                        st.rerun()
+                with col2:
+                    if st.button("💾 Forcer la persistance", type="secondary"):
+                        if force_model_persistence():
+                            st.success("✅ Persistance forcée avec succès")
+                        else:
+                            st.error("❌ Échec de la persistance forcée")
+                        st.rerun()
             else:
                 st.warning("⚠️ Processeur manquant - rechargement nécessaire")
                 st.session_state.model_loaded = False
@@ -720,8 +937,14 @@ with st.sidebar:
             st.session_state.model_loaded = False
             st.session_state.processor = None
     else:
+        # Détecter l'environnement pour l'affichage
+        is_local = os.path.exists("D:/Dev/model_gemma")
+        
         st.warning("⚠️ Modèle Gemma 3n E4B IT non chargé")
-        st.info("Cliquez sur 'Charger le modèle' pour activer l'analyse")
+        if is_local:
+            st.info("Cliquez sur 'Charger le modèle' pour activer l'analyse (mode local)")
+        else:
+            st.info("Cliquez sur 'Charger le modèle' pour activer l'analyse (mode Hugging Face)")
 
 # Onglets principaux
 tab1, tab2, tab3, tab4 = st.tabs(t("tabs"))
@@ -946,11 +1169,22 @@ with tab4:
     """)
     
     st.markdown("### 🔧 Technologie / Technology")
-    st.markdown("""
-    • **Modèle** : Gemma 3n E4B IT (Hugging Face)
-    • **Framework** : Streamlit
-    • **Déploiement** : Hugging Face Spaces
-    """)
+    
+    # Détecter l'environnement pour l'affichage
+    is_local = os.path.exists("D:/Dev/model_gemma")
+    
+    if is_local:
+        st.markdown("""
+        • **Modèle** : Gemma 3n E4B IT (Local - D:/Dev/model_gemma)
+        • **Framework** : Streamlit
+        • **Déploiement** : Local
+        """)
+    else:
+        st.markdown("""
+        • **Modèle** : Gemma 3n E4B IT (Hugging Face - en ligne)
+        • **Framework** : Streamlit
+        • **Déploiement** : Hugging Face Spaces
+        """)
     
     # Informations du créateur
     st.markdown(f"### {t('creator_title')}")
