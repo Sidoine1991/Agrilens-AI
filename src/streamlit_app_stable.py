@@ -141,15 +141,16 @@ def load_model():
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
         # Utilisation d'un chemin local explicite pour le modèle
-        model_id = "models/gemma-3n-E4B-it"
-        if os.path.exists(model_id):
+        model_id_local = "models/gemma-3n-E4B-it"
+        model_id_hf = "google/gemma-3-4b-it"
+        if os.path.exists(model_id_local):
             st.info("Chargement du modèle depuis le dossier local explicite...")
             processor = AutoProcessor.from_pretrained(
-                model_id,
+                model_id_local,
                 trust_remote_code=True
             )
             model = Gemma3nForConditionalGeneration.from_pretrained(
-                model_id,
+                model_id_local,
                 torch_dtype=torch.bfloat16,
                 trust_remote_code=True,
                 low_cpu_mem_usage=True,
@@ -157,8 +158,19 @@ def load_model():
             )
             st.success("✅ Modèle chargé avec succès (local explicite)")
         else:
-            st.error(f"❌ Dossier du modèle local non trouvé : {model_id}")
-            return None, None
+            st.info("Chargement du modèle depuis Hugging Face Hub (en ligne)...")
+            processor = AutoProcessor.from_pretrained(
+                model_id_hf,
+                trust_remote_code=True
+            )
+            model = Gemma3nForConditionalGeneration.from_pretrained(
+                model_id_hf,
+                torch_dtype=torch.bfloat16,
+                trust_remote_code=True,
+                low_cpu_mem_usage=True,
+                device_map="cpu"
+            )
+            st.success("✅ Modèle chargé depuis Hugging Face Hub !")
         st.session_state.model = model
         st.session_state.processor = processor
         st.session_state.model_loaded = True
@@ -183,13 +195,7 @@ def analyze_image_multilingual(image, prompt=""):
         
         # Préparer le prompt
         if not prompt:
-            prompt = """Analysez cette image de plante et identifiez :
-1. L'état de santé général de la plante
-2. Les maladies ou problèmes visibles
-3. Les recommandations de traitement
-4. Les mesures préventives
-
-Répondez en français de manière claire et structurée."""
+            prompt = "<image> Analysez cette image de plante et identifiez :\n1. L'état de santé général de la plante\n2. Les maladies ou problèmes visibles\n3. Les recommandations de traitement\n4. Les mesures préventives\n\nRépondez en français de manière claire et structurée."
         
         # Encoder l'image
         inputs = st.session_state.processor(
