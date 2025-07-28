@@ -515,27 +515,45 @@ def load_model():
             st.info("Chargement du modèle Gemma 3n E4B IT depuis Hugging Face (mode en ligne)...")
             model_id = "google/gemma-3n-E4B-it"
             
-            # Charger le processeur
+            # Charger le processeur avec timeout
             try:
                 st.info("Téléchargement du processeur depuis Hugging Face...")
                 processor = AutoProcessor.from_pretrained(
                     model_id,
-                    trust_remote_code=True
+                    trust_remote_code=True,
+                    timeout=30  # Timeout de 30 secondes
                 )
                 st.success("Processeur téléchargé avec succès !")
             except Exception as e:
                 st.error(f"Erreur lors du téléchargement du processeur : {e}")
-                st.info("Tentative de téléchargement avec cache...")
+                st.info("Tentative de téléchargement avec cache et timeout...")
                 try:
                     processor = AutoProcessor.from_pretrained(
                         model_id,
                         trust_remote_code=True,
-                        cache_dir="./cache"
+                        cache_dir="./cache",
+                        timeout=60  # Timeout de 60 secondes
                     )
                     st.success("Processeur téléchargé avec cache !")
                 except Exception as e2:
                     st.error(f"Erreur fatale lors du téléchargement du processeur : {e2}")
-                    return None, None
+                    st.info("🔄 Tentative de fallback vers le modèle local...")
+                    
+                    # Fallback vers le modèle local
+                    local_model_path = "D:/Dev/model_gemma"
+                    if os.path.exists(local_model_path):
+                        try:
+                            processor = AutoProcessor.from_pretrained(
+                                local_model_path,
+                                trust_remote_code=True
+                            )
+                            st.success("Processeur chargé depuis le modèle local !")
+                        except Exception as e3:
+                            st.error(f"Erreur avec le modèle local : {e3}")
+                            return None, None
+                    else:
+                        st.error("Aucun modèle local disponible")
+                        return None, None
             
             # Stratégie 1: Chargement ultra-conservateur (CPU uniquement, sans device_map)
             def load_ultra_conservative():

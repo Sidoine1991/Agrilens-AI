@@ -18,7 +18,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Initialisation des variables de session
+# Initialisation des variables de session avec vérification d'état
 if 'model_loaded' not in st.session_state:
     st.session_state.model_loaded = False
 if 'model' not in st.session_state:
@@ -31,47 +31,60 @@ if 'model_load_time' not in st.session_state:
     st.session_state.model_load_time = None
 if 'language' not in st.session_state:
     st.session_state.language = "fr"
+if 'last_load_attempt' not in st.session_state:
+    st.session_state.last_load_attempt = 0
 if 'load_attempt_count' not in st.session_state:
     st.session_state.load_attempt_count = 0
 
+# Cache global pour éviter les rechargements
+@st.cache_resource
+def get_model_cache():
+    return {}
+
 def check_model_health():
-    """Vérifie si le modèle est fonctionnel"""
+    """Vérifie si le modèle est toujours fonctionnel"""
     try:
-        return (st.session_state.model is not None and 
-                st.session_state.processor is not None and
-                hasattr(st.session_state.model, 'device'))
+        if (st.session_state.model is not None and 
+            st.session_state.processor is not None and
+            hasattr(st.session_state.model, 'device')):
+            return True
+        return False
     except Exception:
         return False
 
 def diagnose_loading_issues():
-    """Diagnostique les problèmes potentiels"""
+    """Diagnostique les problèmes potentiels de chargement"""
     issues = []
     
+    # Vérifier la RAM
     ram_gb = psutil.virtual_memory().total / (1024**3)
     if ram_gb < 8:
-        issues.append(f"⚠️ RAM faible: {ram_gb:.1f}GB (recommandé: 8GB+)")
+        issues.append(f"⚠️ RAM faible détectée: {ram_gb:.1f}GB (recommandé: 8GB+)")
     
+    # Vérifier l'espace disque
     disk_usage = psutil.disk_usage('/')
     disk_gb = disk_usage.free / (1024**3)
     if disk_gb < 10:
-        issues.append(f"⚠️ Espace disque faible: {disk_gb:.1f}GB libre")
+        issues.append(f"⚠️ Espace disque faible: {disk_gb:.1f}GB libre (recommandé: 10GB+)")
     
+    # Vérifier la connexion internet
     try:
         requests.get("https://huggingface.co", timeout=5)
     except:
-        issues.append("⚠️ Problème de connexion à Hugging Face")
+        issues.append("⚠️ Problème de connexion à Hugging Face détecté")
     
+    # Vérifier CUDA
     if torch.cuda.is_available():
         gpu_memory = torch.cuda.get_device_properties(0).total_memory / (1024**3)
         if gpu_memory < 4:
-            issues.append(f"⚠️ GPU mémoire faible: {gpu_memory:.1f}GB")
+            issues.append(f"⚠️ GPU mémoire faible: {gpu_memory:.1f}GB (recommandé: 4GB+)")
     else:
-        issues.append("ℹ️ CUDA non disponible - CPU uniquement")
+        issues.append("ℹ️ CUDA non disponible - utilisation CPU uniquement")
     
     return issues
 
 def resize_image_if_needed(image, max_size=(800, 800)):
-    """Redimensionne l'image si nécessaire"""
+    """Redimensionne l'image si elle est trop grande"""
     original_size = image.size
     if image.size[0] > max_size[0] or image.size[1] > max_size[1]:
         image.thumbnail(max_size, Image.Resampling.LANCZOS)
@@ -84,20 +97,26 @@ def afficher_ram_disponible(context=""):
     ram_used_gb = ram.used / (1024**3)
     ram_total_gb = ram.total / (1024**3)
     ram_percent = ram.percent
+    
     st.write(f"💾 RAM {context}: {ram_used_gb:.1f}GB / {ram_total_gb:.1f}GB ({ram_percent:.1f}%)")
+    
+    if ram_percent > 90:
+        st.warning("⚠️ Utilisation RAM élevée - risque de crash")
+    elif ram_percent > 80:
+        st.info("ℹ️ Utilisation RAM modérée")
 
 # Traductions
 def t(key):
     translations = {
         "fr": {
             "title": "🌱 AgriLens AI - Assistant d'Analyse de Plantes",
-            "subtitle": "Analysez vos plantes avec l'IA pour détecter les maladies",
+            "subtitle": "Analysez vos plantes avec l'IA pour détecter les maladies et obtenir des conseils",
             "tabs": ["📸 Analyse d'Image", "📝 Analyse de Texte", "⚙️ Configuration", "ℹ️ À Propos"],
             "image_analysis_title": "📸 Analyse d'Image de Plante",
-            "image_analysis_desc": "Téléchargez ou capturez une image de votre plante",
+            "image_analysis_desc": "Téléchargez ou capturez une image de votre plante pour analyser sa santé",
             "choose_image": "Choisissez une image de plante...",
             "text_analysis_title": "📝 Analyse de Description Textuelle",
-            "text_analysis_desc": "Décrivez les symptômes de votre plante",
+            "text_analysis_desc": "Décrivez les symptômes de votre plante pour obtenir un diagnostic",
             "enter_description": "Décrivez les symptômes de votre plante...",
             "config_title": "⚙️ Configuration",
             "about_title": "ℹ️ À Propos",
@@ -106,13 +125,13 @@ def t(key):
         },
         "en": {
             "title": "🌱 AgriLens AI - Plant Analysis Assistant",
-            "subtitle": "Analyze your plants with AI to detect diseases",
+            "subtitle": "Analyze your plants with AI to detect diseases and get advice",
             "tabs": ["📸 Image Analysis", "📝 Text Analysis", "⚙️ Configuration", "ℹ️ About"],
             "image_analysis_title": "📸 Plant Image Analysis",
-            "image_analysis_desc": "Upload or capture an image of your plant",
+            "image_analysis_desc": "Upload or capture an image of your plant to analyze its health",
             "choose_image": "Choose a plant image...",
             "text_analysis_title": "📝 Textual Description Analysis",
-            "text_analysis_desc": "Describe your plant symptoms",
+            "text_analysis_desc": "Describe your plant symptoms to get a diagnosis",
             "enter_description": "Describe your plant symptoms...",
             "config_title": "⚙️ Configuration",
             "about_title": "ℹ️ About",
@@ -123,69 +142,102 @@ def t(key):
     return translations[st.session_state.language].get(key, key)
 
 def load_model():
-    """Charge le modèle avec gestion d'erreurs améliorée et priorité au cache local"""
+    """Charge le modèle avec gestion intelligente des erreurs"""
     try:
         from transformers import AutoProcessor, Gemma3nForConditionalGeneration
         
-        if st.session_state.load_attempt_count >= 3:
-            st.error("🔄 Trop de tentatives de chargement. Redémarrez l'application.")
+        # Éviter les rechargements trop fréquents
+        current_time = time.time()
+        if (current_time - st.session_state.last_load_attempt < 30 and 
+            st.session_state.load_attempt_count > 3):
+            st.error("🔄 Trop de tentatives de chargement récentes. Attendez 30 secondes.")
             return None, None
+        
+        st.session_state.last_load_attempt = current_time
         st.session_state.load_attempt_count += 1
+        
+        # Diagnostic initial
         st.info("🔍 Diagnostic de l'environnement...")
         issues = diagnose_loading_issues()
         if issues:
             with st.expander("📊 Diagnostic système", expanded=False):
                 for issue in issues:
                     st.write(issue)
+        
+        # Nettoyer la mémoire
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-        # Utilisation d'un chemin local explicite pour le modèle
-        model_id_local = "models/gemma-3n-E4B-it"
-        model_id_hf = "google/gemma-3n-E4B-it"
-        try:
-            if os.path.exists(model_id_local):
-                st.info("Chargement du modèle depuis le dossier local explicite...")
-                processor = AutoProcessor.from_pretrained(
-                    model_id_local,
-                    trust_remote_code=True
-                )
-                model = Gemma3nForConditionalGeneration.from_pretrained(
-                    model_id_local,
-                    torch_dtype=torch.bfloat16,
-                    trust_remote_code=True,
-                    low_cpu_mem_usage=True,
-                    device_map="cpu"
-                )
-                st.success("✅ Modèle chargé avec succès (local explicite)")
-            else:
-                raise FileNotFoundError("Modèle local non trouvé")
-        except Exception as e:
-            st.warning(f"Modèle local non trouvé ou erreur : {e}")
+        
+        # Détecter l'environnement
+        is_local = os.path.exists("models/gemma-3n-transformers-gemma-3n-e2b-it-v1")
+        
+        if is_local:
+            # Mode LOCAL
+            st.info("Chargement du modèle Gemma 3n E4B IT depuis le dossier local...")
+            model_path = "models/gemma-3n-transformers-gemma-3n-e2b-it-v1"
+            
+            processor = AutoProcessor.from_pretrained(
+                model_path,
+                trust_remote_code=True
+            )
+            
+            model = Gemma3nForConditionalGeneration.from_pretrained(
+                model_path,
+                torch_dtype=torch.bfloat16,
+                trust_remote_code=True,
+                low_cpu_mem_usage=True
+            )
+            
+            st.success("✅ Modèle chargé avec succès (local)")
+            
+        else:
+            # Mode HUGGING FACE avec timeout
+            st.info("Chargement du modèle Gemma 3n E4B IT depuis Hugging Face...")
+            model_id = "google/gemma-3n-E4B-it"
+            
+            # Timeout de 60 secondes pour éviter les blocages
+            import signal
+            
+            def timeout_handler(signum, frame):
+                raise TimeoutError("Timeout lors du téléchargement")
+            
+            # Charger le processeur avec timeout
             try:
-                st.info("Chargement du modèle depuis Hugging Face Hub (en ligne)...")
                 processor = AutoProcessor.from_pretrained(
-                    model_id_hf,
-                    trust_remote_code=True
+                    model_id,
+                    trust_remote_code=True,
+                    timeout=60
                 )
+                st.success("✅ Processeur téléchargé avec succès")
+            except Exception as e:
+                st.error(f"❌ Erreur processeur: {e}")
+                return None, None
+            
+            # Charger le modèle avec timeout
+            try:
                 model = Gemma3nForConditionalGeneration.from_pretrained(
-                    model_id_hf,
+                    model_id,
                     torch_dtype=torch.bfloat16,
                     trust_remote_code=True,
                     low_cpu_mem_usage=True,
-                    device_map="cpu"
+                    timeout=120
                 )
-                st.success("✅ Modèle chargé depuis Hugging Face Hub !")
-            except Exception as e2:
-                st.error(f"❌ Échec du chargement du modèle distant : {e2}")
+                st.success("✅ Modèle téléchargé avec succès")
+            except Exception as e:
+                st.error(f"❌ Erreur modèle: {e}")
                 return None, None
+        
+        # Stocker dans session_state
         st.session_state.model = model
         st.session_state.processor = processor
         st.session_state.model_loaded = True
         st.session_state.model_status = "Chargé"
         st.session_state.model_load_time = time.time()
-        st.session_state.load_attempt_count = 0
+        st.session_state.load_attempt_count = 0  # Reset counter
+        
         return model, processor
+        
     except Exception as e:
         st.error(f"❌ Erreur lors du chargement: {e}")
         return None, None
@@ -203,7 +255,13 @@ def analyze_image_multilingual(image, prompt=""):
         
         # Préparer le prompt
         if not prompt:
-            prompt = "<image> Analysez cette image de plante et identifiez :\n1. L'état de santé général de la plante\n2. Les maladies ou problèmes visibles\n3. Les recommandations de traitement\n4. Les mesures préventives\n\nRépondez en français de manière claire et structurée."
+            prompt = """Analysez cette image de plante et identifiez :
+1. L'état de santé général de la plante
+2. Les maladies ou problèmes visibles
+3. Les recommandations de traitement
+4. Les mesures préventives
+
+Répondez en français de manière claire et structurée."""
         
         # Encoder l'image
         inputs = st.session_state.processor(
@@ -225,7 +283,7 @@ def analyze_image_multilingual(image, prompt=""):
         # Décoder la réponse
         response = st.session_state.processor.decode(outputs[0], skip_special_tokens=True)
         
-        # Extraire seulement la partie générée
+        # Extraire seulement la partie générée (après le prompt)
         if prompt in response:
             response = response.split(prompt)[-1].strip()
         

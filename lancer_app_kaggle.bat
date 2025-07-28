@@ -1,0 +1,36 @@
+@echo off
+echo 🌱 AgriLens AI - Version avec Support Kaggle
+echo =============================================
+echo.
+
+REM Vérifier si l'environnement virtuel existe
+if not exist "venv\Scripts\activate.bat" (
+    echo ❌ Environnement virtuel non trouvé
+    echo 💡 Créez-le avec : python -m venv venv
+    pause
+    exit /b 1
+)
+
+REM Activer l'environnement virtuel
+echo 🔄 Activation de l'environnement virtuel...
+call venv\Scripts\activate.bat
+
+REM Installer les dépendances Kaggle si nécessaire
+echo 📦 Vérification des dépendances Kaggle...
+pip install kaggle --quiet
+
+REM Configurer les variables d'environnement
+echo 🔑 Configuration des API Keys...
+set GOOGLE_API_KEY=AIzaSyC4a4z20p7EKq1Fk5_AX8eB_1yBo1HqYvA
+set HF_TOKEN=hf_gUGRsgWffLNZVuzYLsmTdPwESIyrbryZW
+
+echo ✅ Configuration terminée
+echo 🚀 Lancement de l'application avec support Kaggle...
+echo 📱 Interface web : http://localhost:8501
+echo 🔄 Appuyez sur Ctrl+C pour arrêter
+echo.
+
+REM Lancer l'application avec support Kaggle
+streamlit run src/streamlit_app_kaggle.py --server.port=8501 --server.address=localhost
+
+pause 
