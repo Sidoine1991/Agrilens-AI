@@ -28,7 +28,5 @@ textColor = "#262730"
 showErrorDetails = true
 toolbarMode = "minimal"
 
-# Configuration pour les uploads
-[upload]
-maxFileSize = 200
-allowedExtensions = ["png", "jpg", "jpeg"] 
+# Configuration pour les uploads (supprimée car obsolète)
+# Les uploads sont maintenant gérés directement par Streamlit 

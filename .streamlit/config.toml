@@ -6,7 +6,7 @@ headless = true
 enableCORS = false
 enableXsrfProtection = false
 port = 7860
-maxUploadSize = 200
+# maxUploadSize supprimé car peut causer des problèmes
 fileWatcherType = "none"
 
 [browser]

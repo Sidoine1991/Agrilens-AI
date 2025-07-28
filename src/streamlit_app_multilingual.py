@@ -7,6 +7,7 @@ import torch
 import google.generativeai as genai
 import gc
 import time
+import sys
 
 # Cache global pour le modèle (persiste entre les reruns)
 if 'global_model_cache' not in st.session_state:
@@ -58,6 +59,43 @@ def restore_model_from_cache():
         return False
     except Exception:
         return False
+
+def diagnose_loading_issues():
+    """Diagnostique les problèmes potentiels de chargement"""
+    issues = []
+    
+    # Vérifier l'environnement
+    if os.path.exists("D:/Dev/model_gemma"):
+        issues.append("✅ Modèle local détecté")
+    else:
+        issues.append("🌐 Mode Hugging Face détecté")
+    
+    # Vérifier les dépendances
+    try:
+        import transformers
+        issues.append(f"✅ Transformers version: {transformers.__version__}")
+    except ImportError:
+        issues.append("❌ Transformers non installé")
+    
+    try:
+        import torch
+        issues.append(f"✅ PyTorch version: {torch.__version__}")
+        if torch.cuda.is_available():
+            issues.append(f"✅ CUDA disponible: {torch.cuda.get_device_name(0)}")
+        else:
+            issues.append("⚠️ CUDA non disponible - utilisation CPU")
+    except ImportError:
+        issues.append("❌ PyTorch non installé")
+    
+    # Vérifier la mémoire disponible
+    try:
+        import psutil
+        memory = psutil.virtual_memory()
+        issues.append(f"💾 Mémoire disponible: {memory.available // (1024**3)} GB")
+    except ImportError:
+        issues.append("⚠️ Impossible de vérifier la mémoire")
+    
+    return issues
 
 def resize_image_if_needed(image, max_size=(800, 800)):
     """
@@ -218,6 +256,13 @@ def load_model():
     try:
         from transformers import AutoProcessor, Gemma3nForConditionalGeneration
         
+        # Diagnostic initial
+        st.info("🔍 Diagnostic de l'environnement...")
+        issues = diagnose_loading_issues()
+        with st.expander("📊 Diagnostic système", expanded=False):
+            for issue in issues:
+                st.write(issue)
+        
         # Nettoyer la mémoire avant le chargement
         gc.collect()
         if torch.cuda.is_available():
@@ -296,10 +341,26 @@ def load_model():
             model_id = "google/gemma-3n-E4B-it"
             
             # Charger le processeur
-            processor = AutoProcessor.from_pretrained(
-                model_id,
-                trust_remote_code=True
-            )
+            try:
+                st.info("Téléchargement du processeur depuis Hugging Face...")
+                processor = AutoProcessor.from_pretrained(
+                    model_id,
+                    trust_remote_code=True
+                )
+                st.success("Processeur téléchargé avec succès !")
+            except Exception as e:
+                st.error(f"Erreur lors du téléchargement du processeur : {e}")
+                st.info("Tentative de téléchargement avec cache...")
+                try:
+                    processor = AutoProcessor.from_pretrained(
+                        model_id,
+                        trust_remote_code=True,
+                        cache_dir="./cache"
+                    )
+                    st.success("Processeur téléchargé avec cache !")
+                except Exception as e2:
+                    st.error(f"Erreur fatale lors du téléchargement du processeur : {e2}")
+                    return None, None
             
             # Stratégie 1: Chargement ultra-conservateur (CPU uniquement, sans device_map)
             def load_ultra_conservative():
