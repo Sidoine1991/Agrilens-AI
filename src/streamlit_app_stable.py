@@ -142,7 +142,7 @@ def load_model():
             torch.cuda.empty_cache()
         # Utilisation d'un chemin local explicite pour le modèle
         model_id_local = "models/gemma-3n-E4B-it"
-        model_id_hf = "google/gemma-3-4b-it"
+        model_id_hf = "google/gemma-3n-E4B-it"  # nom exact sur Hugging Face
         if os.path.exists(model_id_local):
             st.info("Chargement du modèle depuis le dossier local explicite...")
             processor = AutoProcessor.from_pretrained(
