@@ -160,7 +160,6 @@ translations = {
 def t(key):
     return translations[st.session_state.language][key]
 
-@st.cache_resource(show_spinner=False)
 def load_model():
     """Charge le modèle Gemma 3n E4B IT depuis Hugging Face avec gestion robuste de la mémoire"""
     try:
@@ -284,14 +283,25 @@ def load_model():
 def analyze_image_multilingual(image, prompt=""):
     """Analyse une image avec Gemma 3n E4B IT pour diagnostic précis"""
     try:
-        # Vérifier si le modèle Gemma est chargé
+        # Vérification complète du modèle
         if not st.session_state.model_loaded:
             return "❌ Modèle Gemma non chargé. Veuillez d'abord charger le modèle dans les réglages."
+        
+        # Vérifier que le modèle et le processeur sont disponibles
+        if not hasattr(st.session_state, 'model') or st.session_state.model is None:
+            st.session_state.model_loaded = False
+            return "❌ Modèle perdu en mémoire. Veuillez recharger le modèle."
+        
+        if not hasattr(st.session_state, 'processor') or st.session_state.processor is None:
+            st.session_state.model_loaded = False
+            return "❌ Processeur perdu en mémoire. Veuillez recharger le modèle."
         
         # Récupérer le modèle et le processeur
         model, processor = st.session_state.model, st.session_state.processor
         
+        # Vérification finale
         if not model or not processor:
+            st.session_state.model_loaded = False
             return "❌ Modèle Gemma non disponible. Veuillez recharger le modèle."
         
         # Préparer le prompt pour Gemma 3n
@@ -479,11 +489,26 @@ Respond in a structured and precise manner.
 
 def analyze_text_multilingual(text):
     """Analyse un texte avec le modèle Gemma 3n E4B IT"""
+    # Vérification complète du modèle
     if not st.session_state.model_loaded:
         return "❌ Modèle non chargé. Veuillez le charger dans les réglages."
     
+    # Vérifier que le modèle et le processeur sont disponibles
+    if not hasattr(st.session_state, 'model') or st.session_state.model is None:
+        st.session_state.model_loaded = False
+        return "❌ Modèle perdu en mémoire. Veuillez recharger le modèle."
+    
+    if not hasattr(st.session_state, 'processor') or st.session_state.processor is None:
+        st.session_state.model_loaded = False
+        return "❌ Processeur perdu en mémoire. Veuillez recharger le modèle."
+    
     try:
         model, processor = st.session_state.model, st.session_state.processor
+        
+        # Vérification finale
+        if not model or not processor:
+            st.session_state.model_loaded = False
+            return "❌ Modèle Gemma non disponible. Veuillez recharger le modèle."
         
         if st.session_state.language == "fr":
             prompt = f"Tu es un assistant agricole expert. Analyse ce problème : {text}"
@@ -638,24 +663,62 @@ with st.sidebar:
     # Chargement du modèle
     if st.button(t("load_model"), type="primary"):
         with st.spinner("Chargement du modèle..." if st.session_state.language == "fr" else "Loading model..."):
-            model, processor = load_model()
-            if model and processor:
-                st.session_state.model = model
-                st.session_state.processor = processor
-                st.session_state.model_loaded = True
-                st.session_state.model_status = t("loaded")
-                st.success("Modèle Gemma 3n E4B IT chargé avec succès depuis Hugging Face !" if st.session_state.language == "fr" else "Gemma 3n E4B IT model loaded successfully from Hugging Face!")
-            else:
+            try:
+                model, processor = load_model()
+                if model and processor:
+                    # Stocker le modèle dans la session avec vérification
+                    st.session_state.model = model
+                    st.session_state.processor = processor
+                    st.session_state.model_loaded = True
+                    st.session_state.model_status = t("loaded")
+                    st.success("Modèle Gemma 3n E4B IT chargé avec succès depuis Hugging Face !" if st.session_state.language == "fr" else "Gemma 3n E4B IT model loaded successfully from Hugging Face!")
+                    
+                    # Vérification immédiate que le modèle est bien stocké
+                    if hasattr(st.session_state, 'model') and st.session_state.model is not None:
+                        st.info("✅ Modèle correctement stocké en mémoire")
+                    else:
+                        st.warning("⚠️ Problème de stockage du modèle")
+                        
+                else:
+                    st.session_state.model_loaded = False
+                    st.session_state.model_status = t("error")
+                    st.error("Échec du chargement du modèle" if st.session_state.language == "fr" else "Model loading failed")
+            except Exception as e:
                 st.session_state.model_loaded = False
                 st.session_state.model_status = t("error")
-                st.error("Échec du chargement du modèle" if st.session_state.language == "fr" else "Model loading failed")
+                st.error(f"Erreur lors du chargement : {e}")
     
     st.info(f"{t('model_status')} {st.session_state.model_status}")
     
-    # Statut du modèle Gemma 3n E4B IT (Hugging Face)
+    # Vérification de la persistance du modèle
     if st.session_state.model_loaded:
-        st.success("✅ Modèle Gemma 3n E4B IT chargé (Hugging Face)")
-        st.info("Le modèle est prêt pour l'analyse d'images et de texte")
+        # Vérifier que le modèle est toujours disponible
+        if hasattr(st.session_state, 'model') and st.session_state.model is not None:
+            if hasattr(st.session_state, 'processor') and st.session_state.processor is not None:
+                st.success("✅ Modèle Gemma 3n E4B IT chargé et persistant (Hugging Face)")
+                st.info("Le modèle est prêt pour l'analyse d'images et de texte")
+                
+                # Diagnostic du modèle
+                with st.expander("🔍 Diagnostic du modèle"):
+                    st.write(f"**Modèle chargé :** {type(st.session_state.model).__name__}")
+                    st.write(f"**Processeur chargé :** {type(st.session_state.processor).__name__}")
+                    st.write(f"**Device du modèle :** {st.session_state.model.device}")
+                    st.write(f"**Mémoire utilisée :** {torch.cuda.memory_allocated() / 1024**3:.2f} GB" if torch.cuda.is_available() else "CPU uniquement")
+                
+                # Bouton de rechargement pour forcer la persistance
+                if st.button("🔄 Recharger le modèle (si problème)", type="secondary"):
+                    st.session_state.model_loaded = False
+                    st.session_state.model = None
+                    st.session_state.processor = None
+                    st.rerun()
+            else:
+                st.warning("⚠️ Processeur manquant - rechargement nécessaire")
+                st.session_state.model_loaded = False
+                st.session_state.model = None
+        else:
+            st.warning("⚠️ Modèle perdu en mémoire - rechargement nécessaire")
+            st.session_state.model_loaded = False
+            st.session_state.processor = None
     else:
         st.warning("⚠️ Modèle Gemma 3n E4B IT non chargé")
         st.info("Cliquez sur 'Charger le modèle' pour activer l'analyse")
