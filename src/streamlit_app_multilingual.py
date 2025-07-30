@@ -2,26 +2,58 @@ import streamlit as st
 import os
 import io
 from PIL import Image
-import requests
+# import requests # Plus nécessaire si on n'utilise pas de requêtes externes pour d'autres IA
 import torch
-import google.generativeai as genai
+# import google.generativeai as genai # Supprimé car non utilisé par Gemma
 import gc
 import time
 import sys
 import psutil
-from transformers import AutoProcessor, Gemma3nForConditionalGeneration # Importations pour Hugging Face
-from huggingface_hub import HfFolder # Pour vérifier le token HF
+from transformers import AutoProcessor, Gemma3nForConditionalGeneration
+from huggingface_hub import HfFolder
 
 # --- Configuration de la Page ---
 st.set_page_config(
     page_title="AgriLens AI - Diagnostic des Plantes",
     page_icon="🌱",
-    layout="centered", # Centré pour une meilleure expérience sur toutes les tailles d'écran
-    initial_sidebar_state="collapsed" # Sidebar fermée par défaut, peut être ouverte via le menu
+    layout="centered",
+    initial_sidebar_state="collapsed"
 )
 
+# --- Traduction (Simplifiée pour cet exemple) ---
+# Dans une vraie application, vous utiliseriez un système de traduction plus robuste.
+# Pour cet exemple, nous allons utiliser un dictionnaire simple.
+TRANSLATIONS = {
+    "title": {"fr": "AgriLens AI", "en": "AgriLens AI"},
+    "subtitle": {"fr": "Votre assistant IA pour le diagnostic des plantes", "en": "Your AI Assistant for Plant Diagnosis"},
+    "config_title": {"fr": "Configuration", "en": "Configuration"},
+    "load_model": {"fr": "Charger le modèle", "en": "Load Model"},
+    "image_analysis_title": {"fr": "📸 Analyse d'Image", "en": "📸 Image Analysis"},
+    "image_analysis_desc": {"fr": "Téléchargez une image de votre plante ou utilisez votre webcam pour obtenir un diagnostic.", "en": "Upload an image of your plant or use your webcam to get a diagnosis."},
+    "choose_image": {"fr": "Choisissez une image", "en": "Choose an image"},
+    "file_too_large_error": {"fr": "Erreur : Le fichier est trop volumineux. Maximum 200MB.", "en": "Error: File too large. Maximum 200MB."},
+    "empty_file_error": {"fr": "Erreur : Le fichier est vide.", "en": "Error: File is empty."},
+    "file_size_warning": {"fr": "Attention : Le fichier est très volumineux, le chargement peut prendre du temps.", "en": "Warning: File is very large, loading may take time."},
+    "analyze_button": {"fr": "Analyser l'image", "en": "Analyze Image"},
+    "analysis_results": {"fr": "Résultats de l'analyse :", "en": "Analysis Results:"},
+    "text_analysis_title": {"fr": "💬 Analyse de Texte", "en": "💬 Text Analysis"},
+    "text_analysis_desc": {"fr": "Décrivez les symptômes de votre plante pour obtenir des conseils.", "en": "Describe your plant's symptoms to get advice."},
+    "symptoms_desc": {"fr": "Décrivez les symptômes ici...", "en": "Describe the symptoms here..."},
+    "manual_title": {"fr": "📚 Manuel d'utilisation", "en": "📚 User Manual"},
+    "about_title": {"fr": "ℹ️ À propos", "en": "ℹ️ About"},
+    "footer": {"fr": "© 2024 AgriLens AI. Tous droits réservés.", "en": "© 2024 AgriLens AI. All rights reserved."}
+}
+
+def t(key):
+    """Fonction de traduction simple."""
+    lang = st.session_state.get('language', 'fr')
+    return TRANSLATIONS.get(key, {}).get(lang, key) # Retourne la clé si la traduction n'existe pas
+
+# --- Initialisation de la langue ---
+if 'language' not in st.session_state:
+    st.session_state.language = 'fr'
+
 # --- Cache global pour le modèle ---
-# Ce cache permet au modèle de persister en mémoire entre les re-runs de Streamlit
 if 'global_model_cache' not in st.session_state:
     st.session_state.global_model_cache = {}
 if 'model_load_time' not in st.session_state:
@@ -33,9 +65,8 @@ def check_model_persistence():
     """Vérifie si le modèle est toujours persistant en mémoire et fonctionnel."""
     try:
         if hasattr(st.session_state, 'model') and st.session_state.model is not None:
-            # Test simple pour vérifier que le modèle fonctionne
             if hasattr(st.session_state.model, 'device'):
-                device = st.session_state.model.device # Accéder à l'attribut device
+                device = st.session_state.model.device
                 return True
         return False
     except Exception:
@@ -91,7 +122,7 @@ def diagnose_loading_issues():
         import torch; issues.append(f"✅ PyTorch v{torch.__version__}")
         if torch.cuda.is_available(): issues.append(f"✅ CUDA disponible : {torch.cuda.get_device_name(0)}")
         else: issues.append("⚠️ CUDA non disponible - utilisation CPU (plus lent)")
-    except ImportError as e: issues.append(f"❌ Dépendance manquante : {e}")
+    except ImportError as e: issues.append(f"❌ Dépendance manquante : ")
 
     try:
         mem = psutil.virtual_memory()
@@ -117,7 +148,7 @@ def afficher_ram_disponible(context=""):
     """Affiche l'utilisation de la RAM."""
     try:
         mem = psutil.virtual_memory()
-        st.info(f"💾 RAM {context}: {mem.available // (1024**3)} GB disponible")
+        st.info(f"💾 RAM : {mem.available // (1024**3)} GB disponible")
         if mem.available < 4 * 1024**3:
             st.warning("⚠️ Moins de 4GB de RAM disponible, le chargement du modèle risque d'échouer !")
     except ImportError:
@@ -127,98 +158,16 @@ def afficher_ram_disponible(context=""):
 MODEL_ID_HF = "google/gemma-3n-E4B-it"
 LOCAL_MODEL_PATH = "D:/Dev/model_gemma" # Chemin vers votre modèle local (ajustez si nécessaire)
 
-def load_model():
-    """Charge le modèle Gemma 3n E4B IT (local ou Hugging Face) avec des stratégies robustes."""
-    try:
-        from transformers import AutoProcessor, Gemma3nForConditionalGeneration
-
-        # Diagnostic initial
-        issues = diagnose_loading_issues()
-        with st.expander("📊 Diagnostic système", expanded=False):
-            for issue in issues:
-                st.markdown(issue)
-
-        # Nettoyer la mémoire avant le chargement
-        gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-
-        # Détecter si le modèle local existe
-        is_local = os.path.exists(LOCAL_MODEL_PATH)
-
-        # --- Stratégies de chargement ---
-        strategies_to_try = []
-
-        # 1. Modèle Local (si disponible)
-        if is_local:
-            strategies_to_try.append(("Local (ultra-conservateur CPU)", lambda: load_model_strategy(LOCAL_MODEL_PATH, device_map="cpu", torch_dtype=torch.bfloat16, quantization=None, force_persistence=True)))
-            strategies_to_try.append(("Local (conservateur CPU)", lambda: load_model_strategy(LOCAL_MODEL_PATH, device_map="cpu", torch_dtype=torch.bfloat16, quantization=None, force_persistence=True))) # Ce sont les mêmes pour le local, mais pour cohérence
-        else:
-            # 2. Modèle Hugging Face (stratégies diverses)
-            st.info("Modèle local non trouvé. Tentative de chargement depuis Hugging Face...")
-            if torch.cuda.is_available():
-                gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1024**3 # en GB
-                st.info(f"Mémoire GPU disponible : {gpu_memory:.1f} GB")
-                
-                # Stratégies GPU basées sur la mémoire
-                if gpu_memory >= 8:
-                    strategies_to_try.append(("Hugging Face (custom memory)", lambda: load_model_strategy(MODEL_ID_HF, device_map="auto", torch_dtype=torch.float16, quantization=None, force_persistence=True)))
-                if gpu_memory >= 4:
-                    strategies_to_try.append(("Hugging Face (4-bit quantization)", lambda: load_model_strategy(MODEL_ID_HF, device_map="auto", torch_dtype=torch.float16, quantization="4bit", force_persistence=True)))
-                if gpu_memory >= 6: # Les modèles Gemma sont plus à l'aise avec bfloat16 si supporté, sinon float16
-                    strategies_to_try.append(("Hugging Face (8-bit quantization)", lambda: load_model_strategy(MODEL_ID_HF, device_map="auto", torch_dtype=torch.float16, quantization="8bit", force_persistence=True)))
-                strategies_to_try.append(("Hugging Face (conservative GPU)", lambda: load_model_strategy(MODEL_ID_HF, device_map="auto", torch_dtype=torch.float16, quantization=None, force_persistence=True)))
-            
-            # Stratégie par défaut pour CPU si GPU absent ou trop petit
-            strategies_to_try.append(("Hugging Face (conservative CPU)", lambda: load_model_strategy(MODEL_ID_HF, device_map="cpu", torch_dtype=torch.float32, quantization=None, force_persistence=True)))
-            strategies_to_try.append(("Hugging Face (ultra-conservative CPU)", lambda: load_model_strategy(MODEL_ID_HF, device_map="cpu", torch_dtype=torch.float32, quantization=None, force_persistence=True))) # Double vérif CPU
-
-        # Boucle pour essayer chaque stratégie
-        for i, (name, strategy_func) in enumerate(strategies_to_try):
-            st.info(f"Tentative {i+1}/{len(strategies_to_try)} : {name}...")
-            try:
-                model, processor = strategy_func()
-                if model and processor:
-                    st.success(f"✅ Modèle chargé avec succès via la stratégie : {name}")
-                    return model, processor
-            except Exception as e:
-                error_msg = str(e)
-                if "disk_offload" in error_msg.lower() or "out of memory" in error_msg.lower():
-                    st.warning(f"La stratégie {name} a échoué (mémoire/disk_offload). Tentative suivante...")
-                    gc.collect()
-                    if torch.cuda.is_available(): torch.cuda.empty_cache()
-                    continue
-                elif "403" in error_msg or "Forbidden" in error_msg:
-                    st.error(f"❌ Erreur d'accès Hugging Face (403) avec la stratégie {name}. Vérifiez votre HF_TOKEN.")
-                    return None, None # Arrêter si c'est une erreur d'authentification
-                else:
-                    st.warning(f"La stratégie {name} a échoué : {error_msg}. Tentative suivante...")
-                    gc.collect()
-                    if torch.cuda.is_available(): torch.cuda.empty_cache()
-                    continue
-        
-        # Si toutes les stratégies échouent
-        st.error("Toutes les stratégies de chargement du modèle ont échoué.")
-        return None, None
-
-    except ImportError as e:
-        st.error(f"❌ Erreur de dépendance : {e}. Assurez-vous que transformers et torch sont installés.")
-        return None, None
-    except Exception as e:
-        st.error(f"❌ Une erreur générale s'est produite lors du chargement du modèle : {e}")
-        return None, None
-
 def load_model_strategy(model_identifier, device_map=None, torch_dtype=None, quantization=None, force_persistence=False):
     """
     Charge un modèle et son processeur en utilisant des paramètres spécifiques.
     Retourne le modèle et le processeur, ou (None, None) en cas d'échec.
     """
     try:
-        st.info(f"Chargement de {model_identifier} avec device_map='{device_map}', dtype={torch_dtype}, quant={quantization}...")
+        st.info(f"Chargement de  avec device_map='{device_map}', dtype=torch.{torch_dtype.__name__ if torch_dtype else 'None'}, quant='{quantization}'")
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-        afficher_ram_disponible("avant chargement")
 
         # Configuration des arguments pour from_pretrained
         common_args = {
@@ -226,6 +175,7 @@ def load_model_strategy(model_identifier, device_map=None, torch_dtype=None, qua
             "low_cpu_mem_usage": True,
             "device_map": device_map,
             "torch_dtype": torch_dtype,
+            "token": os.environ.get("HF_TOKEN") # Utilise le token si défini
         }
         
         # Ajout des arguments de quantification si spécifiés
@@ -237,16 +187,8 @@ def load_model_strategy(model_identifier, device_map=None, torch_dtype=None, qua
         elif quantization == "8bit":
             common_args.update({"load_in_8bit": True})
         
-        # Récupérer le token HF pour l'authentification
-        hf_token = os.environ.get("HF_TOKEN") or HfFolder.get_token()
-        if hf_token:
-            common_args["token"] = hf_token
-            st.info("Utilisation du jeton Hugging Face pour l'authentification.")
-        else:
-            st.warning("Aucun jeton Hugging Face trouvé. L'accès aux modèles peut être limité.")
-
         # Charger le processeur
-        processor = AutoProcessor.from_pretrained(model_identifier, trust_remote_code=True, token=hf_token)
+        processor = AutoProcessor.from_pretrained(model_identifier, trust_remote_code=True, token=os.environ.get("HF_TOKEN"))
         
         # Charger le modèle
         model = Gemma3nForConditionalGeneration.from_pretrained(model_identifier, **common_args)
@@ -269,9 +211,96 @@ def load_model_strategy(model_identifier, device_map=None, torch_dtype=None, qua
         return model, processor
 
     except ImportError as e:
-        raise ImportError(f"Bibliothèque manquante : {e}. Installez-la avec `pip install transformers torch accelerate bitsandbytes`")
+        raise ImportError(f"Bibliothèque manquante : . Installez-la avec `pip install transformers torch accelerate bitsandbytes`")
     except Exception as e:
-        raise Exception(f"Échec du chargement avec la stratégie {model_identifier} : {e}")
+        # Capturez l'exception spécifique ici pour un meilleur débogage
+        raise Exception(f"Échec du chargement avec la stratégie  : ")
+
+def load_model():
+    """Charge le modèle Gemma 3n E4B IT (local ou Hugging Face) avec des stratégies robustes."""
+    try:
+        # Diagnostic initial
+        issues = diagnose_loading_issues()
+        with st.expander("📊 Diagnostic système", expanded=False):
+            for issue in issues:
+                st.markdown(issue)
+
+        # Nettoyer la mémoire avant le chargement
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+        # Détecter si le modèle local existe
+        is_local = os.path.exists(LOCAL_MODEL_PATH)
+
+        # --- Stratégies de chargement ---
+        strategies_to_try = []
+
+        if is_local:
+            # Stratégies pour le modèle local (priorité haute RAM)
+            strategies_to_try.append(("Local (ultra-conservateur CPU)", lambda: load_model_strategy(LOCAL_MODEL_PATH, device_map="cpu", torch_dtype=torch.bfloat16, quantization=None, force_persistence=True)))
+            strategies_to_try.append(("Local (conservateur CPU)", lambda: load_model_strategy(LOCAL_MODEL_PATH, device_map="cpu", torch_dtype=torch.bfloat16, quantization=None, force_persistence=True)))
+        else:
+            # Stratégies pour le modèle Hugging Face
+            st.info("Modèle local non trouvé. Tentative de chargement depuis Hugging Face...")
+            if torch.cuda.is_available():
+                gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1024**3 # en GB
+                st.info(f"Mémoire GPU disponible : {gpu_memory:.1f} GB")
+                
+                # Stratégies GPU basées sur la mémoire
+                # Note: Gemma 3n E4B IT est assez grand, ajuster les seuils si nécessaire
+                if gpu_memory >= 10: # 10 GB pour une expérience plus fluide avec float16
+                    strategies_to_try.append(("Hugging Face (float16)", lambda: load_model_strategy(MODEL_ID_HF, device_map="auto", torch_dtype=torch.float16, quantization=None)))
+                if gpu_memory >= 8: # 8 GB pour une version quantifiée 8-bit
+                    strategies_to_try.append(("Hugging Face (8-bit quantization)", lambda: load_model_strategy(MODEL_ID_HF, device_map="auto", torch_dtype=torch.float16, quantization="8bit")))
+                if gpu_memory >= 6: # 6 GB pour une version quantifiée 4-bit
+                    strategies_to_try.append(("Hugging Face (4-bit quantization)", lambda: load_model_strategy(MODEL_ID_HF, device_map="auto", torch_dtype=torch.float16, quantization="4bit")))
+                
+                # Si la mémoire est moindre, une stratégie CPU est plus sûre
+                if gpu_memory < 6:
+                     st.warning("Mémoire GPU limitée. L'utilisation du CPU sera probablement plus stable.")
+
+            # Stratégie CPU (par défaut ou si GPU insuffisant/absent)
+            # Utiliser float32 pour plus de stabilité sur CPU
+            strategies_to_try.append(("Hugging Face (conservative CPU)", lambda: load_model_strategy(MODEL_ID_HF, device_map="cpu", torch_dtype=torch.float32, quantization=None)))
+            strategies_to_try.append(("Hugging Face (ultra-conservative CPU)", lambda: load_model_strategy(MODEL_ID_HF, device_map="cpu", torch_dtype=torch.float32, quantization=None)))
+
+        # Boucle pour essayer chaque stratégie
+        for i, (name, strategy_func) in enumerate(strategies_to_try):
+            st.info(f"Tentative {i+1}/{len(strategies_to_try)} : Chargement via '{name}'...")
+            try:
+                model, processor = strategy_func()
+                if model and processor:
+                    st.success(f"✅ Modèle chargé avec succès via la stratégie : '{name}'")
+                    return model, processor
+            except Exception as e:
+                error_msg = str(e)
+                st.warning(f"La stratégie '{name}' a échoué : {error_msg}")
+                if "disk_offload" in error_msg.lower() or "out of memory" in error_msg.lower():
+                    st.warning("Problème de mémoire ou de disk_offload. Tentative suivante...")
+                elif "403" in error_msg or "Forbidden" in error_msg:
+                    st.error(f"❌ Erreur d'accès Hugging Face (403) avec la stratégie '{name}'. Vérifiez votre HF_TOKEN.")
+                    # Ne pas continuer si c'est une erreur d'authentification critique
+                    return None, None 
+                else:
+                    st.warning("Tentative suivante...")
+                
+                # Nettoyage mémoire après échec
+                gc.collect()
+                if torch.cuda.is_available(): torch.cuda.empty_cache()
+                
+                continue # Passer à la stratégie suivante
+        
+        # Si toutes les stratégies échouent
+        st.error("Toutes les stratégies de chargement du modèle ont échoué.")
+        return None, None
+
+    except ImportError as e:
+        st.error(f"❌ Erreur de dépendance : . Installez avec `pip install transformers torch accelerate bitsandbytes`.")
+        return None, None
+    except Exception as e:
+        st.error(f"❌ Une erreur générale s'est produite lors du chargement du modèle : ")
+        return None, None
 
 def analyze_image_multilingual(image, prompt=""):
     """Analyse une image avec Gemma 3n E4B IT pour un diagnostic précis."""
@@ -283,17 +312,18 @@ def analyze_image_multilingual(image, prompt=""):
         return "❌ Modèle Gemma non disponible. Veuillez recharger le modèle."
 
     try:
-        # Définir le prompt textuel basé sur la langue et la question
+        # Préparer le prompt textuel pour Gemma 3n
+        # Le token <image> est crucial pour que le modèle sache où insérer les informations visuelles
         if st.session_state.language == "fr":
-            gemma_prompt_text = f"Tu es un expert en pathologie végétale. Analyse cette image et réponds à la question : {prompt}" if prompt else "Tu es un expert en pathologie végétale. Analyse cette image et fournis un diagnostic précis."
-        else:
-            gemma_prompt_text = f"You are an expert in plant pathology. Analyze this image and answer the question: {prompt}" if prompt else "You are an expert in plant pathology. Analyze this image and provide a precise diagnosis."
+            gemma_prompt_text = f"<image>\nTu es un expert en pathologie végétale. Analyse cette image et réponds à la question : " if prompt else "<image>\nTu es un expert en pathologie végétale. Analyse cette image et fournis un diagnostic précis."
+        else: # English
+            gemma_prompt_text = f"<image>\nYou are an expert in plant pathology. Analyze this image and answer the question: " if prompt else "<image>\nYou are an expert in plant pathology. Analyze this image and provide a precise diagnosis."
         
         # Prétraiter l'image et le texte avec le processeur pour obtenir les inputs du modèle
-        # Ceci est la méthode clé pour les modèles multimodaux comme Gemma3n
+        # C'est la méthode correcte pour les modèles multimodaux qui attendent des inputs combinés.
         processed_inputs = processor(
             images=[image], # L'image PIL doit être dans une liste
-            text=gemma_prompt_text,
+            text=gemma_prompt_text, # Le prompt textuel contenant <image>
             return_tensors="pt",
             padding=True
         )
@@ -303,58 +333,55 @@ def analyze_image_multilingual(image, prompt=""):
         if hasattr(processed_inputs, 'to'):
             processed_inputs = processed_inputs.to(device)
         
-        # Générer la réponse en passant les inputs préparés
-        # Les paramètres comme max_new_tokens, temperature, etc., sont gérés ici.
+        # Générer la réponse
         with torch.inference_mode():
             generation = model.generate(
-                **processed_inputs,
+                **processed_inputs, # Passer les inputs préparés par le processor
                 max_new_tokens=500,
                 do_sample=True,
                 temperature=0.7,
                 top_p=0.9,
                 repetition_penalty=1.1
             )
-            # Décode uniquement la partie générée par le modèle
-            # Il faut trouver le décalage correct, souvent l'input_ids généré contient aussi le prompt.
-            # L'erreur "0 image tokens" vient du fait que le modèle n'a pas bien intégré l'image.
-            # En utilisant `processor(images=..., text=...)` on espère corriger ça.
-            # Pour le décodage, on prend la réponse complète pour le moment.
-            
-            # Si la réponse contient le prompt, on pourrait essayer de le retirer.
-            # C'est souvent le cas avec les modèles de chat.
-            # Il faut décoder TOUS les tokens générés.
+            # Décode la réponse complète générée
             response_text = processor.decode(generation[0], skip_special_tokens=True)
 
-        # Nettoyer la réponse
+        # Nettoyer la réponse pour enlever le prompt répété et les tokens spéciaux
         final_response = response_text.strip()
         
-        # Supprimer le prompt texte si le modèle l'a répété au début de sa réponse
+        # Supprimer le prompt texte initial si le modèle l'a répété
         if gemma_prompt_text.strip() in final_response:
-            final_response = final_response.split(gemma_prompt_text.strip())[-1].strip()
+            # Trouver la première occurrence du prompt textuel et prendre ce qui suit
+            try:
+                prompt_start_index = final_response.index(gemma_prompt_text.strip())
+                final_response = final_response[prompt_start_index + len(gemma_prompt_text.strip()):].strip()
+            except ValueError:
+                # Si le prompt n'est pas trouvé exactement (ce qui est peu probable ici), on le laisse tel quel
+                pass
             
-        # Retirer les tokens spéciaux qui pourraient être visibles
+        # Retirer les tokens spéciaux inutiles de la réponse
         final_response = final_response.replace("<start_of_turn>", "").replace("<end_of_turn>", "").strip()
 
         # Formater la sortie
         if st.session_state.language == "fr":
             return f"""
 ## 🧠 **Analyse par Gemma 3n E4B IT**
+
 {final_response}
 """
         else:
             return f"""
 ## 🧠 **Analysis by Gemma 3n E4B IT**
+
 {final_response}
 """
             
-    except ImportError:
-        return "❌ Erreur : Les bibliothèques nécessaires (transformers, torch) ne sont pas installées."
     except Exception as e:
         error_message = str(e)
         if "403" in error_message or "Forbidden" in error_message:
             return "❌ Erreur 403 - Accès refusé. Veuillez vérifier votre jeton Hugging Face (HF_TOKEN) et les quotas."
         elif "Number of images does not match number of special image tokens" in error_message:
-            return "❌ Erreur : Le modèle n'a pas pu traiter l'image. L'image n'est peut-être pas correctement intégrée au prompt ou le format n'est pas reconnu. Essayez avec une image plus simple ou un autre format."
+            return "❌ Erreur : Le modèle n'a pas pu lier l'image au texte. Assurez-vous que le prompt contient bien le token `<image>` et que l'image est dans un format standard."
         else:
             return f"❌ Erreur lors de l'analyse d'image : {e}"
 
@@ -370,14 +397,14 @@ def analyze_text_multilingual(text):
     try:
         # Définir le prompt basé sur la langue
         if st.session_state.language == "fr":
-            prompt = f"Tu es un assistant agricole expert. Analyse ce problème de plante : {text}\n\n**Instructions :**\n1. **Diagnostic** : Quel est le problème principal ?\n2. **Causes** : Quelles sont les causes possibles ?\n3. **Traitement** : Quelles sont les actions à entreprendre ?\n4. **Prévention** : Comment éviter le problème à l'avenir ?"
+            prompt_template = f"Tu es un assistant agricole expert. Analyse ce problème de plante : \n\n**Instructions :**\n1. **Diagnostic** : Quel est le problème principal ?\n2. **Causes** : Quelles sont les causes possibles ?\n3. **Traitement** : Quelles sont les actions à entreprendre ?\n4. **Prévention** : Comment éviter le problème à l'avenir ?"
         else:
-            prompt = f"You are an expert agricultural assistant. Analyze this plant problem: {text}\n\n**Instructions:**\n1. **Diagnosis**: What is the main problem?\n2. **Causes**: What are the possible causes?\n3. **Treatment**: What actions should be taken?\n4. **Prevention**: How to avoid the problem in the future?"
+            prompt_template = f"You are an expert agricultural assistant. Analyze this plant problem: \n\n**Instructions:**\n1. **Diagnosis**: What is the main problem?\n2. **Causes**: What are the possible causes?\n3. **Treatment**: What actions should be taken?\n4. **Prevention**: How to avoid the problem in the future?"
         
+        full_prompt = f"{prompt_template}\n\n**Description du problème :**\n{text}"
+
         # Préparer les messages pour le modèle Gemma (format conversationnel)
-        messages = [
-            {"role": "user", "content": [{"type": "text", "text": prompt}]}
-        ]
+        messages = [{"role": "user", "content": [{"type": "text", "text": full_prompt}]}]
         
         # Utiliser le processeur pour convertir le format conversationnel en tenseurs
         inputs = processor.apply_chat_template(
@@ -397,18 +424,36 @@ def analyze_text_multilingual(text):
         with torch.inference_mode():
             generation = model.generate(
                 **inputs,
-                max_new_tokens=300,
+                max_new_tokens=500, # Augmenté pour des réponses plus complètes
                 do_sample=True,
                 temperature=0.7,
                 top_p=0.9,
                 repetition_penalty=1.1
             )
             # Décoder uniquement la partie générée (après le prompt)
-            input_len = inputs["input_ids"].shape[-1]
-            generation = generation[0][input_len:]
-            response = processor.decode(generation, skip_special_tokens=True)
-        
-        return response.strip()
+            # Il est important de trouver le bon décalage pour ne décoder que la réponse.
+            # `apply_chat_template` peut ajouter des tokens de début/fin de tour.
+            # Une approche plus sûre est de décoder toute la séquence et de voir ce qu'on obtient.
+            
+            # Si apply_chat_template ajoute des tokens, on pourrait les retirer
+            # Mais pour simplifier, décodons toute la séquence générée.
+            response = processor.decode(generation[0], skip_special_tokens=True)
+
+            # On essaie de retirer le prompt initial si le modèle l'a répété
+            # Le format de chat de Gemma peut inclure <start_of_turn>, <end_of_turn>, etc.
+            # Il faut être prudent lors du nettoyage.
+            
+            # La méthode la plus simple est de décoder et de nettoyer les tokens spéciaux
+            # Si le prompt_template est répété, il faudra le retirer manuellement.
+            cleaned_response = response.strip()
+            # On peut tenter de retirer le prompt de base, mais attention aux variations
+            if prompt_template in cleaned_response:
+                cleaned_response = cleaned_response.split(prompt_template)[-1].strip()
+            
+            # Retirer les tokens de chat spécifiques si présents
+            cleaned_response = cleaned_response.replace("<start_of_turn>", "").replace("<end_of_turn>", "").strip()
+
+        return cleaned_response
         
     except Exception as e:
         return f"❌ Erreur lors de l'analyse de texte : {e}"
@@ -417,7 +462,7 @@ def analyze_text_multilingual(text):
 st.title(t("title"))
 st.markdown(t("subtitle"))
 
-# --- Initialisation et Vérifications ---
+# --- Initialisation et Vérifications au démarrage ---
 if 'model_loaded' not in st.session_state:
     st.session_state.model_loaded = False
 if 'model_status' not in st.session_state:
@@ -437,13 +482,18 @@ with st.sidebar:
     # Sélecteur de langue
     st.subheader("🌐 Langue / Language")
     language_options = ["Français", "English"]
+    # Assurer que st.session_state.language existe
+    if 'language' not in st.session_state:
+        st.session_state.language = 'fr'
     current_lang_index = 0 if st.session_state.language == "fr" else 1
+    
     language = st.selectbox(
         "Sélectionnez votre langue :",
         language_options,
         index=current_lang_index,
         help="Change la langue de l'interface et des réponses de l'IA."
     )
+    # Mettre à jour la langue dans st.session_state et recharger si changement
     if st.session_state.language != ("fr" if language == "Français" else "en"):
         st.session_state.language = "fr" if language == "Français" else "en"
         st.rerun() # Recharge pour appliquer le changement de langue
@@ -468,7 +518,7 @@ with st.sidebar:
         st.success(f"✅ Modèle chargé ({st.session_state.model_status})")
         if st.session_state.model_load_time:
             load_time_str = time.strftime('%H:%M:%S', time.localtime(st.session_state.model_load_time))
-            st.write(f"Heure de chargement : {load_time_str}")
+            st.write(f"Heure de chargement : ")
         if hasattr(st.session_state.model, 'device'):
             st.write(f"Device utilisé : `{st.session_state.model.device}`")
         
@@ -497,10 +547,21 @@ with st.sidebar:
                     st.success("✅ Modèle chargé avec succès !")
                 else:
                     st.error("❌ Échec du chargement du modèle.")
-                st.rerun() # Recharger pour mettre à jour le statut
+            st.rerun() # Recharger pour mettre à jour le statut
+
+    # Affichage du statut de persistance
+    st.divider()
+    st.subheader("💾 Persistance du Modèle")
+    if st.session_state.model_loaded and st.session_state.model_persistence_check:
+        st.success("✅ Modèle chargé et persistant en cache.")
+    elif st.session_state.model_loaded:
+        st.warning("⚠️ Modèle chargé mais non persistant. Cliquez sur 'Forcer Persistance'.")
+    else:
+        st.warning("⚠️ Modèle non chargé.")
+
 
 # --- Onglets Principaux ---
-tab1, tab2, tab3, tab4 = st.tabs(t("tabs"))
+tab1, tab2, tab3, tab4 = st.tabs([t("image_analysis_title"), t("text_analysis_title"), t("manual_title"), t("about_title")])
 
 with tab1:
     st.header(t("image_analysis_title"))
@@ -547,14 +608,14 @@ with tab1:
             image = Image.open(uploaded_file)
             image_source = "upload"
         except Exception as e:
-            st.error(f"❌ Erreur lors du traitement de l'image uploadée : {e}")
+            st.error(f"❌ Erreur lors du traitement de l'image uploadée : ")
             st.info("💡 Essayez avec une image différente ou un format différent (PNG, JPG, JPEG).")
     elif captured_image is not None:
         try:
             image = Image.open(captured_image)
             image_source = "webcam"
         except Exception as e:
-            st.error(f"❌ Erreur lors du traitement de l'image capturée : {e}")
+            st.error(f"❌ Erreur lors du traitement de l'image capturée : ")
             st.info("💡 Essayez de reprendre la photo.")
     
     if image is not None:
@@ -564,9 +625,9 @@ with tab1:
             
             col1, col2 = st.columns([1, 1])
             with col1:
-                st.image(image, caption=f"Image ({image_source})" if image_source else "Image", use_container_width=True)
+                st.image(image, caption=f"Image ()" if image_source else "Image", use_container_width=True)
                 if was_resized:
-                    st.warning(f"⚠️ L'image a été redimensionnée de {original_size} à {image.size} pour optimiser le traitement.")
+                    st.warning(f"⚠️ L'image a été redimensionnée de  à {image.size} pour optimiser le traitement.")
             
             with col2:
                 st.markdown("**Informations de l'image :**")
@@ -592,7 +653,7 @@ with tab1:
                     st.markdown("---")
                     st.markdown(result)
         except Exception as e:
-            st.error(f"Erreur lors du traitement de l'image : {e}")
+            st.error(f"Erreur lors du traitement de l'image : ")
 
 with tab2:
     st.header(t("text_analysis_title"))
@@ -620,7 +681,6 @@ with tab2:
 with tab3:
     st.header(t("manual_title"))
     
-    # Utilisation de la fonction de traduction pour le contenu du manuel
     manual_content = {
         "fr": """
         ### 🚀 **Démarrage Rapide**
@@ -657,7 +717,7 @@ with tab3:
         "en": """
         ### 🚀 **Quick Start**
         1.  **Load the model** : Click 'Load Model' in the settings (sidebar).
-        2.  **Choose mode** : Go to '📸 Image Analysis' or '💬 Text Analysis' tab.
+        2.  **Choose mode** : Navigate to '📸 Image Analysis' or '💬 Text Analysis' tab.
         3.  **Submit your request** : Upload an image, capture via webcam, or provide a text description.
         4.  **Get diagnosis** : Read the results with recommendations.
         
@@ -700,7 +760,7 @@ with tab4:
     • **Analyse d'images** : Diagnostic visuel des maladies
     • **Analyse de texte** : Conseils basés sur les descriptions
     • **Recommandations pratiques** : Actions concrètes à entreprendre
-    • **Interface mobile** : Optimisée pour smartphones et tablettes
+    • **Interface optimisée** : Pour une utilisation sur divers appareils
     • **Support multilingue** : Français et Anglais
     """)
     
@@ -710,8 +770,8 @@ with tab4:
     is_local = os.path.exists(LOCAL_MODEL_PATH)
     
     if is_local:
-        st.markdown("""
-        • **Modèle** : Gemma 3n E4B IT (Local - D:/Dev/model_gemma)
+        st.markdown(f"""
+        • **Modèle** : Gemma 3n E4B IT (Local - {LOCAL_MODEL_PATH})
         • **Framework** : Streamlit
         • **Déploiement** : Local
         """)
@@ -726,7 +786,6 @@ with tab4:
     st.markdown(f"### 👨‍💻 Créateur de l'Application / Application Creator")
     st.markdown(f"**Sidoine Kolaolé YEBADOKPO**")
     st.markdown(f"📍 Bohicon, République du Bénin")
-    st.markdown(f"📞 +229 01 96 91 13 46")
     st.markdown(f"📧 syebadokpo@gmail.com")
     st.markdown(f"🔗 [linkedin.com/in/sidoineko](https://linkedin.com/in/sidoineko)")
     st.markdown(f"📁 [Hugging Face Portfolio](https://huggingface.co/Sidoineko)")
@@ -737,7 +796,10 @@ with tab4:
     
     st.markdown("### ⚠️ Avertissement / Warning")
     st.markdown("Les résultats fournis par l'IA sont à titre indicatif uniquement et ne remplacent pas l'avis d'un expert agricole qualifié.")
+    
+    st.markdown("### 📞 Support")
+    st.markdown("Pour toute question ou problème, consultez la documentation ou contactez le créateur.")
 
 # --- Pied de page ---
 st.markdown("---")
-st.markdown(t("footer"))
+st.markdown("© 2024 AgriLens AI. Tous droits réservés.")
