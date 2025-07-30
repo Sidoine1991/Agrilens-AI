@@ -365,44 +365,6 @@ translations = {
 def t(key):
     return translations[st.session_state.language][key]
 
-# Classe processeur personnalisée pour Gemma 3n
-class Gemma3nProcessor:
-    def __init__(self, tokenizer, image_processor):
-        self.tokenizer = tokenizer
-        self.image_processor = image_processor
-    
-    def __call__(self, text=None, images=None, return_tensors=None, **kwargs):
-        # Traiter le texte avec le tokenizer
-        if text is not None:
-            text_inputs = self.tokenizer(
-                text, 
-                return_tensors=return_tensors, 
-                padding=True, 
-                truncation=True,
-                **kwargs
-            )
-        
-        # Traiter l'image avec l'image processor
-        if images is not None:
-            image_inputs = self.image_processor(
-                images, 
-                return_tensors=return_tensors,
-                **kwargs
-            )
-            
-            # Combiner les inputs
-            if text is not None:
-                inputs = {**text_inputs, **image_inputs}
-            else:
-                inputs = image_inputs
-        else:
-            inputs = text_inputs
-        
-        return inputs
-    
-    def decode(self, token_ids, skip_special_tokens=True, **kwargs):
-        return self.tokenizer.decode(token_ids, skip_special_tokens=skip_special_tokens, **kwargs)
-
 def load_model():
     """Charge le modèle Gemma 3n E4B IT selon l'environnement (local ou Hugging Face)"""
     try:
@@ -428,21 +390,11 @@ def load_model():
             st.info("Chargement du modèle Gemma 3n E4B IT depuis models/gemma-3n-transformers-gemma-3n-e2b-it-v1 (mode local)...")
             model_path = "models/gemma-3n-transformers-gemma-3n-e2b-it-v1"
             
-            # Charger le processeur avec le bon tokenizer pour Gemma 3n
-            from transformers import AutoTokenizer, AutoImageProcessor
-            
-            # Charger le tokenizer et l'image processor séparément
-            tokenizer = AutoTokenizer.from_pretrained(
+            # Charger le processeur
+            processor = AutoProcessor.from_pretrained(
                 model_path,
                 trust_remote_code=True
             )
-            image_processor = AutoImageProcessor.from_pretrained(
-                model_path,
-                trust_remote_code=True
-            )
-            
-            # Utiliser la classe processeur personnalisée
-            processor = Gemma3nProcessor(tokenizer, image_processor)
             
             # Stratégies de chargement pour le mode local
             def load_local_ultra_conservative():
@@ -563,48 +515,26 @@ def load_model():
             st.info("Chargement du modèle Gemma 3n E4B IT depuis Hugging Face (mode en ligne)...")
             model_id = "google/gemma-3n-E4B-it"
             
-            # Charger le processeur avec le bon tokenizer pour Gemma 3n
-            from transformers import AutoTokenizer, AutoImageProcessor
-            
+            # Charger le processeur avec timeout
             try:
-                st.info("Téléchargement du tokenizer et image processor depuis Hugging Face...")
-                # Charger le tokenizer et l'image processor séparément
-                tokenizer = AutoTokenizer.from_pretrained(
+                st.info("Téléchargement du processeur depuis Hugging Face...")
+                processor = AutoProcessor.from_pretrained(
                     model_id,
                     trust_remote_code=True,
-                    timeout=30
+                    timeout=30  # Timeout de 30 secondes
                 )
-                image_processor = AutoImageProcessor.from_pretrained(
-                    model_id,
-                    trust_remote_code=True,
-                    timeout=30
-                )
-                
-                # Utiliser la classe processeur personnalisée
-                processor = Gemma3nProcessor(tokenizer, image_processor)
                 st.success("Processeur téléchargé avec succès !")
-                
             except Exception as e:
                 st.error(f"Erreur lors du téléchargement du processeur : {e}")
                 st.info("Tentative de téléchargement avec cache et timeout...")
                 try:
-                    tokenizer = AutoTokenizer.from_pretrained(
+                    processor = AutoProcessor.from_pretrained(
                         model_id,
                         trust_remote_code=True,
                         cache_dir="./cache",
-                        timeout=60
+                        timeout=60  # Timeout de 60 secondes
                     )
-                    image_processor = AutoImageProcessor.from_pretrained(
-                        model_id,
-                        trust_remote_code=True,
-                        cache_dir="./cache",
-                        timeout=60
-                    )
-                    
-                    # Créer le processeur personnalisé
-                    processor = Gemma3nProcessor(tokenizer, image_processor)
                     st.success("Processeur téléchargé avec cache !")
-                    
                 except Exception as e2:
                     st.error(f"Erreur fatale lors du téléchargement du processeur : {e2}")
                     st.info("🔄 Tentative de fallback vers le modèle local...")
@@ -613,15 +543,10 @@ def load_model():
                     local_model_path = "D:/Dev/model_gemma"
                     if os.path.exists(local_model_path):
                         try:
-                            tokenizer = AutoTokenizer.from_pretrained(
+                            processor = AutoProcessor.from_pretrained(
                                 local_model_path,
                                 trust_remote_code=True
                             )
-                            image_processor = AutoImageProcessor.from_pretrained(
-                                local_model_path,
-                                trust_remote_code=True
-                            )
-                            processor = Gemma3nProcessor(tokenizer, image_processor)
                             st.success("Processeur chargé depuis le modèle local !")
                         except Exception as e3:
                             st.error(f"Erreur avec le modèle local : {e3}")
@@ -1095,47 +1020,35 @@ You are an expert in plant pathology. Analyze this plant image and provide a pre
 Respond in a structured and precise manner.
 """
         
-        # CORRECTION : Utiliser le format correct pour Gemma 3n avec le token <image>
-        # Le modèle Gemma-3n est un modèle "single-turn". On lui donne l'image et la question en une fois.
-        # Le format <image>\n{prompt} est le plus efficace.
-        final_prompt = f"<image>\n{text_prompt}"
+        # Utiliser le format correct pour Gemma 3n avec image
+        inputs = processor(
+            text=text_prompt,
+            images=image,
+            return_tensors="pt",
+            padding=True,
+            truncation=True
+        )
         
-        # Debug info pour vérification
-        print("🧪 Prompt utilisé :", final_prompt[:100] + "..." if len(final_prompt) > 100 else final_prompt)
-        print("🖼️ Image fournie :", type(image), image.size if hasattr(image, 'size') else "Pas d'attribut size")
+        device = getattr(model, 'device', 'cpu')
+        if hasattr(inputs, 'to'):
+            inputs = inputs.to(device)
         
-        # Vérifications explicites
-        assert "<image>" in final_prompt, "Le prompt ne contient pas le jeton <image>"
-        assert image is not None, "Aucune image fournie"
-        assert hasattr(image, "size"), "Image invalide (doit être une instance PIL.Image ou équivalent)"
-        
-        # Étape 2: Utiliser le processeur pour combiner texte et image
-        # Essayer d'abord avec le format standard
-        try:
-            inputs = processor(text=final_prompt, images=image, return_tensors="pt").to(model.device)
-        except Exception as e:
-            if "Number of images does not match number of special image tokens" in str(e):
-                # Si l'erreur persiste, essayer sans le token <image> et laisser le processeur gérer
-                print("🔄 Tentative alternative : sans token <image>")
-                inputs = processor(text=text_prompt, images=image, return_tensors="pt").to(model.device)
-            else:
-                raise e
-        
-        input_len = inputs["input_ids"].shape[-1]
-        
-        # Étape 3: Générer la réponse
         with torch.inference_mode():
             generation = model.generate(
-                **inputs, # Déballer le dictionnaire (input_ids, attention_mask, pixel_values)
+                **inputs,
                 max_new_tokens=500,
                 do_sample=True,
                 temperature=0.7,
                 top_p=0.9,
                 repetition_penalty=1.1
             )
-            response = processor.decode(generation[0][input_len:], skip_special_tokens=True)
+            response = processor.decode(generation[0], skip_special_tokens=True)
 
+        # Nettoyer la réponse
         final_response = response.strip()
+        # Supprimer le prompt original de la réponse
+        if text_prompt in final_response:
+            final_response = final_response.replace(text_prompt, "").strip()
         
         if st.session_state.language == "fr":
             return f"""
