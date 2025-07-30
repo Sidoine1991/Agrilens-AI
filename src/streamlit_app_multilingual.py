@@ -423,7 +423,7 @@ class Gemma3nProcessor:
         return self.tokenizer.decode(token_ids, skip_special_tokens=skip_special_tokens, **kwargs)
 
 def load_model():
-    """Charge le modèle avec gestion d'erreurs et fallback"""
+    """Charge le modèle avec gestion d'erreurs et fallback pour HF Spaces"""
     
     # Vérifier si le modèle est déjà chargé
     if hasattr(st.session_state, 'model') and st.session_state.model is not None:
@@ -436,141 +436,201 @@ def load_model():
     
     if is_hf_spaces:
         st.warning("🚨 Environnement Hugging Face Spaces détecté")
-        st.info("⚠️ Le modèle Gemma 3n E4B IT nécessite plus de 16GB de RAM")
-        st.info("🔄 Basculement automatique vers un modèle plus léger...")
+        st.info("⚠️ Utilisation de modèles légers compatibles avec les contraintes mémoire")
         
-        # Utiliser un modèle plus léger pour HF Spaces
-        return load_lightweight_model_for_hf_spaces()
+        # Stratégie HF Spaces : Modèles ultra-légers uniquement
+        try:
+            return load_ultra_lightweight_for_hf_spaces()
+        except Exception as e:
+            st.error(f"❌ Erreur avec le modèle ultra-léger : {e}")
+            st.info("🔄 Basculement vers le pipeline basique...")
+            try:
+                return load_basic_pipeline()
+            except Exception as e2:
+                st.error(f"❌ Erreur avec le pipeline basique : {e2}")
+                return None, None
     
-    # Pour les autres environnements, utiliser le modèle complet
-    return load_full_gemma_model()
+    # Stratégies pour environnement local avec plus de mémoire
+    if torch.cuda.is_available():
+        st.info("🚀 GPU détecté - Tentative de chargement Gemma 3n")
+        strategies = [load_gemma_full, load_conservative, load_ultra_lightweight_for_hf_spaces, load_basic_pipeline]
+    else:
+        st.warning("GPU non disponible, utilisation du CPU")
+        strategies = [load_conservative, load_ultra_lightweight_for_hf_spaces, load_basic_pipeline]
+    
+    for i, strategy in enumerate(strategies):
+        try:
+            st.info(f"🔄 Tentative {i+1}/{len(strategies)} : {strategy.__name__}")
+            model, processor = strategy()
+            if model is not None:
+                return model, processor
+        except Exception as e:
+            st.warning(f"⚠️ Échec de la stratégie {strategy.__name__} : {e}")
+            continue
+    
+    st.error("❌ Toutes les stratégies de chargement ont échoué")
+    return None, None
 
-def load_lightweight_model_for_hf_spaces():
-    """Charge un modèle plus léger compatible avec HF Spaces"""
+def load_ultra_lightweight_for_hf_spaces():
+    """Charge un modèle ultra-léger spécialement conçu pour HF Spaces"""
+    st.info("🪶 Chargement du modèle ultra-léger pour HF Spaces...")
     
-    st.info("🔄 Chargement d'un modèle alternatif compatible avec HF Spaces...")
+    # Nettoyer la mémoire
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
     
     try:
-        # Option 1: Utiliser un modèle de vision plus léger
-        model_id = "microsoft/DialoGPT-medium"  # Modèle de base pour le texte
-        st.info(f"📦 Chargement du modèle: {model_id}")
+        # Modèle ultra-léger : DistilBERT pour classification de texte
+        model_id = "distilbert/distilbert-base-uncased"
         
-        from transformers import AutoTokenizer, AutoModelForCausalLM
-        
-        # Charger le tokenizer
         tokenizer = AutoTokenizer.from_pretrained(model_id)
-        if tokenizer.pad_token is None:
-            tokenizer.pad_token = tokenizer.eos_token
-        
-        # Charger le modèle avec optimisations mémoire
-        model = AutoModelForCausalLM.from_pretrained(
+        model = AutoModelForSequenceClassification.from_pretrained(
             model_id,
             torch_dtype=torch.float32,
             low_cpu_mem_usage=True,
             device_map="cpu"
         )
         
-        st.success("✅ Modèle alternatif chargé avec succès !")
-        st.info("ℹ️ Ce modèle est optimisé pour le texte. Les images seront analysées via une API externe.")
+        # Créer un processeur simple
+        processor = SimpleTextProcessor(tokenizer)
         
         # Stocker dans session_state
         st.session_state.model = model
+        st.session_state.processor = processor
         st.session_state.tokenizer = tokenizer
         st.session_state.model_loaded = True
-        st.session_state.model_status = "Chargé (Modèle léger)"
+        st.session_state.model_status = "Chargé (Ultra-léger HF Spaces)"
         st.session_state.model_load_time = time.time()
-        st.session_state.is_lightweight_model = True
+        st.session_state.is_ultra_lightweight = True
         
-        return model, tokenizer
+        st.success("✅ Modèle ultra-léger chargé avec succès pour HF Spaces !")
+        return model, processor
         
     except Exception as e:
-        st.error(f"❌ Erreur lors du chargement du modèle léger : {e}")
-        st.info("🔄 Tentative avec un modèle encore plus basique...")
-        
-        # Fallback: Modèle minimal
-        try:
-            from transformers import pipeline
-            
-            # Utiliser un pipeline simple
-            classifier = pipeline(
-                "text-classification",
-                model="distilbert-base-uncased",
-                device=-1  # CPU
-            )
-            
-            st.success("✅ Pipeline de base chargé avec succès !")
-            st.warning("⚠️ Fonctionnalités limitées - analyse de texte uniquement")
-            
-            st.session_state.classifier = classifier
-            st.session_state.model_loaded = True
-            st.session_state.model_status = "Chargé (Pipeline basique)"
-            st.session_state.model_load_time = time.time()
-            st.session_state.is_basic_pipeline = True
-            
-            return classifier, None
-            
-        except Exception as e2:
-            st.error(f"❌ Échec du chargement de tous les modèles : {e2}")
-            st.error("🚨 Impossible de charger un modèle compatible avec cet environnement")
-            return None, None
+        st.error(f"❌ Erreur lors du chargement ultra-léger : {e}")
+        return None, None
 
-def load_full_gemma_model():
-    """Charge le modèle Gemma 3n complet pour les environnements avec suffisamment de mémoire"""
+def load_basic_pipeline():
+    """Charge un pipeline basique sans modèle de vision"""
+    st.info("🔧 Chargement du pipeline basique...")
     
-    model_id = "google/gemma-3n-e4b-it"
+    try:
+        # Pipeline simple pour analyse de texte
+        from transformers import pipeline
+        
+        classifier = pipeline(
+            "text-classification",
+            model="distilbert/distilbert-base-uncased",
+            device=-1  # CPU
+        )
+        
+        # Créer un processeur simple
+        processor = SimpleTextProcessor(None)
+        
+        # Stocker dans session_state
+        st.session_state.classifier = classifier
+        st.session_state.processor = processor
+        st.session_state.model_loaded = True
+        st.session_state.model_status = "Chargé (Pipeline basique)"
+        st.session_state.model_load_time = time.time()
+        st.session_state.is_basic_pipeline = True
+        
+        st.success("✅ Pipeline basique chargé avec succès !")
+        return classifier, processor
+        
+    except Exception as e:
+        st.error(f"❌ Erreur lors du chargement du pipeline basique : {e}")
+        return None, None
+
+def load_gemma_full():
+    """Charge le modèle Gemma 3n complet (pour environnement local uniquement)"""
+    st.info("🚀 Chargement du modèle Gemma 3n complet...")
     
-    st.info(f"📦 Chargement du modèle complet: {model_id}")
-    
-    # Importer les modules nécessaires
-    from transformers import AutoTokenizer, AutoImageProcessor, Gemma3nForConditionalGeneration
-    
-    # Charger le tokenizer et l'image processor
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
-    image_processor = AutoImageProcessor.from_pretrained(model_id)
-    
-    # Créer le processeur personnalisé
-    processor = Gemma3nProcessor(tokenizer, image_processor)
-    
-    # Stratégies de chargement pour GPU
+    # Nettoyer la mémoire
+    gc.collect()
     if torch.cuda.is_available():
-        st.info("🚀 GPU détecté - Utilisation des stratégies GPU")
+        torch.cuda.empty_cache()
+    
+    try:
+        model_id = "google/gemma-3n-E4B-it"
+        processor = AutoProcessor.from_pretrained(model_id)
         
-        # ... existing GPU strategies ...
+        model = Gemma3nForConditionalGeneration.from_pretrained(
+            model_id,
+            torch_dtype=torch.float16,
+            trust_remote_code=True,
+            low_cpu_mem_usage=True,
+            device_map="auto"
+        )
         
-    else:  # CPU only mode
-        st.warning("GPU non disponible, utilisation du CPU (plus lent)")
+        # Stocker dans session_state
+        st.session_state.model = model
+        st.session_state.processor = processor
+        st.session_state.model_loaded = True
+        st.session_state.model_status = "Chargé (Gemma 3n complet)"
+        st.session_state.model_load_time = time.time()
+        st.session_state.is_gemma_full = True
         
-        # Stratégie CPU conservatrice
-        try:
-            st.info("Chargement conservateur (CPU uniquement)...")
-            gc.collect()
-            afficher_ram_disponible("avant chargement")
-            
-            model = Gemma3nForConditionalGeneration.from_pretrained(
-                model_id,
-                torch_dtype=torch.float32,
-                trust_remote_code=True,
-                low_cpu_mem_usage=True,
-                device_map="cpu"
-            )
-            
-            afficher_ram_disponible("après chargement")
-            st.success("✅ Modèle chargé avec succès !")
-            
-            # Stocker dans session_state
-            st.session_state.model = model
-            st.session_state.processor = processor
-            st.session_state.model_loaded = True
-            st.session_state.model_status = "Chargé (CPU)"
-            st.session_state.model_load_time = time.time()
-            st.session_state.is_lightweight_model = False
-            
-            return model, processor
-            
-        except Exception as e:
-            st.error(f"❌ Erreur lors du chargement complet : {e}")
-            st.info("🔄 Basculement vers le modèle léger...")
-            return load_lightweight_model_for_hf_spaces()
+        st.success("✅ Modèle Gemma 3n complet chargé avec succès !")
+        return model, processor
+        
+    except Exception as e:
+        st.error(f"❌ Erreur lors du chargement Gemma complet : {e}")
+        return None, None
+
+def load_conservative():
+    """Charge le modèle avec des paramètres conservateurs"""
+    st.info("🔄 Chargement conservateur...")
+    
+    # Nettoyer la mémoire
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    
+    try:
+        model_id = "google/gemma-3n-E4B-it"
+        processor = AutoProcessor.from_pretrained(model_id)
+        
+        model = Gemma3nForConditionalGeneration.from_pretrained(
+            model_id,
+            torch_dtype=torch.float32,
+            trust_remote_code=True,
+            low_cpu_mem_usage=True,
+            device_map="cpu"
+        )
+        
+        # Stocker dans session_state
+        st.session_state.model = model
+        st.session_state.processor = processor
+        st.session_state.model_loaded = True
+        st.session_state.model_status = "Chargé (Conservateur)"
+        st.session_state.model_load_time = time.time()
+        st.session_state.is_conservative = True
+        
+        st.success("✅ Modèle chargé avec succès (mode conservateur) !")
+        return model, processor
+        
+    except Exception as e:
+        st.error(f"❌ Erreur lors du chargement conservateur : {e}")
+        return None, None
+
+class SimpleTextProcessor:
+    """Processeur simple pour les modèles légers"""
+    def __init__(self, tokenizer):
+        self.tokenizer = tokenizer
+    
+    def __call__(self, text, images=None, return_tensors="pt", **kwargs):
+        if self.tokenizer:
+            return self.tokenizer(text, return_tensors=return_tensors, **kwargs)
+        else:
+            return {"input_ids": torch.tensor([[1, 2, 3]]), "attention_mask": torch.tensor([[1, 1, 1]])}
+    
+    def decode(self, tokens, skip_special_tokens=True):
+        if self.tokenizer:
+            return self.tokenizer.decode(tokens, skip_special_tokens=skip_special_tokens)
+        else:
+            return "Analyse basique disponible"
 
 def analyze_image_multilingual(image, prompt=""):
     """Analyse une image avec le modèle disponible (Gemma 3n ou modèle alternatif)."""
@@ -586,21 +646,26 @@ def analyze_image_multilingual(image, prompt=""):
         return "❌ Modèle non disponible. Veuillez recharger le modèle."
     
     # Détecter le type de modèle chargé
-    is_lightweight = getattr(st.session_state, 'is_lightweight_model', False)
+    is_ultra_lightweight = getattr(st.session_state, 'is_ultra_lightweight', False)
     is_basic_pipeline = getattr(st.session_state, 'is_basic_pipeline', False)
+    is_gemma_full = getattr(st.session_state, 'is_gemma_full', False)
+    is_conservative = getattr(st.session_state, 'is_conservative', False)
     
-    if is_basic_pipeline:
+    if is_ultra_lightweight:
+        return analyze_image_with_ultra_lightweight_model(image, prompt)
+    elif is_basic_pipeline:
         return analyze_image_with_basic_pipeline(image, prompt)
-    elif is_lightweight:
-        return analyze_image_with_lightweight_model(image, prompt)
-    else:
+    elif is_gemma_full or is_conservative:
         return analyze_image_with_gemma_model(image, prompt)
+    else:
+        # Fallback vers l'analyse basique
+        return analyze_image_with_basic_pipeline(image, prompt)
 
 def analyze_image_with_gemma_model(image, prompt=""):
     """Analyse une image avec le modèle Gemma 3n E4B IT complet."""
     processor = st.session_state.processor
     model = st.session_state.model
-    
+
     try:
         # Préparer le prompt textuel pour Gemma 3n
         if st.session_state.language == "fr":
@@ -780,6 +845,109 @@ Respond in a structured and precise manner.
             return "❌ Erreur : Le modèle n'a pas pu lier l'image au texte. Assurez-vous que la structure du prompt est correcte."
         else:
             return f"❌ Erreur lors de l'analyse d'image : {e}"
+
+def analyze_image_with_ultra_lightweight_model(image, prompt=""):
+    """Analyse une image avec un modèle ultra-léger (texte uniquement)."""
+    model = st.session_state.model
+    processor = st.session_state.processor
+    
+    try:
+        # Convertir l'image en description textuelle basique
+        image_description = f"Image de plante avec dimensions {image.size[0]}x{image.size[1]} pixels"
+        
+        # Préparer le prompt
+        if st.session_state.language == "fr":
+            if prompt:
+                text_prompt = f"""
+Tu es un expert en pathologie végétale. Analyse cette description d'image de plante et fournis un diagnostic.
+
+**Description de l'image :** {image_description}
+**Question spécifique :** {prompt}
+
+**Instructions :**
+1. **Diagnostic général** : Donne des conseils généraux sur les maladies végétales
+2. **Recommandations** : Conseils de base pour l'identification et le traitement
+3. **Actions préventives** : Mesures générales de prévention
+
+**Note :** Cette analyse est basée sur une description textuelle. Pour une analyse précise, utilisez un modèle spécialisé en vision.
+"""
+            else:
+                text_prompt = f"""
+Tu es un expert en pathologie végétale. Analyse cette description d'image de plante et fournis un diagnostic.
+
+**Description de l'image :** {image_description}
+
+**Instructions :**
+1. **Diagnostic général** : Donne des conseils généraux sur les maladies végétales
+2. **Recommandations** : Conseils de base pour l'identification et le traitement
+3. **Actions préventives** : Mesures générales de prévention
+
+**Note :** Cette analyse est basée sur une description textuelle. Pour une analyse précise, utilisez un modèle spécialisé en vision.
+"""
+        else:
+            if prompt:
+                text_prompt = f"""
+You are an expert in plant pathology. Analyze this image description and provide a diagnosis.
+
+**Image description:** {image_description}
+**Specific question:** {prompt}
+
+**Instructions:**
+1. **General diagnosis**: Provide general advice on plant diseases
+2. **Recommendations**: Basic guidance for identification and treatment
+3. **Preventive actions**: General prevention measures
+
+**Note:** This analysis is based on a text description. For precise analysis, use a specialized vision model.
+"""
+            else:
+                text_prompt = f"""
+You are an expert in plant pathology. Analyze this image description and provide a diagnosis.
+
+**Image description:** {image_description}
+
+**Instructions:**
+1. **General diagnosis**: Provide general advice on plant diseases
+2. **Recommendations**: Basic guidance for identification and treatment
+3. **Preventive actions**: General prevention measures
+
+**Note:** This analysis is based on a text description. For precise analysis, use a specialized vision model.
+"""
+        
+        # Générer la réponse avec le modèle ultra-léger
+        inputs = processor(text_prompt, return_tensors="pt", truncation=True, max_length=512)
+        
+        with torch.inference_mode():
+            outputs = model.generate(
+                **inputs,
+                max_new_tokens=300,
+                do_sample=True,
+                temperature=0.7,
+                top_p=0.9,
+                repetition_penalty=1.1
+            )
+        
+        response = processor.decode(outputs[0], skip_special_tokens=True)
+        final_response = response.replace(text_prompt, "").strip()
+        
+        if st.session_state.language == "fr":
+            return f"""
+## 🪶 **Analyse par Modèle Ultra-Léger**
+
+{final_response}
+
+**⚠️ Note :** Cette analyse utilise un modèle ultra-léger optimisé pour HF Spaces. Pour une analyse d'image précise, utilisez un environnement avec plus de mémoire.
+"""
+        else:
+            return f"""
+## 🪶 **Analysis by Ultra-Lightweight Model**
+
+{final_response}
+
+**⚠️ Note:** This analysis uses an ultra-lightweight model optimized for HF Spaces. For precise image analysis, use an environment with more memory.
+"""
+            
+    except Exception as e:
+        return f"❌ Erreur lors de l'analyse avec le modèle ultra-léger : {e}"
 
 def analyze_image_with_lightweight_model(image, prompt=""):
     """Analyse une image avec le modèle léger (texte uniquement + API externe pour l'image)."""
@@ -1195,7 +1363,7 @@ with st.sidebar:
                         st.info("🔄 Le modèle local est sauvegardé en cache et persiste entre les sessions")
                     else:
                         st.success("✅ Modèle Gemma 3n E4B IT chargé et PERSISTANT (mode Hugging Face - cache activé)")
-                        st.info("🔄 Le modèle en ligne est sauvegardé en cache et persiste entre les sessions")
+                        st.info("�� Le modèle en ligne est sauvegardé en cache et persiste entre les sessions")
                 else:
                     if is_local:
                         st.success("✅ Modèle Gemma 3n E4B IT chargé (mode local)")
