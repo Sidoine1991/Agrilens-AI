@@ -1060,7 +1060,12 @@ Respond in a structured and precise manner.
             tokenize=True,
             return_dict=True,
             return_tensors="pt",
-        ).to(model.device)
+        )
+        
+        # Gérer le device de manière sécurisée
+        device = getattr(model, 'device', 'cpu')
+        if hasattr(inputs, 'to'):
+            inputs = inputs.to(device)
         
         input_len = inputs["input_ids"].shape[-1]
         
@@ -1144,7 +1149,12 @@ def analyze_text_multilingual(text):
             tokenize=True,
             return_dict=True,
             return_tensors="pt",
-        ).to(model.device)
+        )
+        
+        # Gérer le device de manière sécurisée
+        device = getattr(model, 'device', 'cpu')
+        if hasattr(inputs, 'to'):
+            inputs = inputs.to(device)
         
         input_len = inputs["input_ids"].shape[-1]
         
