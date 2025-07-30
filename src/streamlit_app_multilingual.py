@@ -9,6 +9,8 @@ import gc
 import time
 import sys
 import psutil
+import signal
+from contextlib import contextmanager
 
 # Cache global pour le modèle (persiste entre les reruns)
 if 'global_model_cache' not in st.session_state:
@@ -17,6 +19,23 @@ if 'model_load_time' not in st.session_state:
     st.session_state.model_load_time = None
 if 'model_persistence_check' not in st.session_state:
     st.session_state.model_persistence_check = False
+
+@contextmanager
+def timeout(seconds):
+    """Context manager pour timeout"""
+    def signal_handler(signum, frame):
+        raise TimeoutError(f"Timeout après {seconds} secondes")
+    
+    # Enregistrer l'ancien handler
+    old_handler = signal.signal(signal.SIGALRM, signal_handler)
+    signal.alarm(seconds)
+    
+    try:
+        yield
+    finally:
+        # Restaurer l'ancien handler
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old_handler)
 
 def check_model_persistence():
     """Vérifie si le modèle est toujours persistant en mémoire"""
@@ -423,6 +442,9 @@ def load_model():
         # Détecter l'environnement
         is_local = os.path.exists("models/gemma-3n-transformers-gemma-3n-e2b-it-v1")
         
+        # Détecter si on est sur Hugging Face Spaces (mémoire limitée)
+        is_hf_spaces = os.environ.get('SPACE_ID') is not None
+        
         if is_local:
             # Mode LOCAL - Utiliser le modèle téléchargé
             st.info("Chargement du modèle Gemma 3n E4B IT depuis models/gemma-3n-transformers-gemma-3n-e2b-it-v1 (mode local)...")
@@ -630,6 +652,56 @@ def load_model():
                         st.error("Aucun modèle local disponible")
                         return None, None
             
+            # Stratégie 0: Chargement ultra-optimisé pour Hugging Face Spaces (mémoire limitée)
+            def load_hf_spaces_optimized():
+                st.warning("🚨 Mode Hugging Face Spaces détecté - Chargement ultra-optimisé...")
+                st.info("⚠️ Le modèle Gemma 3n E4B IT est très volumineux. Le chargement peut prendre plusieurs minutes...")
+                st.info("⏱️ Timeout de 10 minutes pour éviter le blocage...")
+                
+                # Nettoyer agressivement la mémoire
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                
+                afficher_ram_disponible("avant chargement HF Spaces")
+                
+                try:
+                    # Configuration ultra-conservatrice pour HF Spaces avec timeout
+                    with timeout(600):  # 10 minutes de timeout
+                        model = Gemma3nForConditionalGeneration.from_pretrained(
+                            model_id,
+                            torch_dtype=torch.float32,  # Utiliser float32 pour éviter les problèmes de mémoire
+                            trust_remote_code=True,
+                            low_cpu_mem_usage=True,
+                            device_map="cpu",  # Forcer CPU
+                            offload_folder="offload",  # Dossier de déchargement
+                            offload_state_dict=True,  # Décharger le state dict
+                            max_memory={0: "2GB", "cpu": "4GB"}  # Limiter la mémoire
+                        )
+                    
+                    afficher_ram_disponible("après chargement HF Spaces")
+                    st.success("✅ Modèle chargé avec succès sur Hugging Face Spaces !")
+                    
+                    # Stocker immédiatement dans session_state
+                    st.session_state.model = model
+                    st.session_state.processor = processor
+                    st.session_state.model_loaded = True
+                    st.session_state.model_status = "Chargé (HF Spaces)"
+                    st.session_state.model_load_time = time.time()
+                    
+                    # Forcer la persistance
+                    force_model_persistence()
+                    
+                    return model, processor
+                    
+                except TimeoutError:
+                    st.error("⏰ Timeout atteint lors du chargement du modèle. Le modèle est trop volumineux pour cet environnement.")
+                    st.info("💡 Suggestion : Utilisez un modèle plus léger ou un environnement avec plus de mémoire.")
+                    return None, None
+                except Exception as e:
+                    st.error(f"❌ Erreur lors du chargement HF Spaces optimisé : {e}")
+                    return None, None
+            
             # Stratégie 1: Chargement ultra-conservateur (CPU uniquement, sans device_map)
             def load_ultra_conservative():
                 st.info("Chargement ultra-conservateur (CPU uniquement, sans device_map)...")
@@ -827,6 +899,16 @@ def load_model():
                 
                 return model, processor
             
+            # Vérifier si on est sur Hugging Face Spaces et utiliser la stratégie optimisée
+            if is_hf_spaces:
+                st.warning("🚨 Environnement Hugging Face Spaces détecté - Utilisation de la stratégie optimisée")
+                try:
+                    model, processor = load_hf_spaces_optimized()
+                    return model, processor
+                except Exception as e:
+                    st.error(f"Erreur avec la stratégie HF Spaces optimisée : {e}")
+                    st.info("Tentative avec les stratégies de fallback...")
+            
             # Vérifier la mémoire disponible
             if torch.cuda.is_available():
                 gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1024**3  # GB
@@ -901,7 +983,12 @@ def load_model():
             else:
                 # Mode CPU uniquement - essayer plusieurs stratégies
                 st.warning("GPU non disponible, utilisation du CPU (plus lent)")
-                cpu_strategies = [load_ultra_conservative, load_conservative]
+                
+                # Si on est sur HF Spaces, utiliser la stratégie optimisée en premier
+                if is_hf_spaces:
+                    cpu_strategies = [load_hf_spaces_optimized, load_ultra_conservative, load_conservative]
+                else:
+                    cpu_strategies = [load_ultra_conservative, load_conservative]
                 
                 for i, strategy in enumerate(cpu_strategies):
                     try:
