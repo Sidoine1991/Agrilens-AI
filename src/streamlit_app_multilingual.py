@@ -25,28 +25,42 @@ st.set_page_config(
 # Pour cet exemple, nous allons utiliser un dictionnaire simple.
 TRANSLATIONS = {
     "title": {"fr": "AgriLens AI", "en": "AgriLens AI"},
-    "subtitle": {"fr": "Votre assistant IA pour le diagnostic des plantes", "en": "Your AI Assistant for Plant Diagnosis"},
+    "subtitle": {"fr": "Votre assistant IA pour le diagnostic des maladies de plantes", "en": "Your AI Assistant for Plant Disease Diagnosis"},
     "config_title": {"fr": "Configuration", "en": "Configuration"},
-    "load_model": {"fr": "Charger le modèle", "en": "Load Model"},
-    "image_analysis_title": {"fr": "📸 Analyse d'Image", "en": "📸 Image Analysis"},
-    "image_analysis_desc": {"fr": "Téléchargez une image de votre plante ou utilisez votre webcam pour obtenir un diagnostic.", "en": "Upload an image of your plant or use your webcam to get a diagnosis."},
-    "choose_image": {"fr": "Choisissez une image", "en": "Choose an image"},
-    "file_too_large_error": {"fr": "Erreur : Le fichier est trop volumineux. Maximum 200MB.", "en": "Error: File too large. Maximum 200MB."},
-    "empty_file_error": {"fr": "Erreur : Le fichier est vide.", "en": "Error: File is empty."},
-    "file_size_warning": {"fr": "Attention : Le fichier est très volumineux, le chargement peut prendre du temps.", "en": "Warning: File is very large, loading may take time."},
-    "analyze_button": {"fr": "Analyser l'image", "en": "Analyze Image"},
-    "analysis_results": {"fr": "Résultats de l'analyse :", "en": "Analysis Results:"},
-    "text_analysis_title": {"fr": "💬 Analyse de Texte", "en": "💬 Text Analysis"},
-    "text_analysis_desc": {"fr": "Décrivez les symptômes de votre plante pour obtenir des conseils.", "en": "Describe your plant's symptoms to get advice."},
-    "symptoms_desc": {"fr": "Décrivez les symptômes ici...", "en": "Describe the symptoms here..."},
-    "manual_title": {"fr": "📚 Manuel d'utilisation", "en": "📚 User Manual"},
-    "about_title": {"fr": "ℹ️ À propos", "en": "ℹ️ About"},
-    "footer": {"fr": "© 2024 AgriLens AI. Tous droits réservés.", "en": "© 2024 AgriLens AI. All rights reserved."}
+    "load_model": {"fr": "Charger le modèle Gemma 3n E4B IT", "en": "Load Gemma 3n E4B IT Model"},
+    "model_status": {"fr": "Statut du modèle :", "en": "Model Status:"},
+    "not_loaded": {"fr": "Non chargé", "en": "Not loaded"},
+    "loaded": {"fr": "✅ Chargé", "en": "✅ Loaded"},
+    "error": {"fr": "❌ Erreur", "en": "❌ Error"},
+    "tabs": {"fr": ["📸 Analyse d'Image", "💬 Analyse de Texte", "📖 Manuel", "ℹ️ À propos"], "en": ["📸 Image Analysis", "💬 Text Analysis", "📖 Manual", "ℹ️ About"]},
+    "image_analysis_title": {"fr": "🔍 Diagnostic par Image", "en": "🔍 Image Diagnosis"},
+    "image_analysis_desc": {"fr": "Téléchargez une photo de plante malade pour obtenir un diagnostic", "en": "Upload a photo of a diseased plant to get a diagnosis"},
+    "choose_image": {"fr": "Choisissez une image...", "en": "Choose an image..."},
+    "analyze_button": {"fr": "🔬 Analyser avec l'IA", "en": "🔬 Analyze with AI"},
+    "analysis_results": {"fr": "## 📊 Résultats de l'Analyse", "en": "## 📊 Analysis Results"},
+    "text_analysis_title": {"fr": "💬 Diagnostic par Texte", "en": "💬 Text Diagnosis"},
+    "text_analysis_desc": {"fr": "Décrivez les symptômes de votre plante pour obtenir des conseils", "en": "Describe your plant's symptoms to get advice"},
+    "symptoms_desc": {"fr": "Description des symptômes :", "en": "Symptom description:"},
+    "manual_title": {"fr": "📖 Manuel d'utilisation", "en": "📖 User Manual"},
+    "about_title": {"fr": "ℹ️ À propos d'AgriLens AI", "en": "ℹ️ About AgriLens AI"},
+    "creator_title": {"fr": "👨‍💻 Créateur de l'Application", "en": "👨‍💻 Application Creator"},
+    "creator_name": {"fr": "**Sidoine Kolaolé YEBADOKPO**", "en": "**Sidoine Kolaolé YEBADOKPO**"},
+    "creator_location": {"fr": "Bohicon, République du Bénin", "en": "Bohicon, Benin Republic"},
+    "creator_phone": {"fr": "+229 01 96 91 13 46", "en": "+229 01 96 91 13 46"},
+    "creator_email": {"fr": "syebadokpo@gmail.com", "en": "syebadokpo@gmail.com"},
+    "creator_linkedin": {"fr": "linkedin.com/in/sidoineko", "en": "linkedin.com/in/sidoineko"},
+    "creator_portfolio": {"fr": "Hugging Face Portfolio: Sidoineko/portfolio", "en": "Hugging Face Portfolio: Sidoineko/portfolio"},
+    "competition_title": {"fr": "🏆 Version Compétition Kaggle", "en": "🏆 Kaggle Competition Version"},
+    "competition_text": {"fr": "Cette première version d'AgriLens AI a été développée spécifiquement pour participer à la compétition Kaggle. Elle représente notre première production publique et démontre notre expertise en IA appliquée à l'agriculture.", "en": "This first version of AgriLens AI was specifically developed to participate in the Kaggle competition. It represents our first public production and demonstrates our expertise in AI applied to agriculture."},
+    "footer": {"fr": "*AgriLens AI - Diagnostic intelligent des plantes avec IA*", "en": "*AgriLens AI - Intelligent plant diagnosis with AI*"}
 }
 
 def t(key):
     """Fonction de traduction simple."""
-    lang = st.session_state.get('language', 'fr')
+    # S'assurer que st.session_state.language est initialisé
+    if 'language' not in st.session_state:
+        st.session_state.language = 'fr' # Langue par défaut
+    lang = st.session_state.language
     return TRANSLATIONS.get(key, {}).get(lang, key) # Retourne la clé si la traduction n'existe pas
 
 # --- Initialisation de la langue ---
@@ -65,22 +79,25 @@ def check_model_persistence():
     """Vérifie si le modèle est toujours persistant en mémoire et fonctionnel."""
     try:
         if hasattr(st.session_state, 'model') and st.session_state.model is not None:
+            # Vérification simple pour s'assurer que le modèle est toujours valide
             if hasattr(st.session_state.model, 'device'):
                 device = st.session_state.model.device
                 return True
         return False
     except Exception:
-        return False
+        return False # En cas d'erreur lors de la vérification
 
 def force_model_persistence():
-    """Stocke le modèle et le processeur dans le cache global pour assurer la persistance."""
+    """Force la persistance du modèle et du processeur dans le cache global."""
     try:
         if hasattr(st.session_state, 'model') and st.session_state.model is not None:
+            # Créer des références fortes au modèle et au processeur
             st.session_state.global_model_cache['model'] = st.session_state.model
             st.session_state.global_model_cache['processor'] = st.session_state.processor
             st.session_state.global_model_cache['load_time'] = time.time()
             st.session_state.global_model_cache['model_type'] = type(st.session_state.model).__name__
             st.session_state.global_model_cache['processor_type'] = type(st.session_state.processor).__name__
+            
             if hasattr(st.session_state.model, 'device'):
                 st.session_state.global_model_cache['device'] = st.session_state.model.device
 
@@ -96,7 +113,8 @@ def restore_model_from_cache():
     try:
         if 'model' in st.session_state.global_model_cache and st.session_state.global_model_cache['model'] is not None:
             cached_model = st.session_state.global_model_cache['model']
-            if hasattr(cached_model, 'device'): # Vérifie si le modèle est toujours valide
+            # Vérifier que le modèle est toujours valide avant de le restaurer
+            if hasattr(cached_model, 'device'):
                 st.session_state.model = cached_model
                 st.session_state.processor = st.session_state.global_model_cache.get('processor')
                 st.session_state.model_loaded = True
@@ -164,7 +182,7 @@ def load_model_strategy(model_identifier, device_map=None, torch_dtype=None, qua
     Retourne le modèle et le processeur, ou (None, None) en cas d'échec.
     """
     try:
-        st.info(f"Chargement de  avec device_map='{device_map}', dtype=torch.{torch_dtype.__name__ if torch_dtype else 'None'}, quant='{quantization}'")
+        # st.info(f"Chargement de {model_identifier} avec device_map='{device_map}', dtype=torch.{torch_dtype.__name__ if torch_dtype else 'None'}, quant='{quantization}'")
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
@@ -213,8 +231,7 @@ def load_model_strategy(model_identifier, device_map=None, torch_dtype=None, qua
     except ImportError as e:
         raise ImportError(f"Bibliothèque manquante : . Installez-la avec `pip install transformers torch accelerate bitsandbytes`")
     except Exception as e:
-        # Capturez l'exception spécifique ici pour un meilleur débogage
-        raise Exception(f"Échec du chargement avec la stratégie  : ")
+        raise Exception(f"Échec du chargement avec la stratégie : {e}")
 
 def load_model():
     """Charge le modèle Gemma 3n E4B IT (local ou Hugging Face) avec des stratégies robustes."""
@@ -304,64 +321,71 @@ def load_model():
 
 def analyze_image_multilingual(image, prompt=""):
     """Analyse une image avec Gemma 3n E4B IT pour un diagnostic précis."""
-    if not st.session_state.model_loaded and not restore_model_from_cache():
-        return "❌ Modèle Gemma non chargé. Veuillez d'abord charger le modèle dans les réglages."
-    
+    # Vérification et chargement du modèle si nécessaire
+    if not st.session_state.model_loaded:
+        if not restore_model_from_cache():
+            st.warning("Modèle non chargé. Veuillez le charger via les réglages avant d'analyser.")
+            return "❌ Modèle Gemma non chargé. Veuillez d'abord charger le modèle dans les réglages."
+        else:
+            st.info("Modèle restauré depuis le cache pour l'analyse.")
+
     model, processor = st.session_state.model, st.session_state.processor
     if not model or not processor:
         return "❌ Modèle Gemma non disponible. Veuillez recharger le modèle."
 
     try:
-        # Préparer le prompt textuel pour Gemma 3n
-        # Le token <image> est crucial pour que le modèle sache où insérer les informations visuelles
+        # Préparer le prompt textuel et visuel pour Gemma 3n (format chat)
+        # C'est ici que la structure des messages est importante pour les modèles multimodaux
         if st.session_state.language == "fr":
-            gemma_prompt_text = f"<image>\nTu es un expert en pathologie végétale. Analyse cette image et réponds à la question : " if prompt else "<image>\nTu es un expert en pathologie végétale. Analyse cette image et fournis un diagnostic précis."
+            user_instruction = f"Analyse cette image de plante et fournis un diagnostic précis. Question spécifique : {prompt}" if prompt else "Analyse cette image de plante et fournis un diagnostic précis."
+            system_message = "Tu es un expert en pathologie végétale. Réponds de manière structurée et précise, en incluant diagnostic, causes, symptômes, traitement et urgence."
         else: # English
-            gemma_prompt_text = f"<image>\nYou are an expert in plant pathology. Analyze this image and answer the question: " if prompt else "<image>\nYou are an expert in plant pathology. Analyze this image and provide a precise diagnosis."
+            user_instruction = f"Analyze this plant image and provide a precise diagnosis. Specific question: {prompt}" if prompt else "Analyze this plant image and provide a precise diagnosis."
+            system_message = "You are an expert in plant pathology. Respond in a structured and precise manner, including diagnosis, causes, symptoms, treatment, and urgency."
         
-        # Prétraiter l'image et le texte avec le processeur pour obtenir les inputs du modèle
-        # C'est la méthode correcte pour les modèles multimodaux qui attendent des inputs combinés.
-        processed_inputs = processor(
-            images=[image], # L'image PIL doit être dans une liste
-            text=gemma_prompt_text, # Le prompt textuel contenant <image>
+        messages = [
+            {"role": "system", "content": [{"type": "text", "text": system_message}]},
+            {"role": "user", "content": [
+                {"type": "image", "image": image}, # Intégration de l'image
+                {"type": "text", "text": user_instruction} # Le texte associé
+            ]}
+        ]
+        
+        # Utiliser le processeur pour convertir le format conversationnel en tenseurs
+        inputs = processor.apply_chat_template(
+            messages,
+            add_generation_prompt=True, # Indique qu'on veut générer une réponse
+            tokenize=True,
+            return_dict=True,
             return_tensors="pt",
-            padding=True
         )
-
-        # Déplacer les inputs au bon device
+        
+        # Déplacer les inputs au bon device (GPU ou CPU)
         device = getattr(model, 'device', 'cpu')
-        if hasattr(processed_inputs, 'to'):
-            processed_inputs = processed_inputs.to(device)
+        if hasattr(inputs, 'to'):
+            inputs = inputs.to(device)
+        
+        # Obtenir la longueur de l'input pour ne décoder que la réponse générée
+        input_len = inputs["input_ids"].shape[-1]
         
         # Générer la réponse
         with torch.inference_mode():
             generation = model.generate(
-                **processed_inputs, # Passer les inputs préparés par le processor
+                **inputs, # Passer les inputs préparés par le processor
                 max_new_tokens=500,
                 do_sample=True,
                 temperature=0.7,
                 top_p=0.9,
                 repetition_penalty=1.1
             )
-            # Décode la réponse complète générée
-            response_text = processor.decode(generation[0], skip_special_tokens=True)
+            # Décoder uniquement la partie générée par le modèle
+            response = processor.decode(generation[0][input_len:], skip_special_tokens=True)
 
-        # Nettoyer la réponse pour enlever le prompt répété et les tokens spéciaux
-        final_response = response_text.strip()
-        
-        # Supprimer le prompt texte initial si le modèle l'a répété
-        if gemma_prompt_text.strip() in final_response:
-            # Trouver la première occurrence du prompt textuel et prendre ce qui suit
-            try:
-                prompt_start_index = final_response.index(gemma_prompt_text.strip())
-                final_response = final_response[prompt_start_index + len(gemma_prompt_text.strip()):].strip()
-            except ValueError:
-                # Si le prompt n'est pas trouvé exactement (ce qui est peu probable ici), on le laisse tel quel
-                pass
-            
-        # Retirer les tokens spéciaux inutiles de la réponse
+        # Nettoyer la réponse finale
+        final_response = response.strip()
+        # Retirer les tokens de chat spécifiques si présents et non souhaités
         final_response = final_response.replace("<start_of_turn>", "").replace("<end_of_turn>", "").strip()
-
+        
         # Formater la sortie
         if st.session_state.language == "fr":
             return f"""
@@ -380,16 +404,22 @@ def analyze_image_multilingual(image, prompt=""):
         error_message = str(e)
         if "403" in error_message or "Forbidden" in error_message:
             return "❌ Erreur 403 - Accès refusé. Veuillez vérifier votre jeton Hugging Face (HF_TOKEN) et les quotas."
+        # Laisser cette erreur ici car elle peut encore se produire si la structure du prompt n'est pas parfaite
         elif "Number of images does not match number of special image tokens" in error_message:
-            return "❌ Erreur : Le modèle n'a pas pu lier l'image au texte. Assurez-vous que le prompt contient bien le token `<image>` et que l'image est dans un format standard."
+            return "❌ Erreur : Le modèle n'a pas pu lier l'image au texte. Assurez-vous que la structure du prompt est correcte (voir le manuel)."
         else:
             return f"❌ Erreur lors de l'analyse d'image : {e}"
 
 def analyze_text_multilingual(text):
     """Analyse un texte avec le modèle Gemma 3n E4B IT."""
-    if not st.session_state.model_loaded and not restore_model_from_cache():
-        return "❌ Modèle non chargé. Veuillez le charger dans les réglages."
-    
+    # Vérification et chargement du modèle si nécessaire
+    if not st.session_state.model_loaded:
+        if not restore_model_from_cache():
+            st.warning("Modèle non chargé. Veuillez le charger via les réglages avant d'analyser.")
+            return "❌ Modèle non chargé. Veuillez le charger dans les réglages."
+        else:
+            st.info("Modèle restauré depuis le cache pour l'analyse.")
+
     model, processor = st.session_state.model, st.session_state.processor
     if not model or not processor:
         return "❌ Modèle Gemma non disponible. Veuillez recharger le modèle."
@@ -397,14 +427,12 @@ def analyze_text_multilingual(text):
     try:
         # Définir le prompt basé sur la langue
         if st.session_state.language == "fr":
-            prompt_template = f"Tu es un assistant agricole expert. Analyse ce problème de plante : \n\n**Instructions :**\n1. **Diagnostic** : Quel est le problème principal ?\n2. **Causes** : Quelles sont les causes possibles ?\n3. **Traitement** : Quelles sont les actions à entreprendre ?\n4. **Prévention** : Comment éviter le problème à l'avenir ?"
+            prompt_template = f"Tu es un assistant agricole expert. Analyse ce problème de plante : \n\n**Description du problème :**\n{text}\n\n**Instructions :**\n1. **Diagnostic** : Quel est le problème principal ?\n2. **Causes** : Quelles sont les causes possibles ?\n3. **Traitement** : Quelles sont les actions à entreprendre ?\n4. **Prévention** : Comment éviter le problème à l'avenir ?"
         else:
-            prompt_template = f"You are an expert agricultural assistant. Analyze this plant problem: \n\n**Instructions:**\n1. **Diagnosis**: What is the main problem?\n2. **Causes**: What are the possible causes?\n3. **Treatment**: What actions should be taken?\n4. **Prevention**: How to avoid the problem in the future?"
+            prompt_template = f"You are an expert agricultural assistant. Analyze this plant problem: \n\n**Problem Description:**\n{text}\n\n**Instructions:**\n1. **Diagnosis**: What is the main problem?\n2. **Causes**: What are the possible causes?\n3. **Treatment**: What actions should be taken?\n4. **Prevention**: How to avoid the problem in the future?"
         
-        full_prompt = f"{prompt_template}\n\n**Description du problème :**\n{text}"
-
         # Préparer les messages pour le modèle Gemma (format conversationnel)
-        messages = [{"role": "user", "content": [{"type": "text", "text": full_prompt}]}]
+        messages = [{"role": "user", "content": [{"type": "text", "text": prompt_template}]}]
         
         # Utiliser le processeur pour convertir le format conversationnel en tenseurs
         inputs = processor.apply_chat_template(
@@ -420,6 +448,9 @@ def analyze_text_multilingual(text):
         if hasattr(inputs, 'to'):
             inputs = inputs.to(device)
         
+        # Obtenir la longueur de l'input pour ne décoder que la réponse générée
+        input_len = inputs["input_ids"].shape[-1]
+        
         # Générer la réponse
         with torch.inference_mode():
             generation = model.generate(
@@ -430,28 +461,13 @@ def analyze_text_multilingual(text):
                 top_p=0.9,
                 repetition_penalty=1.1
             )
-            # Décoder uniquement la partie générée (après le prompt)
-            # Il est important de trouver le bon décalage pour ne décoder que la réponse.
-            # `apply_chat_template` peut ajouter des tokens de début/fin de tour.
-            # Une approche plus sûre est de décoder toute la séquence et de voir ce qu'on obtient.
-            
-            # Si apply_chat_template ajoute des tokens, on pourrait les retirer
-            # Mais pour simplifier, décodons toute la séquence générée.
-            response = processor.decode(generation[0], skip_special_tokens=True)
-
-            # On essaie de retirer le prompt initial si le modèle l'a répété
-            # Le format de chat de Gemma peut inclure <start_of_turn>, <end_of_turn>, etc.
-            # Il faut être prudent lors du nettoyage.
-            
-            # La méthode la plus simple est de décoder et de nettoyer les tokens spéciaux
-            # Si le prompt_template est répété, il faudra le retirer manuellement.
-            cleaned_response = response.strip()
-            # On peut tenter de retirer le prompt de base, mais attention aux variations
-            if prompt_template in cleaned_response:
-                cleaned_response = cleaned_response.split(prompt_template)[-1].strip()
-            
-            # Retirer les tokens de chat spécifiques si présents
-            cleaned_response = cleaned_response.replace("<start_of_turn>", "").replace("<end_of_turn>", "").strip()
+            # Décoder la réponse générée
+            response = processor.decode(generation[0][input_len:], skip_special_tokens=True)
+        
+        # Nettoyer la réponse
+        cleaned_response = response.strip()
+        # Retirer les tokens de chat spécifiques si présents
+        cleaned_response = cleaned_response.replace("<start_of_turn>", "").replace("<end_of_turn>", "").strip()
 
         return cleaned_response
         
@@ -487,15 +503,15 @@ with st.sidebar:
         st.session_state.language = 'fr'
     current_lang_index = 0 if st.session_state.language == "fr" else 1
     
-    language = st.selectbox(
+    language_choice = st.selectbox(
         "Sélectionnez votre langue :",
         language_options,
         index=current_lang_index,
         help="Change la langue de l'interface et des réponses de l'IA."
     )
     # Mettre à jour la langue dans st.session_state et recharger si changement
-    if st.session_state.language != ("fr" if language == "Français" else "en"):
-        st.session_state.language = "fr" if language == "Français" else "en"
+    if st.session_state.language != ("fr" if language_choice == "Français" else "en"):
+        st.session_state.language = "fr" if language_choice == "Français" else "en"
         st.rerun() # Recharge pour appliquer le changement de langue
 
     st.divider()
@@ -561,7 +577,7 @@ with st.sidebar:
 
 
 # --- Onglets Principaux ---
-tab1, tab2, tab3, tab4 = st.tabs([t("image_analysis_title"), t("text_analysis_title"), t("manual_title"), t("about_title")])
+tab1, tab2, tab3, tab4 = st.tabs(t("tabs"))
 
 with tab1:
     st.header(t("image_analysis_title"))
@@ -779,20 +795,21 @@ with tab4:
         st.markdown("""
         • **Modèle** : Gemma 3n E4B IT (Hugging Face - en ligne)
         • **Framework** : Streamlit
-        • **Déploiement** : Hugging Face Spaces / en ligne
+        • **Déploiement** : Hugging Face Spaces
         """)
     
     # Informations du créateur
-    st.markdown(f"### 👨‍💻 Créateur de l'Application / Application Creator")
-    st.markdown(f"**Sidoine Kolaolé YEBADOKPO**")
-    st.markdown(f"📍 Bohicon, République du Bénin")
-    st.markdown(f"📧 syebadokpo@gmail.com")
-    st.markdown(f"🔗 [linkedin.com/in/sidoineko](https://linkedin.com/in/sidoineko)")
-    st.markdown(f"📁 [Hugging Face Portfolio](https://huggingface.co/Sidoineko)")
+    st.markdown(f"### {t('creator_title')}")
+    st.markdown(f"{t('creator_name')}")
+    st.markdown(f"📍 {t('creator_location')}")
+    st.markdown(f"📞 {t('creator_phone')}")
+    st.markdown(f"📧 {t('creator_email')}")
+    st.markdown(f"🔗 [{t('creator_linkedin')}](https://{t('creator_linkedin')})")
+    st.markdown(f"📁 {t('creator_portfolio')}")
     
     # Informations de compétition
-    st.markdown(f"### 🏆 Version Compétition Kaggle / Kaggle Competition Version")
-    st.markdown("Cette première version d'AgriLens AI a été développée spécifiquement pour participer à une compétition Kaggle.")
+    st.markdown(f"### {t('competition_title')}")
+    st.markdown(t("competition_text"))
     
     st.markdown("### ⚠️ Avertissement / Warning")
     st.markdown("Les résultats fournis par l'IA sont à titre indicatif uniquement et ne remplacent pas l'avis d'un expert agricole qualifié.")
@@ -802,4 +819,4 @@ with tab4:
 
 # --- Pied de page ---
 st.markdown("---")
-st.markdown("© 2024 AgriLens AI. Tous droits réservés.")
+st.markdown(t("footer"))
