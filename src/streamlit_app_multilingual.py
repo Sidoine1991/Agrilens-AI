@@ -2,9 +2,7 @@ import streamlit as st
 import os
 import io
 from PIL import Image
-# import requests # Plus nécessaire si on n'utilise pas de requêtes externes pour d'autres IA
 import torch
-# import google.generativeai as genai # Supprimé car non utilisé par Gemma
 import gc
 import time
 import sys
@@ -20,9 +18,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- Traduction (Simplifiée pour cet exemple) ---
-# Dans une vraie application, vous utiliseriez un système de traduction plus robuste.
-# Pour cet exemple, nous allons utiliser un dictionnaire simple.
+# --- Traductions (Utilisation d'un dictionnaire simple) ---
 TRANSLATIONS = {
     "title": {"fr": "AgriLens AI", "en": "AgriLens AI"},
     "subtitle": {"fr": "Votre assistant IA pour le diagnostic des maladies de plantes", "en": "Your AI Assistant for Plant Disease Diagnosis"},
@@ -36,9 +32,12 @@ TRANSLATIONS = {
     "image_analysis_title": {"fr": "🔍 Diagnostic par Image", "en": "🔍 Image Diagnosis"},
     "image_analysis_desc": {"fr": "Téléchargez une photo de plante malade pour obtenir un diagnostic", "en": "Upload a photo of a diseased plant to get a diagnosis"},
     "choose_image": {"fr": "Choisissez une image...", "en": "Choose an image..."},
+    "file_too_large_error": {"fr": "Erreur : Le fichier est trop volumineux. Maximum 200MB.", "en": "Error: File too large. Maximum 200MB."},
+    "empty_file_error": {"fr": "Erreur : Le fichier est vide.", "en": "Error: File is empty."},
+    "file_size_warning": {"fr": "Attention : Le fichier est très volumineux, le chargement peut prendre du temps.", "en": "Warning: File is very large, loading may take time."},
     "analyze_button": {"fr": "🔬 Analyser avec l'IA", "en": "🔬 Analyze with AI"},
     "analysis_results": {"fr": "## 📊 Résultats de l'Analyse", "en": "## 📊 Analysis Results"},
-    "text_analysis_title": {"fr": "💬 Diagnostic par Texte", "en": "💬 Text Diagnosis"},
+    "text_analysis_title": {"fr": "💬 Diagnostic par Texte", "en": "💬 Text Analysis"},
     "text_analysis_desc": {"fr": "Décrivez les symptômes de votre plante pour obtenir des conseils", "en": "Describe your plant's symptoms to get advice"},
     "symptoms_desc": {"fr": "Description des symptômes :", "en": "Symptom description:"},
     "manual_title": {"fr": "📖 Manuel d'utilisation", "en": "📖 User Manual"},
@@ -57,11 +56,10 @@ TRANSLATIONS = {
 
 def t(key):
     """Fonction de traduction simple."""
-    # S'assurer que st.session_state.language est initialisé
     if 'language' not in st.session_state:
         st.session_state.language = 'fr' # Langue par défaut
     lang = st.session_state.language
-    return TRANSLATIONS.get(key, {}).get(lang, key) # Retourne la clé si la traduction n'existe pas
+    return TRANSLATIONS.get(key, {}).get(lang, key)
 
 # --- Initialisation de la langue ---
 if 'language' not in st.session_state:
@@ -79,19 +77,17 @@ def check_model_persistence():
     """Vérifie si le modèle est toujours persistant en mémoire et fonctionnel."""
     try:
         if hasattr(st.session_state, 'model') and st.session_state.model is not None:
-            # Vérification simple pour s'assurer que le modèle est toujours valide
             if hasattr(st.session_state.model, 'device'):
                 device = st.session_state.model.device
                 return True
         return False
     except Exception:
-        return False # En cas d'erreur lors de la vérification
+        return False
 
 def force_model_persistence():
     """Force la persistance du modèle et du processeur dans le cache global."""
     try:
         if hasattr(st.session_state, 'model') and st.session_state.model is not None:
-            # Créer des références fortes au modèle et au processeur
             st.session_state.global_model_cache['model'] = st.session_state.model
             st.session_state.global_model_cache['processor'] = st.session_state.processor
             st.session_state.global_model_cache['load_time'] = time.time()
@@ -113,8 +109,7 @@ def restore_model_from_cache():
     try:
         if 'model' in st.session_state.global_model_cache and st.session_state.global_model_cache['model'] is not None:
             cached_model = st.session_state.global_model_cache['model']
-            # Vérifier que le modèle est toujours valide avant de le restaurer
-            if hasattr(cached_model, 'device'):
+            if hasattr(cached_model, 'device'): # Vérifie si le modèle est toujours valide
                 st.session_state.model = cached_model
                 st.session_state.processor = st.session_state.global_model_cache.get('processor')
                 st.session_state.model_loaded = True
@@ -265,7 +260,6 @@ def load_model():
                 st.info(f"Mémoire GPU disponible : {gpu_memory:.1f} GB")
                 
                 # Stratégies GPU basées sur la mémoire
-                # Note: Gemma 3n E4B IT est assez grand, ajuster les seuils si nécessaire
                 if gpu_memory >= 10: # 10 GB pour une expérience plus fluide avec float16
                     strategies_to_try.append(("Hugging Face (float16)", lambda: load_model_strategy(MODEL_ID_HF, device_map="auto", torch_dtype=torch.float16, quantization=None)))
                 if gpu_memory >= 8: # 8 GB pour une version quantifiée 8-bit
@@ -273,12 +267,10 @@ def load_model():
                 if gpu_memory >= 6: # 6 GB pour une version quantifiée 4-bit
                     strategies_to_try.append(("Hugging Face (4-bit quantization)", lambda: load_model_strategy(MODEL_ID_HF, device_map="auto", torch_dtype=torch.float16, quantization="4bit")))
                 
-                # Si la mémoire est moindre, une stratégie CPU est plus sûre
                 if gpu_memory < 6:
                      st.warning("Mémoire GPU limitée. L'utilisation du CPU sera probablement plus stable.")
 
             # Stratégie CPU (par défaut ou si GPU insuffisant/absent)
-            # Utiliser float32 pour plus de stabilité sur CPU
             strategies_to_try.append(("Hugging Face (conservative CPU)", lambda: load_model_strategy(MODEL_ID_HF, device_map="cpu", torch_dtype=torch.float32, quantization=None)))
             strategies_to_try.append(("Hugging Face (ultra-conservative CPU)", lambda: load_model_strategy(MODEL_ID_HF, device_map="cpu", torch_dtype=torch.float32, quantization=None)))
 
@@ -297,18 +289,14 @@ def load_model():
                     st.warning("Problème de mémoire ou de disk_offload. Tentative suivante...")
                 elif "403" in error_msg or "Forbidden" in error_msg:
                     st.error(f"❌ Erreur d'accès Hugging Face (403) avec la stratégie '{name}'. Vérifiez votre HF_TOKEN.")
-                    # Ne pas continuer si c'est une erreur d'authentification critique
-                    return None, None 
+                    return None, None # Arrêter si c'est une erreur d'authentification critique
                 else:
                     st.warning("Tentative suivante...")
                 
-                # Nettoyage mémoire après échec
                 gc.collect()
                 if torch.cuda.is_available(): torch.cuda.empty_cache()
-                
-                continue # Passer à la stratégie suivante
+                continue
         
-        # Si toutes les stratégies échouent
         st.error("Toutes les stratégies de chargement du modèle ont échoué.")
         return None, None
 
@@ -320,7 +308,7 @@ def load_model():
         return None, None
 
 def analyze_image_multilingual(image, prompt=""):
-    """Analyse une image avec Gemma 3n E4B IT pour un diagnostic précis."""
+    """Analyse une image avec Gemma 3n E4B IT pour un diagnostic précis en utilisant le format chat."""
     # Vérification et chargement du modèle si nécessaire
     if not st.session_state.model_loaded:
         if not restore_model_from_cache():
@@ -334,8 +322,7 @@ def analyze_image_multilingual(image, prompt=""):
         return "❌ Modèle Gemma non disponible. Veuillez recharger le modèle."
 
     try:
-        # Préparer le prompt textuel et visuel pour Gemma 3n (format chat)
-        # C'est ici que la structure des messages est importante pour les modèles multimodaux
+        # Préparer le prompt textuel et visuel pour Gemma 3n en utilisant le format chat
         if st.session_state.language == "fr":
             user_instruction = f"Analyse cette image de plante et fournis un diagnostic précis. Question spécifique : {prompt}" if prompt else "Analyse cette image de plante et fournis un diagnostic précis."
             system_message = "Tu es un expert en pathologie végétale. Réponds de manière structurée et précise, en incluant diagnostic, causes, symptômes, traitement et urgence."
@@ -346,12 +333,13 @@ def analyze_image_multilingual(image, prompt=""):
         messages = [
             {"role": "system", "content": [{"type": "text", "text": system_message}]},
             {"role": "user", "content": [
-                {"type": "image", "image": image}, # Intégration de l'image
-                {"type": "text", "text": user_instruction} # Le texte associé
+                {"type": "image", "image": image}, # L'image elle-même est passée ici
+                {"type": "text", "text": user_instruction} # Le texte associé à l'image
             ]}
         ]
         
-        # Utiliser le processeur pour convertir le format conversationnel en tenseurs
+        # Utiliser processor.apply_chat_template pour convertir le format conversationnel en tenseurs
+        # C'est la méthode recommandée pour les modèles multimodaux qui attendent un format de chat.
         inputs = processor.apply_chat_template(
             messages,
             add_generation_prompt=True, # Indique qu'on veut générer une réponse
@@ -378,12 +366,12 @@ def analyze_image_multilingual(image, prompt=""):
                 top_p=0.9,
                 repetition_penalty=1.1
             )
-            # Décoder uniquement la partie générée par le modèle
+            # Décoder la partie générée par le modèle
             response = processor.decode(generation[0][input_len:], skip_special_tokens=True)
 
         # Nettoyer la réponse finale
         final_response = response.strip()
-        # Retirer les tokens de chat spécifiques si présents et non souhaités
+        # Retirer les tokens de chat spécifiques qui pourraient apparaître
         final_response = final_response.replace("<start_of_turn>", "").replace("<end_of_turn>", "").strip()
         
         # Formater la sortie
@@ -448,7 +436,7 @@ def analyze_text_multilingual(text):
         if hasattr(inputs, 'to'):
             inputs = inputs.to(device)
         
-        # Obtenir la longueur de l'input pour ne décoder que la réponse générée
+        # Obtenir la longueur de l'input pour ne décoder que la partie générée
         input_len = inputs["input_ids"].shape[-1]
         
         # Générer la réponse
