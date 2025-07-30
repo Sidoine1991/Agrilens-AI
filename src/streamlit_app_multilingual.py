@@ -7,7 +7,7 @@ import gc
 import time
 import sys
 import psutil
-from transformers import AutoProcessor, Gemma3nForConditionalGeneration, GenerationConfig
+from transformers import AutoProcessor, Gemma3nForConditionalGeneration
 from huggingface_hub import HfFolder
 
 # --- Configuration de la Page ---
@@ -57,7 +57,7 @@ TRANSLATIONS = {
 def t(key):
     """Fonction de traduction simple."""
     if 'language' not in st.session_state:
-        st.session_state.language = 'fr' # Langue par défaut
+        st.session_state.language = 'fr'
     lang = st.session_state.language
     return TRANSLATIONS.get(key, {}).get(lang, key)
 
@@ -109,7 +109,7 @@ def restore_model_from_cache():
     try:
         if 'model' in st.session_state.global_model_cache and st.session_state.global_model_cache['model'] is not None:
             cached_model = st.session_state.global_model_cache['model']
-            if hasattr(cached_model, 'device'): # Vérifie si le modèle est toujours valide
+            if hasattr(cached_model, 'device'):
                 st.session_state.model = cached_model
                 st.session_state.processor = st.session_state.global_model_cache.get('processor')
                 st.session_state.model_loaded = True
@@ -125,11 +125,9 @@ def diagnose_loading_issues():
     """Diagnostique les problèmes potentiels de chargement (dépendances, ressources, etc.)."""
     issues = []
     
-    # Vérifier la présence du token Hugging Face
     if not HfFolder.get_token() and not os.environ.get("HF_TOKEN"):
-        issues.append("⚠️ **Jeton Hugging Face (HF_TOKEN) non configuré.** Le téléchargement du modèle pourrait échouer ou être ralenti. Voir la section Configuration pour plus de détails.")
+        issues.append("⚠️ **Jeton Hugging Face (HF_TOKEN) non configuré.** Le téléchargement du modèle pourrait échouer ou être ralenti.")
 
-    # Vérifier les dépendances et les ressources système
     try:
         import transformers; issues.append(f"✅ Transformers v{transformers.__version__}")
         import torch; issues.append(f"✅ PyTorch v{torch.__version__}")
@@ -140,7 +138,7 @@ def diagnose_loading_issues():
     try:
         mem = psutil.virtual_memory()
         issues.append(f"💾 RAM disponible : {mem.available // (1024**3)} GB")
-        if mem.available < 4 * 1024**3: # Moins de 4GB RAM est critique
+        if mem.available < 4 * 1024**3:
             issues.append("⚠️ RAM insuffisante (< 4GB) - Le chargement risque d'échouer.")
     except ImportError: issues.append("⚠️ Impossible de vérifier la mémoire système")
 
@@ -154,8 +152,8 @@ def resize_image_if_needed(image, max_size=(800, 800)):
         new_width = int(width * ratio)
         new_height = int(height * ratio)
         resized_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
-        return resized_image, True # True: redimensionnée
-    return image, False # False: non redimensionnée
+        return resized_image, True
+    return image, False
 
 def afficher_ram_disponible(context=""):
     """Affiche l'utilisation de la RAM."""
@@ -186,7 +184,7 @@ def load_model_strategy(model_identifier, device_map=None, torch_dtype=None, qua
             "low_cpu_mem_usage": True,
             "device_map": device_map,
             "torch_dtype": torch_dtype,
-            "token": os.environ.get("HF_TOKEN") # Utilise le token si défini
+            "token": os.environ.get("HF_TOKEN")
         }
         
         if quantization == "4bit":
@@ -242,7 +240,7 @@ def load_model():
         else:
             st.info("Modèle local non trouvé. Tentative de chargement depuis Hugging Face...")
             if torch.cuda.is_available():
-                gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1024**3 # en GB
+                gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1024**3
                 st.info(f"Mémoire GPU disponible : {gpu_memory:.1f} GB")
                 
                 if gpu_memory >= 10:
@@ -315,46 +313,39 @@ def analyze_image_multilingual(image, prompt=""):
         messages = [
             {"role": "system", "content": [{"type": "text", "text": system_message}]},
             {"role": "user", "content": [
-                {"type": "image", "image": image}, # L'image elle-même est passée ici
-                {"type": "text", "text": user_instruction} # Le texte associé à l'image
+                {"type": "image", "image": image},
+                {"type": "text", "text": user_instruction}
             ]}
         ]
         
-        # Utiliser processor.apply_chat_template pour convertir le format conversationnel en tenseurs
         inputs = processor.apply_chat_template(
             messages,
-            add_generation_prompt=True, # Indique qu'on veut générer une réponse
+            add_generation_prompt=True,
             tokenize=True,
             return_dict=True,
             return_tensors="pt",
         )
         
-        # Déplacer les inputs au bon device (GPU ou CPU)
         device = getattr(model, 'device', 'cpu')
         if hasattr(inputs, 'to'):
             inputs = inputs.to(device)
         
-        # Obtenir la longueur de l'input pour ne décoder que la réponse générée
         input_len = inputs["input_ids"].shape[-1]
         
-        # Générer la réponse
         with torch.inference_mode():
             generation = model.generate(
-                **inputs, # Passer les inputs préparés par le processor
+                **inputs,
                 max_new_tokens=500,
                 do_sample=True,
                 temperature=0.7,
                 top_p=0.9,
                 repetition_penalty=1.1
             )
-            # Décoder la partie générée par le modèle
             response = processor.decode(generation[0][input_len:], skip_special_tokens=True)
 
-        # Nettoyer la réponse finale
         final_response = response.strip()
         final_response = final_response.replace("<start_of_turn>", "").replace("<end_of_turn>", "").strip()
         
-        # Formater la sortie
         if st.session_state.language == "fr":
             return f"""
 ## 🧠 **Analyse par Gemma 3n E4B IT**
@@ -391,7 +382,6 @@ def analyze_text_multilingual(text):
         return "❌ Modèle Gemma non disponible. Veuillez recharger le modèle."
     
     try:
-        # Définir le prompt basé sur la langue
         if st.session_state.language == "fr":
             prompt_template = f"Tu es un assistant agricole expert. Analyse ce problème de plante : \n\n**Description du problème :**\n{text}\n\n**Instructions :**\n1. **Diagnostic** : Quel est le problème principal ?\n2. **Causes** : Quelles sont les causes possibles ?\n3. **Traitement** : Quelles sont les actions à entreprendre ?\n4. **Prévention** : Comment éviter le problème à l'avenir ?"
         else:
@@ -442,7 +432,6 @@ if 'model_loaded' not in st.session_state:
 if 'model_status' not in st.session_state:
     st.session_state.model_status = "Non chargé"
 
-# Tenter de restaurer le modèle au chargement de l'application si non déjà chargé
 if not st.session_state.model_loaded:
     if restore_model_from_cache():
         st.success("🔄 Modèle restauré automatiquement depuis le cache au démarrage.")
@@ -453,7 +442,6 @@ if not st.session_state.model_loaded:
 with st.sidebar:
     st.header(t("config_title"))
     
-    # Sélecteur de langue
     st.subheader("🌐 Langue / Language")
     language_options = ["Français", "English"]
     if 'language' not in st.session_state:
@@ -472,7 +460,6 @@ with st.sidebar:
 
     st.divider()
 
-    # Statut du Jeton Hugging Face
     st.subheader("🔑 Jeton Hugging Face")
     hf_token_found = HfFolder.get_token() or os.environ.get("HF_TOKEN")
     if hf_token_found:
@@ -484,7 +471,6 @@ with st.sidebar:
 
     st.divider()
 
-    # Gestion du Modèle IA
     st.header("🤖 Modèle IA Gemma 3n")
     if st.session_state.model_loaded and check_model_persistence():
         st.success(f"✅ Modèle chargé ({st.session_state.model_status})")
@@ -500,7 +486,7 @@ with st.sidebar:
                 st.session_state.model_loaded = False
                 st.session_state.model = None
                 st.session_state.processor = None
-                st.session_state.global_model_cache.clear() # Vider le cache pour recharger
+                st.session_state.global_model_cache.clear()
                 st.session_state.model_persistence_check = False
                 st.rerun()
         with col2_btn:
@@ -519,9 +505,8 @@ with st.sidebar:
                     st.success("✅ Modèle chargé avec succès !")
                 else:
                     st.error("❌ Échec du chargement du modèle.")
-            st.rerun() # Recharger pour mettre à jour le statut
+            st.rerun()
 
-    # Affichage du statut de persistance
     st.divider()
     st.subheader("💾 Persistance du Modèle")
     if st.session_state.model_loaded and st.session_state.model_persistence_check:
@@ -558,16 +543,16 @@ with tab1:
             key="image_uploader"
         )
         if uploaded_file is not None:
-            MAX_FILE_SIZE_BYTES = 200 * 1024 * 1024 # 200 MB
+            MAX_FILE_SIZE_BYTES = 200 * 1024 * 1024
             if uploaded_file.size > MAX_FILE_SIZE_BYTES:
                 st.error(t("file_too_large_error"))
                 uploaded_file = None
             elif uploaded_file.size == 0:
                 st.error(t("empty_file_error"))
                 uploaded_file = None
-            elif uploaded_file.size > (MAX_FILE_SIZE_BYTES * 0.8): # Avertissement si très volumineux
+            elif uploaded_file.size > (MAX_FILE_SIZE_BYTES * 0.8):
                 st.warning(t("file_size_warning"))
-    else: # Webcam capture
+    else:
         st.markdown("**📷 Capture d'image par webcam**")
         st.info("💡 Positionnez votre plante malade devant la webcam et cliquez sur 'Prendre une photo'. Assurez-vous d'un bon éclairage.")
         captured_image = st.camera_input("Prendre une photo de la plante", key="webcam_capture")
@@ -738,7 +723,6 @@ with tab4:
     
     st.markdown("### 🔧 Technologie / Technology")
     
-    # Détecter l'environnement pour l'affichage
     is_local = os.path.exists(LOCAL_MODEL_PATH)
     
     if is_local:
@@ -754,7 +738,6 @@ with tab4:
         • **Déploiement** : Hugging Face Spaces
         """)
     
-    # Informations du créateur
     st.markdown(f"### {t('creator_title')}")
     st.markdown(f"{t('creator_name')}")
     st.markdown(f"📍 {t('creator_location')}")
@@ -763,7 +746,6 @@ with tab4:
     st.markdown(f"🔗 [{t('creator_linkedin')}](https://{t('creator_linkedin')})")
     st.markdown(f"📁 {t('creator_portfolio')}")
     
-    # Informations de compétition
     st.markdown(f"### {t('competition_title')}")
     st.markdown(t("competition_text"))
     
