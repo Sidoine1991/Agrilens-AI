@@ -5,7 +5,7 @@
   "colorTo": "yellow",
   "sdk": "docker",
   "sdk_version": "1.0.0",
-  "app_file": "app.py",
+  "app_file": "src/streamlit_app_multilingual.py",
   "pinned": false,
   "license": "mit"
 } 
