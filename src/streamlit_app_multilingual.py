@@ -879,41 +879,23 @@ def load_model():
         return None, None
 
 def analyze_image_multilingual(image, prompt=""):
-    """Analyse une image avec Gemma 3n E4B IT pour diagnostic précis"""
+    """Analyse une image avec Gemma 3n E4B IT pour un diagnostic précis en utilisant le format chat."""
+    if not st.session_state.model_loaded:
+        if not restore_model_from_cache():
+            st.warning("Modèle non chargé. Veuillez le charger via les réglages avant d'analyser.")
+            return "❌ Modèle Gemma non chargé. Veuillez d'abord charger le modèle dans les réglages."
+        else:
+            st.info("Modèle restauré depuis le cache pour l'analyse.")
+
+    model, processor = st.session_state.model, st.session_state.processor
+    if not model or not processor:
+        return "❌ Modèle Gemma non disponible. Veuillez recharger le modèle."
+
     try:
-        # Vérification complète du modèle avec cache
-        if not st.session_state.model_loaded and not check_model_persistence():
-            # Essayer de restaurer depuis le cache
-            if restore_model_from_cache():
-                st.info("🔄 Modèle restauré depuis le cache pour l'analyse")
-            else:
-                return "❌ Modèle Gemma non chargé. Veuillez d'abord charger le modèle dans les réglages."
-        
-        # Vérifier que le modèle et le processeur sont disponibles
-        if not hasattr(st.session_state, 'model') or st.session_state.model is None:
-            # Essayer de restaurer depuis le cache
-            if restore_model_from_cache():
-                st.info("🔄 Modèle restauré depuis le cache")
-            else:
-                st.session_state.model_loaded = False
-                return "❌ Modèle perdu en mémoire. Veuillez recharger le modèle."
-        
-        if not hasattr(st.session_state, 'processor') or st.session_state.processor is None:
-            st.session_state.model_loaded = False
-            return "❌ Processeur perdu en mémoire. Veuillez recharger le modèle."
-        
-        # Récupérer le modèle et le processeur
-        model, processor = st.session_state.model, st.session_state.processor
-        
-        # Vérification finale
-        if not model or not processor:
-            st.session_state.model_loaded = False
-            return "❌ Modèle Gemma non disponible. Veuillez recharger le modèle."
-        
-        # Préparer le prompt pour Gemma 3n
+        # Préparer le prompt textuel pour Gemma 3n
         if st.session_state.language == "fr":
             if prompt:
-                gemma_prompt = f"""
+                text_prompt = f"""
 Tu es un expert en pathologie végétale. Analyse cette image de plante et fournis un diagnostic précis.
 
 **Question spécifique :** {prompt}
@@ -945,7 +927,7 @@ Tu es un expert en pathologie végétale. Analyse cette image de plante et fourn
 Réponds de manière structurée et précise.
 """
             else:
-                gemma_prompt = """
+                text_prompt = """
 Tu es un expert en pathologie végétale. Analyse cette image de plante et fournis un diagnostic précis.
 
 **Instructions :**
@@ -976,7 +958,7 @@ Réponds de manière structurée et précise.
 """
         else:
             if prompt:
-                gemma_prompt = f"""
+                text_prompt = f"""
 You are an expert in plant pathology. Analyze this plant image and provide a precise diagnosis.
 
 **Specific Question:** {prompt}
@@ -1008,7 +990,7 @@ You are an expert in plant pathology. Analyze this plant image and provide a pre
 Respond in a structured and precise manner.
 """
             else:
-                gemma_prompt = """
+                text_prompt = """
 You are an expert in plant pathology. Analyze this plant image and provide a precise diagnosis.
 
 **Instructions:**
@@ -1038,65 +1020,57 @@ You are an expert in plant pathology. Analyze this plant image and provide a pre
 Respond in a structured and precise manner.
 """
         
-        # Préparer les messages pour Gemma 3n
-        messages = [
-            {
-                "role": "system",
-                "content": [{"type": "text", "text": "You are an expert in plant pathology."}]
-            },
-            {
-                "role": "user",
-                "content": [
-                    {"type": "image", "image": image},
-                    {"type": "text", "text": gemma_prompt}
-                ]
-            }
-        ]
-        
-        # Traiter les entrées avec le processeur
-        inputs = processor.apply_chat_template(
-            messages,
-            add_generation_prompt=True,
-            tokenize=True,
-            return_dict=True,
+        # Utiliser le format correct pour Gemma 3n avec image
+        inputs = processor(
+            text=text_prompt,
+            images=image,
             return_tensors="pt",
+            padding=True,
+            truncation=True
         )
         
-        # Gérer le device de manière sécurisée
         device = getattr(model, 'device', 'cpu')
         if hasattr(inputs, 'to'):
             inputs = inputs.to(device)
         
-        input_len = inputs["input_ids"].shape[-1]
-        
-        # Générer la réponse
         with torch.inference_mode():
             generation = model.generate(
-                **inputs, 
-                max_new_tokens=500, 
+                **inputs,
+                max_new_tokens=500,
                 do_sample=True,
                 temperature=0.7,
                 top_p=0.9,
                 repetition_penalty=1.1
             )
-            generation = generation[0][input_len:]
-        
-        # Décoder la réponse
-        response_text = processor.decode(generation, skip_special_tokens=True)
+            response = processor.decode(generation[0], skip_special_tokens=True)
+
+        # Nettoyer la réponse
+        final_response = response.strip()
+        # Supprimer le prompt original de la réponse
+        if text_prompt in final_response:
+            final_response = final_response.replace(text_prompt, "").strip()
         
         if st.session_state.language == "fr":
             return f"""
 ## 🧠 **Analyse par Gemma 3n E4B IT**
-{response_text}
+
+{final_response}
 """
         else:
             return f"""
 ## 🧠 **Analysis by Gemma 3n E4B IT**
-{response_text}
+
+{final_response}
 """
-        
+            
     except Exception as e:
-        return f"❌ Erreur lors de l'analyse d'image : {e}"
+        error_message = str(e)
+        if "403" in error_message or "Forbidden" in error_message:
+            return "❌ Erreur 403 - Accès refusé. Veuillez vérifier votre jeton Hugging Face (HF_TOKEN) et les quotas."
+        elif "Number of images does not match number of special image tokens" in error_message:
+            return "❌ Erreur : Le modèle n'a pas pu lier l'image au texte. Assurez-vous que la structure du prompt est correcte (voir le manuel)."
+        else:
+            return f"❌ Erreur lors de l'analyse d'image : {e}"
 
 def analyze_text_multilingual(text):
     """Analyse un texte avec le modèle Gemma 3n E4B IT"""
