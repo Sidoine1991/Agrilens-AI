@@ -7,7 +7,7 @@ import gc
 import time
 import sys
 import psutil
-from transformers import AutoProcessor, Gemma3nForConditionalGeneration
+from transformers import AutoProcessor, Gemma3nForConditionalGeneration, GenerationConfig
 from huggingface_hub import HfFolder
 
 # --- Configuration de la Page ---
@@ -177,12 +177,10 @@ def load_model_strategy(model_identifier, device_map=None, torch_dtype=None, qua
     Retourne le modèle et le processeur, ou (None, None) en cas d'échec.
     """
     try:
-        # st.info(f"Chargement de {model_identifier} avec device_map='{device_map}', dtype=torch.{torch_dtype.__name__ if torch_dtype else 'None'}, quant='{quantization}'")
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-        # Configuration des arguments pour from_pretrained
         common_args = {
             "trust_remote_code": True,
             "low_cpu_mem_usage": True,
@@ -191,24 +189,19 @@ def load_model_strategy(model_identifier, device_map=None, torch_dtype=None, qua
             "token": os.environ.get("HF_TOKEN") # Utilise le token si défini
         }
         
-        # Ajout des arguments de quantification si spécifiés
         if quantization == "4bit":
             common_args.update({
                 "load_in_4bit": True,
-                "bnb_4bit_compute_dtype": torch.float16 # Souvent utilisé avec 4-bit
+                "bnb_4bit_compute_dtype": torch.float16
             })
         elif quantization == "8bit":
             common_args.update({"load_in_8bit": True})
         
-        # Charger le processeur
         processor = AutoProcessor.from_pretrained(model_identifier, trust_remote_code=True, token=os.environ.get("HF_TOKEN"))
-        
-        # Charger le modèle
         model = Gemma3nForConditionalGeneration.from_pretrained(model_identifier, **common_args)
         
         afficher_ram_disponible("après chargement")
         
-        # Stocker dans session_state et forcer la persistance
         st.session_state.model = model
         st.session_state.processor = processor
         st.session_state.model_loaded = True
@@ -231,50 +224,40 @@ def load_model_strategy(model_identifier, device_map=None, torch_dtype=None, qua
 def load_model():
     """Charge le modèle Gemma 3n E4B IT (local ou Hugging Face) avec des stratégies robustes."""
     try:
-        # Diagnostic initial
         issues = diagnose_loading_issues()
         with st.expander("📊 Diagnostic système", expanded=False):
             for issue in issues:
                 st.markdown(issue)
 
-        # Nettoyer la mémoire avant le chargement
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-        # Détecter si le modèle local existe
         is_local = os.path.exists(LOCAL_MODEL_PATH)
-
-        # --- Stratégies de chargement ---
         strategies_to_try = []
 
         if is_local:
-            # Stratégies pour le modèle local (priorité haute RAM)
             strategies_to_try.append(("Local (ultra-conservateur CPU)", lambda: load_model_strategy(LOCAL_MODEL_PATH, device_map="cpu", torch_dtype=torch.bfloat16, quantization=None, force_persistence=True)))
             strategies_to_try.append(("Local (conservateur CPU)", lambda: load_model_strategy(LOCAL_MODEL_PATH, device_map="cpu", torch_dtype=torch.bfloat16, quantization=None, force_persistence=True)))
         else:
-            # Stratégies pour le modèle Hugging Face
             st.info("Modèle local non trouvé. Tentative de chargement depuis Hugging Face...")
             if torch.cuda.is_available():
                 gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1024**3 # en GB
                 st.info(f"Mémoire GPU disponible : {gpu_memory:.1f} GB")
                 
-                # Stratégies GPU basées sur la mémoire
-                if gpu_memory >= 10: # 10 GB pour une expérience plus fluide avec float16
+                if gpu_memory >= 10:
                     strategies_to_try.append(("Hugging Face (float16)", lambda: load_model_strategy(MODEL_ID_HF, device_map="auto", torch_dtype=torch.float16, quantization=None)))
-                if gpu_memory >= 8: # 8 GB pour une version quantifiée 8-bit
+                if gpu_memory >= 8:
                     strategies_to_try.append(("Hugging Face (8-bit quantization)", lambda: load_model_strategy(MODEL_ID_HF, device_map="auto", torch_dtype=torch.float16, quantization="8bit")))
-                if gpu_memory >= 6: # 6 GB pour une version quantifiée 4-bit
+                if gpu_memory >= 6:
                     strategies_to_try.append(("Hugging Face (4-bit quantization)", lambda: load_model_strategy(MODEL_ID_HF, device_map="auto", torch_dtype=torch.float16, quantization="4bit")))
                 
                 if gpu_memory < 6:
                      st.warning("Mémoire GPU limitée. L'utilisation du CPU sera probablement plus stable.")
 
-            # Stratégie CPU (par défaut ou si GPU insuffisant/absent)
             strategies_to_try.append(("Hugging Face (conservative CPU)", lambda: load_model_strategy(MODEL_ID_HF, device_map="cpu", torch_dtype=torch.float32, quantization=None)))
             strategies_to_try.append(("Hugging Face (ultra-conservative CPU)", lambda: load_model_strategy(MODEL_ID_HF, device_map="cpu", torch_dtype=torch.float32, quantization=None)))
 
-        # Boucle pour essayer chaque stratégie
         for i, (name, strategy_func) in enumerate(strategies_to_try):
             st.info(f"Tentative {i+1}/{len(strategies_to_try)} : Chargement via '{name}'...")
             try:
@@ -289,7 +272,7 @@ def load_model():
                     st.warning("Problème de mémoire ou de disk_offload. Tentative suivante...")
                 elif "403" in error_msg or "Forbidden" in error_msg:
                     st.error(f"❌ Erreur d'accès Hugging Face (403) avec la stratégie '{name}'. Vérifiez votre HF_TOKEN.")
-                    return None, None # Arrêter si c'est une erreur d'authentification critique
+                    return None, None
                 else:
                     st.warning("Tentative suivante...")
                 
@@ -309,7 +292,6 @@ def load_model():
 
 def analyze_image_multilingual(image, prompt=""):
     """Analyse une image avec Gemma 3n E4B IT pour un diagnostic précis en utilisant le format chat."""
-    # Vérification et chargement du modèle si nécessaire
     if not st.session_state.model_loaded:
         if not restore_model_from_cache():
             st.warning("Modèle non chargé. Veuillez le charger via les réglages avant d'analyser.")
@@ -339,7 +321,6 @@ def analyze_image_multilingual(image, prompt=""):
         ]
         
         # Utiliser processor.apply_chat_template pour convertir le format conversationnel en tenseurs
-        # C'est la méthode recommandée pour les modèles multimodaux qui attendent un format de chat.
         inputs = processor.apply_chat_template(
             messages,
             add_generation_prompt=True, # Indique qu'on veut générer une réponse
@@ -371,7 +352,6 @@ def analyze_image_multilingual(image, prompt=""):
 
         # Nettoyer la réponse finale
         final_response = response.strip()
-        # Retirer les tokens de chat spécifiques qui pourraient apparaître
         final_response = final_response.replace("<start_of_turn>", "").replace("<end_of_turn>", "").strip()
         
         # Formater la sortie
@@ -392,7 +372,6 @@ def analyze_image_multilingual(image, prompt=""):
         error_message = str(e)
         if "403" in error_message or "Forbidden" in error_message:
             return "❌ Erreur 403 - Accès refusé. Veuillez vérifier votre jeton Hugging Face (HF_TOKEN) et les quotas."
-        # Laisser cette erreur ici car elle peut encore se produire si la structure du prompt n'est pas parfaite
         elif "Number of images does not match number of special image tokens" in error_message:
             return "❌ Erreur : Le modèle n'a pas pu lier l'image au texte. Assurez-vous que la structure du prompt est correcte (voir le manuel)."
         else:
@@ -400,7 +379,6 @@ def analyze_image_multilingual(image, prompt=""):
 
 def analyze_text_multilingual(text):
     """Analyse un texte avec le modèle Gemma 3n E4B IT."""
-    # Vérification et chargement du modèle si nécessaire
     if not st.session_state.model_loaded:
         if not restore_model_from_cache():
             st.warning("Modèle non chargé. Veuillez le charger via les réglages avant d'analyser.")
@@ -419,10 +397,8 @@ def analyze_text_multilingual(text):
         else:
             prompt_template = f"You are an expert agricultural assistant. Analyze this plant problem: \n\n**Problem Description:**\n{text}\n\n**Instructions:**\n1. **Diagnosis**: What is the main problem?\n2. **Causes**: What are the possible causes?\n3. **Treatment**: What actions should be taken?\n4. **Prevention**: How to avoid the problem in the future?"
         
-        # Préparer les messages pour le modèle Gemma (format conversationnel)
         messages = [{"role": "user", "content": [{"type": "text", "text": prompt_template}]}]
         
-        # Utiliser le processeur pour convertir le format conversationnel en tenseurs
         inputs = processor.apply_chat_template(
             messages,
             add_generation_prompt=True,
@@ -431,30 +407,24 @@ def analyze_text_multilingual(text):
             return_tensors="pt",
         )
         
-        # Déplacer les inputs au bon device
         device = getattr(model, 'device', 'cpu')
         if hasattr(inputs, 'to'):
             inputs = inputs.to(device)
         
-        # Obtenir la longueur de l'input pour ne décoder que la partie générée
         input_len = inputs["input_ids"].shape[-1]
         
-        # Générer la réponse
         with torch.inference_mode():
             generation = model.generate(
                 **inputs,
-                max_new_tokens=500, # Augmenté pour des réponses plus complètes
+                max_new_tokens=500,
                 do_sample=True,
                 temperature=0.7,
                 top_p=0.9,
                 repetition_penalty=1.1
             )
-            # Décoder la réponse générée
             response = processor.decode(generation[0][input_len:], skip_special_tokens=True)
         
-        # Nettoyer la réponse
         cleaned_response = response.strip()
-        # Retirer les tokens de chat spécifiques si présents
         cleaned_response = cleaned_response.replace("<start_of_turn>", "").replace("<end_of_turn>", "").strip()
 
         return cleaned_response
@@ -486,7 +456,6 @@ with st.sidebar:
     # Sélecteur de langue
     st.subheader("🌐 Langue / Language")
     language_options = ["Français", "English"]
-    # Assurer que st.session_state.language existe
     if 'language' not in st.session_state:
         st.session_state.language = 'fr'
     current_lang_index = 0 if st.session_state.language == "fr" else 1
@@ -497,10 +466,9 @@ with st.sidebar:
         index=current_lang_index,
         help="Change la langue de l'interface et des réponses de l'IA."
     )
-    # Mettre à jour la langue dans st.session_state et recharger si changement
     if st.session_state.language != ("fr" if language_choice == "Français" else "en"):
         st.session_state.language = "fr" if language_choice == "Français" else "en"
-        st.rerun() # Recharge pour appliquer le changement de langue
+        st.rerun()
 
     st.divider()
 
