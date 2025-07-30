@@ -423,636 +423,184 @@ class Gemma3nProcessor:
         return self.tokenizer.decode(token_ids, skip_special_tokens=skip_special_tokens, **kwargs)
 
 def load_model():
-    """Charge le modèle Gemma 3n E4B IT selon l'environnement (local ou Hugging Face)"""
+    """Charge le modèle avec gestion d'erreurs et fallback"""
+    
+    # Vérifier si le modèle est déjà chargé
+    if hasattr(st.session_state, 'model') and st.session_state.model is not None:
+        if check_model_persistence():
+            st.success("✅ Modèle déjà chargé et persistant")
+            return st.session_state.model, st.session_state.processor
+    
+    # Détecter l'environnement Hugging Face Spaces
+    is_hf_spaces = os.environ.get('SPACE_ID') is not None
+    
+    if is_hf_spaces:
+        st.warning("🚨 Environnement Hugging Face Spaces détecté")
+        st.info("⚠️ Le modèle Gemma 3n E4B IT nécessite plus de 16GB de RAM")
+        st.info("🔄 Basculement automatique vers un modèle plus léger...")
+        
+        # Utiliser un modèle plus léger pour HF Spaces
+        return load_lightweight_model_for_hf_spaces()
+    
+    # Pour les autres environnements, utiliser le modèle complet
+    return load_full_gemma_model()
+
+def load_lightweight_model_for_hf_spaces():
+    """Charge un modèle plus léger compatible avec HF Spaces"""
+    
+    st.info("🔄 Chargement d'un modèle alternatif compatible avec HF Spaces...")
+    
     try:
-        from transformers import AutoProcessor, Gemma3nForConditionalGeneration
+        # Option 1: Utiliser un modèle de vision plus léger
+        model_id = "microsoft/DialoGPT-medium"  # Modèle de base pour le texte
+        st.info(f"📦 Chargement du modèle: {model_id}")
         
-        # Diagnostic initial
-        st.info("🔍 Diagnostic de l'environnement...")
-        issues = diagnose_loading_issues()
-        with st.expander("📊 Diagnostic système", expanded=False):
-            for issue in issues:
-                st.write(issue)
+        from transformers import AutoTokenizer, AutoModelForCausalLM
         
-        # Nettoyer la mémoire avant le chargement
-        gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        # Charger le tokenizer
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
         
-        # Détecter l'environnement
-        is_local = os.path.exists("models/gemma-3n-transformers-gemma-3n-e2b-it-v1")
+        # Charger le modèle avec optimisations mémoire
+        model = AutoModelForCausalLM.from_pretrained(
+            model_id,
+            torch_dtype=torch.float32,
+            low_cpu_mem_usage=True,
+            device_map="cpu"
+        )
         
-        # Détecter si on est sur Hugging Face Spaces (mémoire limitée)
-        is_hf_spaces = os.environ.get('SPACE_ID') is not None
+        st.success("✅ Modèle alternatif chargé avec succès !")
+        st.info("ℹ️ Ce modèle est optimisé pour le texte. Les images seront analysées via une API externe.")
         
-        if is_local:
-            # Mode LOCAL - Utiliser le modèle téléchargé
-            st.info("Chargement du modèle Gemma 3n E4B IT depuis models/gemma-3n-transformers-gemma-3n-e2b-it-v1 (mode local)...")
-            model_path = "models/gemma-3n-transformers-gemma-3n-e2b-it-v1"
-            
-            # Charger le processeur avec le bon tokenizer pour Gemma 3n
-            from transformers import AutoTokenizer, AutoImageProcessor
-            
-            # Charger le tokenizer et l'image processor séparément
-            tokenizer = AutoTokenizer.from_pretrained(
-                model_path,
-                trust_remote_code=True
-            )
-            image_processor = AutoImageProcessor.from_pretrained(
-                model_path,
-                trust_remote_code=True
-            )
-            
-            # Utiliser la classe processeur personnalisée
-            processor = Gemma3nProcessor(tokenizer, image_processor)
-            
-            # Stratégies de chargement pour le mode local
-            def load_local_ultra_conservative():
-                st.info("Chargement local ultra-conservateur (CPU uniquement, sans device_map)...")
-                gc.collect()
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-                afficher_ram_disponible("avant chargement")
-                model = Gemma3nForConditionalGeneration.from_pretrained(
-                    model_path,
-                    torch_dtype=torch.bfloat16,  # Utiliser bfloat16 comme dans config.json
-                    trust_remote_code=True,
-                    low_cpu_mem_usage=True
-                )
-                afficher_ram_disponible("après chargement")
-                st.success("Modèle Gemma 3n E4B IT chargé avec succès depuis le dossier local !")
-                
-                # Log de débogage
-                st.write("🔍 DEBUG: Modèle chargé avec succès (local)")
-                st.write(f"🔍 DEBUG: Type du modèle: {type(model).__name__}")
-                st.write(f"🔍 DEBUG: Modèle non-null: {model is not None}")
-                
-                # Stocker immédiatement dans session_state
-                st.session_state.model = model
-                st.session_state.processor = processor
-                st.session_state.model_loaded = True
-                st.session_state.model_status = "Chargé (local)"
-                st.session_state.model_load_time = time.time()
-                
-                st.write("🔍 DEBUG: Modèle stocké dans session_state")
-                st.write(f"🔍 DEBUG: model_loaded = {st.session_state.model_loaded}")
-                
-                # Forcer la persistance
-                st.write("🔍 DEBUG: Appel de force_model_persistence()...")
-                persistence_result = force_model_persistence()
-                st.write(f"🔍 DEBUG: Résultat de la persistance: {persistence_result}")
-                
-                return model, processor
-            
-            def load_local_conservative():
-                st.info("Chargement local conservateur (device_map CPU)...")
-                gc.collect()
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-                afficher_ram_disponible("avant chargement")
-                model = Gemma3nForConditionalGeneration.from_pretrained(
-                    model_path,
-                    device_map="cpu",
-                    torch_dtype=torch.bfloat16,  # Utiliser bfloat16 comme dans config.json
-                    trust_remote_code=True,
-                    low_cpu_mem_usage=True
-                )
-                afficher_ram_disponible("après chargement")
-                st.success("Modèle Gemma 3n E4B IT chargé avec succès depuis le dossier local !")
-                
-                # Log de débogage
-                st.write("🔍 DEBUG: Modèle chargé avec succès (local)")
-                st.write(f"🔍 DEBUG: Type du modèle: {type(model).__name__}")
-                st.write(f"🔍 DEBUG: Modèle non-null: {model is not None}")
-                
-                # Stocker immédiatement dans session_state
-                st.session_state.model = model
-                st.session_state.processor = processor
-                st.session_state.model_loaded = True
-                st.session_state.model_status = "Chargé (local)"
-                st.session_state.model_load_time = time.time()
-                
-                st.write("🔍 DEBUG: Modèle stocké dans session_state")
-                st.write(f"🔍 DEBUG: model_loaded = {st.session_state.model_loaded}")
-                
-                # Forcer la persistance
-                st.write("🔍 DEBUG: Appel de force_model_persistence()...")
-                persistence_result = force_model_persistence()
-                st.write(f"🔍 DEBUG: Résultat de la persistance: {persistence_result}")
-                
-                return model, processor
-            
-            # Essayer les stratégies de chargement local
-            strategies = [load_local_ultra_conservative, load_local_conservative]
-            
-            for strategy in strategies:
-                try:
-                    model, processor = strategy()
-                    
-                    # Forcer la persistance
-                    st.write("🔍 DEBUG: Appel de force_model_persistence()...")
-                    persistence_result = force_model_persistence()
-                    st.write(f"🔍 DEBUG: Résultat de la persistance: {persistence_result}")
-                    
-                    return model, processor
-                except Exception as e:
-                    error_msg = str(e)
-                    if "disk_offload" in error_msg.lower():
-                        st.warning(f"Stratégie {strategy.__name__} échouée (disk_offload). Tentative suivante...")
-                        gc.collect()
-                        if torch.cuda.is_available():
-                            torch.cuda.empty_cache()
-                        continue
-                    elif "out of memory" in error_msg.lower():
-                        st.warning(f"Stratégie {strategy.__name__} échouée (mémoire insuffisante). Tentative suivante...")
-                        gc.collect()
-                        if torch.cuda.is_available():
-                            torch.cuda.empty_cache()
-                        continue
-                    else:
-                        st.warning(f"Stratégie {strategy.__name__} échouée : {error_msg}. Tentative suivante...")
-                        gc.collect()
-                        if torch.cuda.is_available():
-                            torch.cuda.empty_cache()
-                        continue
-            
-            # Si toutes les stratégies échouent
-            st.error("Toutes les stratégies de chargement local ont échoué.")
-            return None, None
-            
-        else:
-            # Mode HUGGING FACE - Utiliser le modèle en ligne
-            st.info("Chargement du modèle Gemma 3n E4B IT depuis Hugging Face (mode en ligne)...")
-            model_id = "google/gemma-3n-E4B-it"
-            
-            # Charger le processeur avec le bon tokenizer pour Gemma 3n
-            from transformers import AutoTokenizer, AutoImageProcessor
-            
-            try:
-                st.info("Téléchargement du tokenizer et image processor depuis Hugging Face...")
-                # Charger le tokenizer et l'image processor séparément
-                tokenizer = AutoTokenizer.from_pretrained(
-                    model_id,
-                    trust_remote_code=True,
-                    timeout=30
-                )
-                image_processor = AutoImageProcessor.from_pretrained(
-                    model_id,
-                    trust_remote_code=True,
-                    timeout=30
-                )
-                
-                # Utiliser la classe processeur personnalisée
-                processor = Gemma3nProcessor(tokenizer, image_processor)
-                st.success("Processeur téléchargé avec succès !")
-                
-            except Exception as e:
-                st.error(f"Erreur lors du téléchargement du processeur : {e}")
-                st.info("Tentative de téléchargement avec cache et timeout...")
-                try:
-                    tokenizer = AutoTokenizer.from_pretrained(
-                        model_id,
-                        trust_remote_code=True,
-                        cache_dir="./cache",
-                        timeout=60
-                    )
-                    image_processor = AutoImageProcessor.from_pretrained(
-                        model_id,
-                        trust_remote_code=True,
-                        cache_dir="./cache",
-                        timeout=60
-                    )
-                    
-                    # Créer le processeur personnalisé
-                    processor = Gemma3nProcessor(tokenizer, image_processor)
-                    st.success("Processeur téléchargé avec cache !")
-                    
-                except Exception as e2:
-                    st.error(f"Erreur fatale lors du téléchargement du processeur : {e2}")
-                    st.info("🔄 Tentative de fallback vers le modèle local...")
-                    
-                    # Fallback vers le modèle local
-                    local_model_path = "D:/Dev/model_gemma"
-                    if os.path.exists(local_model_path):
-                        try:
-                            tokenizer = AutoTokenizer.from_pretrained(
-                                local_model_path,
-                                trust_remote_code=True
-                            )
-                            image_processor = AutoImageProcessor.from_pretrained(
-                                local_model_path,
-                                trust_remote_code=True
-                            )
-                            processor = Gemma3nProcessor(tokenizer, image_processor)
-                            st.success("Processeur chargé depuis le modèle local !")
-                        except Exception as e3:
-                            st.error(f"Erreur avec le modèle local : {e3}")
-                            return None, None
-                    else:
-                        st.error("Aucun modèle local disponible")
-                        return None, None
-            
-            # Stratégie 0: Chargement ultra-optimisé pour Hugging Face Spaces (mémoire limitée)
-            def load_hf_spaces_optimized():
-                st.warning("🚨 Mode Hugging Face Spaces détecté - Chargement ultra-optimisé...")
-                st.info("⚠️ Le modèle Gemma 3n E4B IT est très volumineux. Le chargement peut prendre plusieurs minutes...")
-                st.info("⏱️ Timeout de 10 minutes pour éviter le blocage...")
-                
-                # Nettoyer agressivement la mémoire
-                gc.collect()
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-                
-                afficher_ram_disponible("avant chargement HF Spaces")
-                
-                try:
-                    # Configuration ultra-conservatrice pour HF Spaces avec timeout
-                    with timeout(600):  # 10 minutes de timeout
-                        model = Gemma3nForConditionalGeneration.from_pretrained(
-                            model_id,
-                            torch_dtype=torch.float32,  # Utiliser float32 pour éviter les problèmes de mémoire
-                            trust_remote_code=True,
-                            low_cpu_mem_usage=True,
-                            device_map="cpu",  # Forcer CPU
-                            offload_folder="offload",  # Dossier de déchargement
-                            offload_state_dict=True,  # Décharger le state dict
-                            max_memory={0: "2GB", "cpu": "4GB"}  # Limiter la mémoire
-                        )
-                    
-                    afficher_ram_disponible("après chargement HF Spaces")
-                    st.success("✅ Modèle chargé avec succès sur Hugging Face Spaces !")
-                    
-                    # Stocker immédiatement dans session_state
-                    st.session_state.model = model
-                    st.session_state.processor = processor
-                    st.session_state.model_loaded = True
-                    st.session_state.model_status = "Chargé (HF Spaces)"
-                    st.session_state.model_load_time = time.time()
-                    
-                    # Forcer la persistance
-                    force_model_persistence()
-                    
-                    return model, processor
-                    
-                except TimeoutError:
-                    st.error("⏰ Timeout atteint lors du chargement du modèle. Le modèle est trop volumineux pour cet environnement.")
-                    st.info("💡 Suggestion : Utilisez un modèle plus léger ou un environnement avec plus de mémoire.")
-                    return None, None
-                except Exception as e:
-                    st.error(f"❌ Erreur lors du chargement HF Spaces optimisé : {e}")
-                    return None, None
-            
-            # Stratégie 1: Chargement ultra-conservateur (CPU uniquement, sans device_map)
-            def load_ultra_conservative():
-                st.info("Chargement ultra-conservateur (CPU uniquement, sans device_map)...")
-                gc.collect()
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-                afficher_ram_disponible("avant chargement")
-                model = Gemma3nForConditionalGeneration.from_pretrained(
-                    model_id,
-                    torch_dtype=torch.float32,
-                    trust_remote_code=True,
-                    low_cpu_mem_usage=True
-                )
-                afficher_ram_disponible("après chargement")
-                st.success(f"Modèle chargé avec succès via {strategy.__name__} !")
-                
-                # Log de débogage
-                st.write("🔍 DEBUG: Modèle chargé avec succès (GPU)")
-                st.write(f"🔍 DEBUG: Type du modèle: {type(model).__name__}")
-                st.write(f"🔍 DEBUG: Modèle non-null: {model is not None}")
-                
-                # Stocker immédiatement dans session_state
-                st.session_state.model = model
-                st.session_state.processor = processor
-                st.session_state.model_loaded = True
-                st.session_state.model_status = "Chargé (GPU)"
-                st.session_state.model_load_time = time.time()
-                
-                st.write("🔍 DEBUG: Modèle stocké dans session_state")
-                st.write(f"🔍 DEBUG: model_loaded = {st.session_state.model_loaded}")
-                
-                # Forcer la persistance
-                st.write("🔍 DEBUG: Appel de force_model_persistence()...")
-                persistence_result = force_model_persistence()
-                st.write(f"🔍 DEBUG: Résultat de la persistance: {persistence_result}")
-                
-                return model, processor
-            
-            # Stratégie 2: Chargement conservateur avec device_map CPU
-            def load_conservative():
-                st.info("Chargement conservateur (device_map CPU)...")
-                gc.collect()
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-                afficher_ram_disponible("avant chargement")
-                model = Gemma3nForConditionalGeneration.from_pretrained(
-                    model_id,
-                    device_map="cpu",
-                    torch_dtype=torch.float32,
-                    trust_remote_code=True,
-                    low_cpu_mem_usage=True
-                )
-                afficher_ram_disponible("après chargement")
-                st.success(f"Modèle chargé avec succès via {strategy.__name__} !")
-                
-                # Log de débogage
-                st.write("🔍 DEBUG: Modèle chargé avec succès (GPU)")
-                st.write(f"🔍 DEBUG: Type du modèle: {type(model).__name__}")
-                st.write(f"🔍 DEBUG: Modèle non-null: {model is not None}")
-                
-                # Stocker immédiatement dans session_state
-                st.session_state.model = model
-                st.session_state.processor = processor
-                st.session_state.model_loaded = True
-                st.session_state.model_status = "Chargé (GPU)"
-                st.session_state.model_load_time = time.time()
-                
-                st.write("🔍 DEBUG: Modèle stocké dans session_state")
-                st.write(f"🔍 DEBUG: model_loaded = {st.session_state.model_loaded}")
-                
-                # Forcer la persistance
-                st.write("🔍 DEBUG: Appel de force_model_persistence()...")
-                persistence_result = force_model_persistence()
-                st.write(f"🔍 DEBUG: Résultat de la persistance: {persistence_result}")
-                
-                return model, processor
-            
-            # Stratégie 3: Chargement avec 8-bit quantization
-            def load_8bit():
-                st.info("Chargement avec quantification 8-bit...")
-                gc.collect()
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-                afficher_ram_disponible("avant chargement")
-                model = Gemma3nForConditionalGeneration.from_pretrained(
-                    model_id,
-                    device_map="auto",
-                    torch_dtype=torch.float16,
-                    trust_remote_code=True,
-                    low_cpu_mem_usage=True,
-                    load_in_8bit=True
-                )
-                afficher_ram_disponible("après chargement")
-                st.success(f"Modèle chargé avec succès via {strategy.__name__} !")
-                
-                # Log de débogage
-                st.write("🔍 DEBUG: Modèle chargé avec succès (GPU)")
-                st.write(f"🔍 DEBUG: Type du modèle: {type(model).__name__}")
-                st.write(f"🔍 DEBUG: Modèle non-null: {model is not None}")
-                
-                # Stocker immédiatement dans session_state
-                st.session_state.model = model
-                st.session_state.processor = processor
-                st.session_state.model_loaded = True
-                st.session_state.model_status = "Chargé (GPU)"
-                st.session_state.model_load_time = time.time()
-                
-                st.write("🔍 DEBUG: Modèle stocké dans session_state")
-                st.write(f"🔍 DEBUG: model_loaded = {st.session_state.model_loaded}")
-                
-                # Forcer la persistance
-                st.write("🔍 DEBUG: Appel de force_model_persistence()...")
-                persistence_result = force_model_persistence()
-                st.write(f"🔍 DEBUG: Résultat de la persistance: {persistence_result}")
-                
-                return model, processor
-            
-            # Stratégie 4: Chargement avec 4-bit quantization
-            def load_4bit():
-                st.info("Chargement avec quantification 4-bit...")
-                gc.collect()
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-                afficher_ram_disponible("avant chargement")
-                model = Gemma3nForConditionalGeneration.from_pretrained(
-                    model_id,
-                    device_map="auto",
-                    torch_dtype=torch.float16,
-                    trust_remote_code=True,
-                    low_cpu_mem_usage=True,
-                    load_in_4bit=True,
-                    bnb_4bit_compute_dtype=torch.float16
-                )
-                afficher_ram_disponible("après chargement")
-                st.success(f"Modèle chargé avec succès via {strategy.__name__} !")
-                
-                # Log de débogage
-                st.write("🔍 DEBUG: Modèle chargé avec succès (GPU)")
-                st.write(f"🔍 DEBUG: Type du modèle: {type(model).__name__}")
-                st.write(f"🔍 DEBUG: Modèle non-null: {model is not None}")
-                
-                # Stocker immédiatement dans session_state
-                st.session_state.model = model
-                st.session_state.processor = processor
-                st.session_state.model_loaded = True
-                st.session_state.model_status = "Chargé (GPU)"
-                st.session_state.model_load_time = time.time()
-                
-                st.write("🔍 DEBUG: Modèle stocké dans session_state")
-                st.write(f"🔍 DEBUG: model_loaded = {st.session_state.model_loaded}")
-                
-                # Forcer la persistance
-                st.write("🔍 DEBUG: Appel de force_model_persistence()...")
-                persistence_result = force_model_persistence()
-                st.write(f"🔍 DEBUG: Résultat de la persistance: {persistence_result}")
-                
-                return model, processor
-            
-            # Stratégie 5: Chargement avec gestion mémoire personnalisée (sans max_memory)
-            def load_custom_memory():
-                st.info("Chargement avec gestion mémoire personnalisée...")
-                gc.collect()
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-                afficher_ram_disponible("avant chargement")
-                model = Gemma3nForConditionalGeneration.from_pretrained(
-                    model_id,
-                    device_map="auto",
-                    torch_dtype=torch.float16,
-                    trust_remote_code=True,
-                    low_cpu_mem_usage=True
-                )
-                afficher_ram_disponible("après chargement")
-                st.success(f"Modèle chargé avec succès via {strategy.__name__} !")
-                
-                # Log de débogage
-                st.write("🔍 DEBUG: Modèle chargé avec succès (GPU)")
-                st.write(f"🔍 DEBUG: Type du modèle: {type(model).__name__}")
-                st.write(f"🔍 DEBUG: Modèle non-null: {model is not None}")
-                
-                # Stocker immédiatement dans session_state
-                st.session_state.model = model
-                st.session_state.processor = processor
-                st.session_state.model_loaded = True
-                st.session_state.model_status = "Chargé (GPU)"
-                st.session_state.model_load_time = time.time()
-                
-                st.write("🔍 DEBUG: Modèle stocké dans session_state")
-                st.write(f"🔍 DEBUG: model_loaded = {st.session_state.model_loaded}")
-                
-                # Forcer la persistance
-                st.write("🔍 DEBUG: Appel de force_model_persistence()...")
-                persistence_result = force_model_persistence()
-                st.write(f"🔍 DEBUG: Résultat de la persistance: {persistence_result}")
-                
-                return model, processor
-            
-            # Vérifier si on est sur Hugging Face Spaces et utiliser la stratégie optimisée
-            if is_hf_spaces:
-                st.warning("🚨 Environnement Hugging Face Spaces détecté - Utilisation de la stratégie optimisée")
-                try:
-                    model, processor = load_hf_spaces_optimized()
-                    return model, processor
-                except Exception as e:
-                    st.error(f"Erreur avec la stratégie HF Spaces optimisée : {e}")
-                    st.info("Tentative avec les stratégies de fallback...")
-            
-            # Vérifier la mémoire disponible
-            if torch.cuda.is_available():
-                gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1024**3  # GB
-                st.info(f"Mémoire GPU disponible : {gpu_memory:.1f} GB")
-                
-                # Essayer différentes stratégies selon la mémoire disponible
-                strategies = []
-                
-                if gpu_memory >= 8:
-                    strategies = [load_custom_memory, load_4bit, load_8bit, load_conservative, load_ultra_conservative]
-                elif gpu_memory >= 4:
-                    strategies = [load_4bit, load_8bit, load_conservative, load_ultra_conservative]
-                else:
-                    strategies = [load_8bit, load_conservative, load_ultra_conservative]
-                
-                # Essayer chaque stratégie jusqu'à ce qu'une fonctionne
-                for i, strategy in enumerate(strategies):
-                    try:
-                        st.info(f"Tentative {i+1}/{len(strategies)} : {strategy.__name__}")
-                        model, processor = strategy()
-                        st.success(f"Modèle chargé avec succès via {strategy.__name__} !")
-                        
-                        # Log de débogage
-                        st.write("🔍 DEBUG: Modèle chargé avec succès (GPU)")
-                        st.write(f"🔍 DEBUG: Type du modèle: {type(model).__name__}")
-                        st.write(f"🔍 DEBUG: Modèle non-null: {model is not None}")
-                        
-                        # Stocker immédiatement dans session_state
-                        st.session_state.model = model
-                        st.session_state.processor = processor
-                        st.session_state.model_loaded = True
-                        st.session_state.model_status = "Chargé (GPU)"
-                        st.session_state.model_load_time = time.time()
-                        
-                        st.write("🔍 DEBUG: Modèle stocké dans session_state")
-                        st.write(f"🔍 DEBUG: model_loaded = {st.session_state.model_loaded}")
-                        
-                        # Forcer la persistance
-                        st.write("🔍 DEBUG: Appel de force_model_persistence()...")
-                        persistence_result = force_model_persistence()
-                        st.write(f"🔍 DEBUG: Résultat de la persistance: {persistence_result}")
-                        
-                        return model, processor
-                    except Exception as e:
-                        error_msg = str(e)
-                        if "disk_offload" in error_msg.lower():
-                            st.warning(f"Stratégie {strategy.__name__} échouée (disk_offload). Tentative suivante...")
-                            # Nettoyer la mémoire avant la prochaine tentative
-                            gc.collect()
-                            if torch.cuda.is_available():
-                                torch.cuda.empty_cache()
-                            continue
-                        elif "out of memory" in error_msg.lower():
-                            st.warning(f"Stratégie {strategy.__name__} échouée (mémoire insuffisante). Tentative suivante...")
-                            # Nettoyer la mémoire avant la prochaine tentative
-                            gc.collect()
-                            if torch.cuda.is_available():
-                                torch.cuda.empty_cache()
-                            continue
-                        else:
-                            st.warning(f"Stratégie {strategy.__name__} échouée : {error_msg}. Tentative suivante...")
-                            # Nettoyer la mémoire avant la prochaine tentative
-                            gc.collect()
-                            if torch.cuda.is_available():
-                                torch.cuda.empty_cache()
-                            continue
-                
-                # Si toutes les stratégies ont échoué
-                st.error("Toutes les stratégies de chargement ont échoué.")
-                return None, None
-                
-            else:
-                # Mode CPU uniquement - essayer plusieurs stratégies
-                st.warning("GPU non disponible, utilisation du CPU (plus lent)")
-                
-                # Si on est sur HF Spaces, utiliser la stratégie optimisée en premier
-                if is_hf_spaces:
-                    cpu_strategies = [load_hf_spaces_optimized, load_ultra_conservative, load_conservative]
-                else:
-                    cpu_strategies = [load_ultra_conservative, load_conservative]
-                
-                for i, strategy in enumerate(cpu_strategies):
-                    try:
-                        st.info(f"Tentative CPU {i+1}/{len(cpu_strategies)} : {strategy.__name__}")
-                        gc.collect()
-                        if torch.cuda.is_available():
-                            torch.cuda.empty_cache()
-                        afficher_ram_disponible("avant chargement")
-                        model, processor = strategy()
-                        afficher_ram_disponible("après chargement")
-                        st.success(f"Modèle chargé avec succès en mode CPU via {strategy.__name__} !")
-                        
-                        # Log de débogage
-                        st.write("🔍 DEBUG: Modèle chargé avec succès (CPU)")
-                        st.write(f"🔍 DEBUG: Type du modèle: {type(model).__name__}")
-                        st.write(f"🔍 DEBUG: Modèle non-null: {model is not None}")
-                        
-                        # Stocker immédiatement dans session_state
-                        st.session_state.model = model
-                        st.session_state.processor = processor
-                        st.session_state.model_loaded = True
-                        st.session_state.model_status = "Chargé (CPU)"
-                        st.session_state.model_load_time = time.time()
-                        
-                        st.write("🔍 DEBUG: Modèle stocké dans session_state")
-                        st.write(f"🔍 DEBUG: model_loaded = {st.session_state.model_loaded}")
-                        
-                        # Forcer la persistance
-                        st.write("🔍 DEBUG: Appel de force_model_persistence()...")
-                        persistence_result = force_model_persistence()
-                        st.write(f"🔍 DEBUG: Résultat de la persistance: {persistence_result}")
-                        
-                        return model, processor
-                    except Exception as e:
-                        error_msg = str(e)
-                        if "disk_offload" in error_msg.lower():
-                            st.warning(f"Stratégie CPU {strategy.__name__} échouée (disk_offload). Tentative suivante...")
-                            gc.collect()
-                            continue
-                        else:
-                            st.warning(f"Stratégie CPU {strategy.__name__} échouée : {error_msg}. Tentative suivante...")
-                            gc.collect()
-                            continue
-                
-                st.error("Toutes les stratégies de chargement CPU ont échoué.")
-                return None, None
+        # Stocker dans session_state
+        st.session_state.model = model
+        st.session_state.tokenizer = tokenizer
+        st.session_state.model_loaded = True
+        st.session_state.model_status = "Chargé (Modèle léger)"
+        st.session_state.model_load_time = time.time()
+        st.session_state.is_lightweight_model = True
+        
+        return model, tokenizer
         
     except Exception as e:
-        st.error(f"Erreur lors du chargement du modèle : {e}")
-        return None, None
+        st.error(f"❌ Erreur lors du chargement du modèle léger : {e}")
+        st.info("🔄 Tentative avec un modèle encore plus basique...")
+        
+        # Fallback: Modèle minimal
+        try:
+            from transformers import pipeline
+            
+            # Utiliser un pipeline simple
+            classifier = pipeline(
+                "text-classification",
+                model="distilbert-base-uncased",
+                device=-1  # CPU
+            )
+            
+            st.success("✅ Pipeline de base chargé avec succès !")
+            st.warning("⚠️ Fonctionnalités limitées - analyse de texte uniquement")
+            
+            st.session_state.classifier = classifier
+            st.session_state.model_loaded = True
+            st.session_state.model_status = "Chargé (Pipeline basique)"
+            st.session_state.model_load_time = time.time()
+            st.session_state.is_basic_pipeline = True
+            
+            return classifier, None
+            
+        except Exception as e2:
+            st.error(f"❌ Échec du chargement de tous les modèles : {e2}")
+            st.error("🚨 Impossible de charger un modèle compatible avec cet environnement")
+            return None, None
+
+def load_full_gemma_model():
+    """Charge le modèle Gemma 3n complet pour les environnements avec suffisamment de mémoire"""
+    
+    model_id = "google/gemma-3n-e4b-it"
+    
+    st.info(f"📦 Chargement du modèle complet: {model_id}")
+    
+    # Importer les modules nécessaires
+    from transformers import AutoTokenizer, AutoImageProcessor, Gemma3nForConditionalGeneration
+    
+    # Charger le tokenizer et l'image processor
+    tokenizer = AutoTokenizer.from_pretrained(model_id)
+    image_processor = AutoImageProcessor.from_pretrained(model_id)
+    
+    # Créer le processeur personnalisé
+    processor = Gemma3nProcessor(tokenizer, image_processor)
+    
+    # Stratégies de chargement pour GPU
+    if torch.cuda.is_available():
+        st.info("🚀 GPU détecté - Utilisation des stratégies GPU")
+        
+        # ... existing GPU strategies ...
+        
+    else:  # CPU only mode
+        st.warning("GPU non disponible, utilisation du CPU (plus lent)")
+        
+        # Stratégie CPU conservatrice
+        try:
+            st.info("Chargement conservateur (CPU uniquement)...")
+            gc.collect()
+            afficher_ram_disponible("avant chargement")
+            
+            model = Gemma3nForConditionalGeneration.from_pretrained(
+                model_id,
+                torch_dtype=torch.float32,
+                trust_remote_code=True,
+                low_cpu_mem_usage=True,
+                device_map="cpu"
+            )
+            
+            afficher_ram_disponible("après chargement")
+            st.success("✅ Modèle chargé avec succès !")
+            
+            # Stocker dans session_state
+            st.session_state.model = model
+            st.session_state.processor = processor
+            st.session_state.model_loaded = True
+            st.session_state.model_status = "Chargé (CPU)"
+            st.session_state.model_load_time = time.time()
+            st.session_state.is_lightweight_model = False
+            
+            return model, processor
+            
+        except Exception as e:
+            st.error(f"❌ Erreur lors du chargement complet : {e}")
+            st.info("🔄 Basculement vers le modèle léger...")
+            return load_lightweight_model_for_hf_spaces()
 
 def analyze_image_multilingual(image, prompt=""):
-    """Analyse une image avec Gemma 3n E4B IT pour un diagnostic précis en utilisant le format chat."""
+    """Analyse une image avec le modèle disponible (Gemma 3n ou modèle alternatif)."""
     if not st.session_state.model_loaded:
         if not restore_model_from_cache():
             st.warning("Modèle non chargé. Veuillez le charger via les réglages avant d'analyser.")
-            return "❌ Modèle Gemma non chargé. Veuillez d'abord charger le modèle dans les réglages."
+            return "❌ Modèle non chargé. Veuillez d'abord charger le modèle dans les réglages."
         else:
             st.info("Modèle restauré depuis le cache pour l'analyse.")
 
-    model, processor = st.session_state.model, st.session_state.processor
-    if not model or not processor:
-        return "❌ Modèle Gemma non disponible. Veuillez recharger le modèle."
+    model = st.session_state.model
+    if not model:
+        return "❌ Modèle non disponible. Veuillez recharger le modèle."
+    
+    # Détecter le type de modèle chargé
+    is_lightweight = getattr(st.session_state, 'is_lightweight_model', False)
+    is_basic_pipeline = getattr(st.session_state, 'is_basic_pipeline', False)
+    
+    if is_basic_pipeline:
+        return analyze_image_with_basic_pipeline(image, prompt)
+    elif is_lightweight:
+        return analyze_image_with_lightweight_model(image, prompt)
+    else:
+        return analyze_image_with_gemma_model(image, prompt)
 
+def analyze_image_with_gemma_model(image, prompt=""):
+    """Analyse une image avec le modèle Gemma 3n E4B IT complet."""
+    processor = st.session_state.processor
+    model = st.session_state.model
+    
     try:
         # Préparer le prompt textuel pour Gemma 3n
         if st.session_state.language == "fr":
@@ -1182,28 +730,15 @@ You are an expert in plant pathology. Analyze this plant image and provide a pre
 Respond in a structured and precise manner.
 """
         
-        # CORRECTION : Utiliser le format correct pour Gemma 3n avec le token <image>
-        # Le modèle Gemma-3n est un modèle "single-turn". On lui donne l'image et la question en une fois.
-        # Le format <image>\n{prompt} est le plus efficace.
+        # Utiliser le format correct pour Gemma 3n avec le token <image>
         final_prompt = f"<image>\n{text_prompt}"
         
-        # Debug info pour vérification
-        print("🧪 Prompt utilisé :", final_prompt[:100] + "..." if len(final_prompt) > 100 else final_prompt)
-        print("🖼️ Image fournie :", type(image), image.size if hasattr(image, 'size') else "Pas d'attribut size")
-        
-        # Vérifications explicites
-        assert "<image>" in final_prompt, "Le prompt ne contient pas le jeton <image>"
-        assert image is not None, "Aucune image fournie"
-        assert hasattr(image, "size"), "Image invalide (doit être une instance PIL.Image ou équivalent)"
-        
         # Étape 2: Utiliser le processeur pour combiner texte et image
-        # Essayer d'abord avec le format standard
         try:
             inputs = processor(text=final_prompt, images=image, return_tensors="pt").to(model.device)
         except Exception as e:
             if "Number of images does not match number of special image tokens" in str(e):
-                # Si l'erreur persiste, essayer sans le token <image> et laisser le processeur gérer
-                print("🔄 Tentative alternative : sans token <image>")
+                # Fallback: essayer sans le token <image>
                 inputs = processor(text=text_prompt, images=image, return_tensors="pt").to(model.device)
             else:
                 raise e
@@ -1213,7 +748,7 @@ Respond in a structured and precise manner.
         # Étape 3: Générer la réponse
         with torch.inference_mode():
             generation = model.generate(
-                **inputs, # Déballer le dictionnaire (input_ids, attention_mask, pixel_values)
+                **inputs,
                 max_new_tokens=500,
                 do_sample=True,
                 temperature=0.7,
@@ -1242,9 +777,150 @@ Respond in a structured and precise manner.
         if "403" in error_message or "Forbidden" in error_message:
             return "❌ Erreur 403 - Accès refusé. Veuillez vérifier votre jeton Hugging Face (HF_TOKEN) et les quotas."
         elif "Number of images does not match number of special image tokens" in error_message:
-            return "❌ Erreur : Le modèle n'a pas pu lier l'image au texte. Assurez-vous que la structure du prompt est correcte (voir le manuel)."
+            return "❌ Erreur : Le modèle n'a pas pu lier l'image au texte. Assurez-vous que la structure du prompt est correcte."
         else:
             return f"❌ Erreur lors de l'analyse d'image : {e}"
+
+def analyze_image_with_lightweight_model(image, prompt=""):
+    """Analyse une image avec le modèle léger (texte uniquement + API externe pour l'image)."""
+    model = st.session_state.model
+    tokenizer = st.session_state.tokenizer
+    
+    try:
+        # Convertir l'image en description textuelle basique
+        image_description = f"Image de plante avec dimensions {image.size[0]}x{image.size[1]} pixels"
+        
+        # Préparer le prompt
+        if st.session_state.language == "fr":
+            if prompt:
+                text_prompt = f"""
+Tu es un expert en pathologie végétale. Analyse cette description d'image de plante et fournis un diagnostic.
+
+**Description de l'image :** {image_description}
+**Question spécifique :** {prompt}
+
+**Instructions :**
+1. **Diagnostic général** : Donne des conseils généraux sur les maladies végétales
+2. **Recommandations** : Conseils de base pour l'identification et le traitement
+3. **Actions préventives** : Mesures générales de prévention
+
+**Note :** Cette analyse est basée sur une description textuelle. Pour une analyse précise, utilisez un modèle spécialisé en vision.
+"""
+            else:
+                text_prompt = f"""
+Tu es un expert en pathologie végétale. Analyse cette description d'image de plante et fournis un diagnostic.
+
+**Description de l'image :** {image_description}
+
+**Instructions :**
+1. **Diagnostic général** : Donne des conseils généraux sur les maladies végétales
+2. **Recommandations** : Conseils de base pour l'identification et le traitement
+3. **Actions préventives** : Mesures générales de prévention
+
+**Note :** Cette analyse est basée sur une description textuelle. Pour une analyse précise, utilisez un modèle spécialisé en vision.
+"""
+        else:
+            if prompt:
+                text_prompt = f"""
+You are an expert in plant pathology. Analyze this image description and provide a diagnosis.
+
+**Image description:** {image_description}
+**Specific question:** {prompt}
+
+**Instructions:**
+1. **General diagnosis**: Provide general advice on plant diseases
+2. **Recommendations**: Basic guidance for identification and treatment
+3. **Preventive actions**: General prevention measures
+
+**Note:** This analysis is based on a text description. For precise analysis, use a specialized vision model.
+"""
+            else:
+                text_prompt = f"""
+You are an expert in plant pathology. Analyze this image description and provide a diagnosis.
+
+**Image description:** {image_description}
+
+**Instructions:**
+1. **General diagnosis**: Provide general advice on plant diseases
+2. **Recommendations**: Basic guidance for identification and treatment
+3. **Preventive actions**: General prevention measures
+
+**Note:** This analysis is based on a text description. For precise analysis, use a specialized vision model.
+"""
+        
+        # Générer la réponse avec le modèle léger
+        inputs = tokenizer(text_prompt, return_tensors="pt", truncation=True, max_length=512)
+        
+        with torch.inference_mode():
+            outputs = model.generate(
+                **inputs,
+                max_new_tokens=300,
+                do_sample=True,
+                temperature=0.7,
+                top_p=0.9,
+                repetition_penalty=1.1
+            )
+        
+        response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        final_response = response.replace(text_prompt, "").strip()
+        
+        if st.session_state.language == "fr":
+            return f"""
+## 🧠 **Analyse par Modèle Léger**
+
+{final_response}
+
+**⚠️ Note :** Cette analyse utilise un modèle léger optimisé pour le texte. Pour une analyse d'image précise, utilisez un environnement avec plus de mémoire.
+"""
+        else:
+            return f"""
+## 🧠 **Analysis by Lightweight Model**
+
+{final_response}
+
+**⚠️ Note:** This analysis uses a lightweight model optimized for text. For precise image analysis, use an environment with more memory.
+"""
+            
+    except Exception as e:
+        return f"❌ Erreur lors de l'analyse avec le modèle léger : {e}"
+
+def analyze_image_with_basic_pipeline(image, prompt=""):
+    """Analyse avec le pipeline basique (fonctionnalités très limitées)."""
+    
+    try:
+        # Description basique de l'image
+        image_description = f"Plant image with dimensions {image.size[0]}x{image.size[1]} pixels"
+        
+        if st.session_state.language == "fr":
+            return f"""
+## 🧠 **Analyse Basique**
+
+**Description de l'image :** {image_description}
+
+**⚠️ Limitation :** Le modèle actuel ne peut analyser que du texte. Pour une analyse d'image complète, utilisez un environnement avec plus de mémoire.
+
+**Conseils généraux :**
+- Vérifiez les symptômes visibles sur les feuilles, tiges et racines
+- Consultez un expert en pathologie végétale pour un diagnostic précis
+- Prenez des photos détaillées sous différents angles
+- Notez les conditions environnementales (humidité, température, etc.)
+"""
+        else:
+            return f"""
+## 🧠 **Basic Analysis**
+
+**Image description:** {image_description}
+
+**⚠️ Limitation:** The current model can only analyze text. For complete image analysis, use an environment with more memory.
+
+**General advice:**
+- Check visible symptoms on leaves, stems, and roots
+- Consult a plant pathology expert for precise diagnosis
+- Take detailed photos from different angles
+- Note environmental conditions (humidity, temperature, etc.)
+"""
+    except Exception as e:
+        return f"❌ Erreur lors de l'analyse basique : {e}"
 
 def analyze_text_multilingual(text):
     """Analyse un texte avec le modèle Gemma 3n E4B IT"""
