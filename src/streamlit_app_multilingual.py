@@ -472,6 +472,9 @@ def load_ultra_lightweight_for_hf_spaces():
         torch.cuda.empty_cache()
     
     try:
+        # Importer les modules nécessaires
+        from transformers import AutoTokenizer, AutoModelForSequenceClassification
+        
         # Modèle ultra-léger : DistilBERT pour classification de texte
         model_id = "distilbert/distilbert-base-uncased"
         
