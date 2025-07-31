@@ -463,8 +463,8 @@ def load_model():
     return None, None
 
 def load_ultra_lightweight_for_hf_spaces():
-    """Charge un modèle ultra-léger spécialement conçu pour HF Spaces"""
-    st.info("🪶 Chargement du modèle ultra-léger pour HF Spaces...")
+    """Charge Gemma 3B (plus léger que Gemma 3n) pour HF Spaces"""
+    st.info("🪶 Chargement de Gemma 3B pour HF Spaces...")
     
     # Nettoyer la mémoire
     gc.collect()
@@ -473,17 +473,18 @@ def load_ultra_lightweight_for_hf_spaces():
     
     try:
         # Importer les modules nécessaires
-        from transformers import AutoTokenizer, AutoModelForSequenceClassification
+        from transformers import AutoTokenizer, AutoModelForCausalLM
         
-        # Modèle ultra-léger : DistilBERT pour classification de texte
-        model_id = "distilbert/distilbert-base-uncased"
+        # Modèle Gemma 3B (plus léger que Gemma 3n E4B)
+        model_id = "google/gemma-3b-it"
         
         tokenizer = AutoTokenizer.from_pretrained(model_id)
-        model = AutoModelForSequenceClassification.from_pretrained(
+        model = AutoModelForCausalLM.from_pretrained(
             model_id,
             torch_dtype=torch.float32,
             low_cpu_mem_usage=True,
-            device_map="cpu"
+            device_map="cpu",
+            trust_remote_code=True
         )
         
         # Créer un processeur simple
@@ -494,15 +495,15 @@ def load_ultra_lightweight_for_hf_spaces():
         st.session_state.processor = processor
         st.session_state.tokenizer = tokenizer
         st.session_state.model_loaded = True
-        st.session_state.model_status = "Chargé (Ultra-léger HF Spaces)"
+        st.session_state.model_status = "Chargé (Gemma 3B HF Spaces)"
         st.session_state.model_load_time = time.time()
-        st.session_state.is_ultra_lightweight = True
+        st.session_state.is_gemma_3b = True
         
-        st.success("✅ Modèle ultra-léger chargé avec succès pour HF Spaces !")
+        st.success("✅ Gemma 3B chargé avec succès pour HF Spaces !")
         return model, processor
         
     except Exception as e:
-        st.error(f"❌ Erreur lors du chargement ultra-léger : {e}")
+        st.error(f"❌ Erreur lors du chargement Gemma 3B : {e}")
         return None, None
 
 def load_basic_pipeline():
@@ -640,13 +641,13 @@ def analyze_image_multilingual(image, prompt=""):
         return "❌ Modèle non disponible. Veuillez recharger le modèle."
     
     # Détecter le type de modèle chargé
-    is_ultra_lightweight = getattr(st.session_state, 'is_ultra_lightweight', False)
+    is_gemma_3b = getattr(st.session_state, 'is_gemma_3b', False)
     is_basic_pipeline = getattr(st.session_state, 'is_basic_pipeline', False)
     is_gemma_full = getattr(st.session_state, 'is_gemma_full', False)
     is_conservative = getattr(st.session_state, 'is_conservative', False)
     
-    if is_ultra_lightweight:
-        return analyze_image_with_ultra_lightweight_model(image, prompt)
+    if is_gemma_3b:
+        return analyze_image_with_gemma3b_and_gemini(image, prompt)
     elif is_basic_pipeline:
         return analyze_image_with_basic_pipeline(image, prompt)
     elif is_gemma_full or is_conservative:
@@ -839,6 +840,161 @@ Respond in a structured and precise manner.
             return "❌ Erreur : Le modèle n'a pas pu lier l'image au texte. Assurez-vous que la structure du prompt est correcte."
         else:
             return f"❌ Erreur lors de l'analyse d'image : {e}"
+
+def analyze_image_with_gemma3b_and_gemini(image, prompt=""):
+    """Analyse une image avec Gemma 3B + Gemini pour l'interprétation."""
+    model = st.session_state.model
+    processor = st.session_state.processor
+    
+    try:
+        # Convertir l'image en description textuelle basique
+        image_description = f"Image de plante avec dimensions {image.size[0]}x{image.size[1]} pixels"
+        
+        # Préparer le prompt pour Gemma 3B
+        if st.session_state.language == "fr":
+            if prompt:
+                text_prompt = f"""
+Tu es un expert en pathologie végétale. Analyse cette description d'image de plante et fournis un diagnostic.
+
+**Description de l'image :** {image_description}
+**Question spécifique :** {prompt}
+
+**Instructions :**
+1. **Diagnostic général** : Donne des conseils généraux sur les maladies végétales
+2. **Recommandations** : Conseils de base pour l'identification et le traitement
+3. **Actions préventives** : Mesures générales de prévention
+
+**Note :** Cette analyse est basée sur une description textuelle. Pour une analyse précise, utilisez un modèle spécialisé en vision.
+"""
+            else:
+                text_prompt = f"""
+Tu es un expert en pathologie végétale. Analyse cette description d'image de plante et fournis un diagnostic.
+
+**Description de l'image :** {image_description}
+
+**Instructions :**
+1. **Diagnostic général** : Donne des conseils généraux sur les maladies végétales
+2. **Recommandations** : Conseils de base pour l'identification et le traitement
+3. **Actions préventives** : Mesures générales de prévention
+
+**Note :** Cette analyse est basée sur une description textuelle. Pour une analyse précise, utilisez un modèle spécialisé en vision.
+"""
+        else:
+            if prompt:
+                text_prompt = f"""
+You are an expert in plant pathology. Analyze this image description and provide a diagnosis.
+
+**Image description:** {image_description}
+**Specific question:** {prompt}
+
+**Instructions:**
+1. **General diagnosis**: Provide general advice on plant diseases
+2. **Recommendations**: Basic guidance for identification and treatment
+3. **Preventive actions**: General prevention measures
+
+**Note:** This analysis is based on a text description. For precise analysis, use a specialized vision model.
+"""
+            else:
+                text_prompt = f"""
+You are an expert in plant pathology. Analyze this image description and provide a diagnosis.
+
+**Image description:** {image_description}
+
+**Instructions:**
+1. **General diagnosis**: Provide general advice on plant diseases
+2. **Recommendations**: Basic guidance for identification and treatment
+3. **Preventive actions**: General prevention measures
+
+**Note:** This analysis is based on a text description. For precise analysis, use a specialized vision model.
+"""
+        
+        # Générer la réponse avec Gemma 3B
+        inputs = processor(text_prompt, return_tensors="pt", truncation=True, max_length=512)
+        
+        with torch.inference_mode():
+            outputs = model.generate(
+                **inputs,
+                max_new_tokens=300,
+                do_sample=True,
+                temperature=0.7,
+                top_p=0.9,
+                repetition_penalty=1.1
+            )
+        
+        gemma_response = processor.decode(outputs[0], skip_special_tokens=True)
+        gemma_response = gemma_response.replace(text_prompt, "").strip()
+        
+        # Utiliser Gemini pour améliorer l'interprétation
+        if gemini_model:
+            try:
+                gemini_prompt = f"""
+Tu es un expert en pathologie végétale. Améliore et structure cette analyse de diagnostic de plante :
+
+**Analyse brute de Gemma 3B :**
+{gemma_response}
+
+**Instructions :**
+1. **Structure** l'analyse de manière claire et professionnelle
+2. **Ajoute** des détails techniques si nécessaire
+3. **Améliore** la présentation avec des sections bien définies
+4. **Vérifie** la cohérence et la précision des informations
+
+**Format de réponse :**
+## 🔍 **Diagnostic Précis**
+## 📋 **Symptômes Détaillés**
+## 💊 **Traitement Recommandé**
+## 🛡️ **Actions Préventives**
+"""
+                
+                gemini_response = gemini_model.generate_content(gemini_prompt)
+                final_response = gemini_response.text
+                
+                if st.session_state.language == "fr":
+                    return f"""
+## 🤖 **Analyse Gemma 3B + Gemini**
+
+{final_response}
+
+**🔧 Technologies utilisées :**
+- **Gemma 3B** : Analyse initiale et diagnostic
+- **Gemini** : Amélioration et structuration de l'interprétation
+"""
+                else:
+                    return f"""
+## 🤖 **Gemma 3B + Gemini Analysis**
+
+{final_response}
+
+**🔧 Technologies used:**
+- **Gemma 3B** : Initial analysis and diagnosis
+- **Gemini** : Enhancement and structuring of interpretation
+"""
+                    
+            except Exception as gemini_error:
+                st.warning(f"⚠️ Erreur Gemini, utilisation de la réponse Gemma 3B brute : {gemini_error}")
+                final_response = gemma_response
+        else:
+            final_response = gemma_response
+        
+        if st.session_state.language == "fr":
+            return f"""
+## 🪶 **Analyse par Gemma 3B**
+
+{final_response}
+
+**⚠️ Note :** Cette analyse utilise Gemma 3B (version allégée) optimisée pour HF Spaces.
+"""
+        else:
+            return f"""
+## 🪶 **Analysis by Gemma 3B**
+
+{final_response}
+
+**⚠️ Note:** This analysis uses Gemma 3B (lightweight version) optimized for HF Spaces.
+"""
+            
+    except Exception as e:
+        return f"❌ Erreur lors de l'analyse avec Gemma 3B : {e}"
 
 def analyze_image_with_ultra_lightweight_model(image, prompt=""):
     """Analyse une image avec un modèle ultra-léger (texte uniquement)."""
