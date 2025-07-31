@@ -932,7 +932,7 @@ You are an expert in plant pathology. Analyze this image description and provide
                 gemini_prompt = f"""
 Tu es un expert en pathologie végétale. Améliore et structure cette analyse de diagnostic de plante :
 
-**Analyse brute de Gemma 3B :**
+**Analyse brute du modèle léger :**
 {gemma_response}
 
 **Instructions :**
@@ -980,23 +980,23 @@ Tu es un expert en pathologie végétale. Améliore et structure cette analyse d
         
         if st.session_state.language == "fr":
             return f"""
-## 🪶 **Analyse par Gemma 3B**
+## 🪶 **Analyse par Modèle Léger**
 
 {final_response}
 
-**⚠️ Note :** Cette analyse utilise Gemma 3B (version allégée) optimisée pour HF Spaces.
+**⚠️ Note :** Cette analyse utilise un modèle léger (DialoGPT-medium) optimisé pour HF Spaces.
 """
         else:
             return f"""
-## 🪶 **Analysis by Gemma 3B**
+## 🪶 **Analysis by Lightweight Model**
 
 {final_response}
 
-**⚠️ Note:** This analysis uses Gemma 3B (lightweight version) optimized for HF Spaces.
+**⚠️ Note:** This analysis uses a lightweight model (DialoGPT-medium) optimized for HF Spaces.
 """
             
     except Exception as e:
-        return f"❌ Erreur lors de l'analyse avec Gemma 3B : {e}"
+        return f"❌ Erreur lors de l'analyse avec le modèle léger : {e}"
 
 def analyze_image_with_ultra_lightweight_model(image, prompt=""):
     """Analyse une image avec un modèle ultra-léger (texte uniquement)."""
