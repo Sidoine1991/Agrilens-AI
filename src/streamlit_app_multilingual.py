@@ -463,8 +463,8 @@ def load_model():
     return None, None
 
 def load_ultra_lightweight_for_hf_spaces():
-    """Charge Gemma 3B (plus léger que Gemma 3n) pour HF Spaces"""
-    st.info("🪶 Chargement de Gemma 3B pour HF Spaces...")
+    """Charge un modèle léger compatible avec HF Spaces"""
+    st.info("🪶 Chargement d'un modèle léger pour HF Spaces...")
     
     # Nettoyer la mémoire
     gc.collect()
@@ -475,16 +475,18 @@ def load_ultra_lightweight_for_hf_spaces():
         # Importer les modules nécessaires
         from transformers import AutoTokenizer, AutoModelForCausalLM
         
-        # Modèle Gemma 3B (plus léger que Gemma 3n E4B)
-        model_id = "google/gemma-3b-it"
+        # Utiliser un modèle plus léger et disponible
+        model_id = "microsoft/DialoGPT-medium"  # Modèle de base pour le texte
         
         tokenizer = AutoTokenizer.from_pretrained(model_id)
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+            
         model = AutoModelForCausalLM.from_pretrained(
             model_id,
             torch_dtype=torch.float32,
             low_cpu_mem_usage=True,
-            device_map="cpu",
-            trust_remote_code=True
+            device_map="cpu"
         )
         
         # Créer un processeur simple
@@ -495,15 +497,15 @@ def load_ultra_lightweight_for_hf_spaces():
         st.session_state.processor = processor
         st.session_state.tokenizer = tokenizer
         st.session_state.model_loaded = True
-        st.session_state.model_status = "Chargé (Gemma 3B HF Spaces)"
+        st.session_state.model_status = "Chargé (Modèle léger HF Spaces)"
         st.session_state.model_load_time = time.time()
-        st.session_state.is_gemma_3b = True
+        st.session_state.is_lightweight_model = True
         
-        st.success("✅ Gemma 3B chargé avec succès pour HF Spaces !")
+        st.success("✅ Modèle léger chargé avec succès pour HF Spaces !")
         return model, processor
         
     except Exception as e:
-        st.error(f"❌ Erreur lors du chargement Gemma 3B : {e}")
+        st.error(f"❌ Erreur lors du chargement du modèle léger : {e}")
         return None, None
 
 def load_basic_pipeline():
@@ -641,13 +643,13 @@ def analyze_image_multilingual(image, prompt=""):
         return "❌ Modèle non disponible. Veuillez recharger le modèle."
     
     # Détecter le type de modèle chargé
-    is_gemma_3b = getattr(st.session_state, 'is_gemma_3b', False)
+    is_lightweight_model = getattr(st.session_state, 'is_lightweight_model', False)
     is_basic_pipeline = getattr(st.session_state, 'is_basic_pipeline', False)
     is_gemma_full = getattr(st.session_state, 'is_gemma_full', False)
     is_conservative = getattr(st.session_state, 'is_conservative', False)
     
-    if is_gemma_3b:
-        return analyze_image_with_gemma3b_and_gemini(image, prompt)
+    if is_lightweight_model:
+        return analyze_image_with_lightweight_model_and_gemini(image, prompt)
     elif is_basic_pipeline:
         return analyze_image_with_basic_pipeline(image, prompt)
     elif is_gemma_full or is_conservative:
@@ -841,8 +843,8 @@ Respond in a structured and precise manner.
         else:
             return f"❌ Erreur lors de l'analyse d'image : {e}"
 
-def analyze_image_with_gemma3b_and_gemini(image, prompt=""):
-    """Analyse une image avec Gemma 3B + Gemini pour l'interprétation."""
+def analyze_image_with_lightweight_model_and_gemini(image, prompt=""):
+    """Analyse une image avec un modèle léger + Gemini pour l'interprétation."""
     model = st.session_state.model
     processor = st.session_state.processor
     
