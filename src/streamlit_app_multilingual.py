@@ -8,9 +8,9 @@ import gc
 import time
 import sys
 import psutil
-from transformers import AutoProcessor, AutoModelForCausalLM # Utilisation générique pour Gemma
+from transformers import AutoProcessor, AutoModelForCausalLM
 from huggingface_hub import HfFolder, hf_hub_download, snapshot_download
-from functools import lru_cache # Alternative pour le caching, mais st.cache_resource est mieux pour les modèles
+from functools import lru_cache
 
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(
@@ -49,7 +49,42 @@ TRANSLATIONS = {
     "creator_linkedin": {"fr": "linkedin.com/in/sidoineko", "en": "linkedin.com/in/sidoineko"},
     "competition_title": {"fr": "🏆 Version Compétition Kaggle", "en": "🏆 Kaggle Competition Version"},
     "competition_text": {"fr": "Cette première version d'AgriLens AI a été développée spécifiquement pour participer à la compétition Kaggle. Elle représente notre première production publique et démontre notre expertise en IA appliquée à l'agriculture.", "en": "This first version of AgriLens AI was specifically developed to participate in the Kaggle competition. It represents our first public production and demonstrates our expertise in AI applied to agriculture."},
-    "footer": {"fr": "*AgriLens AI - Diagnostic intelligent des plantes avec IA*", "en": "*AgriLens AI - Intelligent plant diagnosis with AI*"}
+    "footer": {"fr": "*AgriLens AI - Diagnostic intelligent des plantes avec IA*", "en": "*AgriLens AI - Intelligent plant diagnosis with AI*"},
+    "plant_type_prompt": {"fr": "Le type de plante est : **MANIOC**.", "en": "The plant type is: **MANIOC**."},
+    "image_prompt_details": {
+        "fr": "J'observe les symptômes suivants sur la feuille :",
+        "en": "I observe the following symptoms on the leaf:"
+    },
+    "ask_plant_identification": {
+        "fr": "Je veux savoir si c'est une maladie courante du manioc (par exemple, mosaïque, bactériose) ou potentiellement une maladie d'un autre type de plante.",
+        "en": "I want to know if it's a common manioc disease (e.g., mosaic, bacterial blight) or potentially a disease of another plant type."
+    },
+    "analysis_structure": {
+        "fr": """
+    Structure ta réponse en :
+    1.  Identification probable (type de plante et maladie).
+    2.  Description des symptômes observés.
+    3.  Causes possibles.
+    4.  Recommandations de traitement.
+    5.  Conseils de prévention.
+    """,
+        "en": """
+    Structure your response into:
+    1.  Probable identification (plant type and disease).
+    2.  Description of observed symptoms.
+    3.  Possible causes.
+    4.  Treatment recommendations.
+    5.  Prevention tips.
+    """
+    },
+    "text_prompt_details": {
+        "fr": "Tu es un assistant agricole expert spécialisé dans les cultures tropicales, comme le MANIOC et le MANGUIER. Analyse ce problème de plante en te concentrant sur les symptômes décrits pour le MANIOC : \n\n**Description du problème :**\n",
+        "en": "You are an expert agricultural assistant, specialized in tropical crops like MANIOC and MANGO. Analyze this plant problem, focusing on the described symptoms for MANIOC: \n\n**Problem Description:**\n"
+    },
+    "text_prompt_instructions": {
+        "fr": "\n\n**Instructions spécifiques pour le diagnostic :**\n1. **Identifier la plante** : Est-ce du manioc ou autre chose ? Sois très prudent sur cette identification.\n2. **Identifier la maladie** : Décris les symptômes spécifiques observés sur le manioc (taches, couleur, forme, texture, progression).\n3. **Causes possibles** : Qu'est-ce qui pourrait causer ces symptômes sur du MANIOC ?\n4. **Traitement** : Quelles actions prendre pour soigner le MANIOC ?\n5. **Prévention** : Comment éviter ces problèmes sur le MANIOC à l'avenir ?",
+        "en": "\n\n**Specific Diagnosis Instructions:**\n1. **Identify the plant**: Is it MANIOC or something else? Be very careful with this identification.\n2. **Identify the disease**: Describe the specific symptoms observed on MANIOC (spots, color, shape, texture, progression).\n3. **Possible causes**: What could cause these symptoms on MANIOC?\n4. **Treatment**: What actions should be taken to treat the MANIOC?\n5. **Prevention**: How to avoid these problems on MANIOC in the future?"
+    }
 }
 
 def t(key):
@@ -121,11 +156,8 @@ def afficher_ram_disponible():
         st.warning("⚠️ Impossible de vérifier la RAM système.")
 
 # --- CHARGEMENT DU MODÈLE AVEC CACHING ---
-# Modèle principal à utiliser (corriger l'ID si nécessaire)
-MODEL_ID_HF = "google/gemma-3n-e2b-it" # Correction de l'ID du modèle
-
-# Chemin local pour le modèle (optionnel, pour tester hors ligne)
-# LOCAL_MODEL_PATH = "D:/Dev/model_gemma" # Décommentez et ajustez si vous avez un modèle local
+# Modèle principal à utiliser
+MODEL_ID_HF = "google/gemma-3n-e2b-it" # ID du modèle Gemma 3n e2b it
 
 @st.cache_resource(show_spinner=True) # Cache la ressource (modèle) entre les exécutions
 def load_ai_model(model_identifier, device_map="auto", torch_dtype=torch.float16, quantization=None):
@@ -149,7 +181,7 @@ def load_ai_model(model_identifier, device_map="auto", torch_dtype=torch.float16
             "token": os.environ.get("HF_TOKEN") or HfFolder.get_token() # Récupère le token depuis l'env ou le cache HF
         }
         
-        # Configuration de la quantisation (pour réduire l'empreinte mémoire)
+        # Configuration de la quantisation
         if quantization == "4bit":
             common_args.update({
                 "load_in_4bit": True,
@@ -210,13 +242,12 @@ def get_model_and_processor():
         if gpu_memory_gb >= 6: # Minimum pour 4-bit quant.
             strategies.append({"name": "GPU (4-bit quant.)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": "4bit"}})
         
-        # Si la mémoire est très limitée, proposer une stratégie CPU
         if gpu_memory_gb < 6:
              st.warning("Mémoire GPU limitée (<6GB). Le chargement sur CPU est recommandé.")
 
     # Stratégies CPU (plus lentes, mais plus robustes sur peu de ressources)
     strategies.append({"name": "CPU (bfloat16)", "config": {"device_map": "cpu", "torch_dtype": torch.bfloat16, "quantization": None}})
-    strategies.append({"name": "CPU (float32)", "config": {"device_map": "cpu", "torch_dtype": torch.float32, "quantization": None}}) # Plus stable si bfloat16 échoue
+    strategies.append({"name": "CPU (float32)", "config": {"device_map": "cpu", "torch_dtype": torch.float32, "quantization": None}})
     
     # --- Tentative de chargement via les stratégies ---
     for strat in strategies:
@@ -233,29 +264,54 @@ def get_model_and_processor():
                 return model, processor
         except Exception as e:
             st.warning(f"Échec avec '{strat['name']}' : {e}")
-            # Nettoyage mémoire avant de passer à la stratégie suivante
             gc.collect()
             if torch.cuda.is_available(): torch.cuda.empty_cache()
-            time.sleep(1) # Petite pause pour éviter les conflits
+            time.sleep(1)
 
     raise RuntimeError("Toutes les stratégies de chargement du modèle ont échoué.")
 
 # --- FONCTIONS D'ANALYSE ---
-def analyze_image_multilingual(image, prompt=""):
-    """Analyse une image avec Gemma 3n e2b it pour un diagnostic précis."""
+def analyze_image_multilingual(image, user_details_prompt=""):
+    """
+    Analyse une image avec Gemma 3n e2b it pour un diagnostic précis en utilisant le format chat.
+    Intègre les détails de la plante et des symptômes fournis par l'utilisateur.
+    """
     model, processor = st.session_state.model, st.session_state.processor
     if not model or not processor:
         return "❌ Modèle IA non chargé. Veuillez charger le modèle dans les réglages."
 
     try:
-        # Déterminer les messages selon la langue
-        if st.session_state.language == "fr":
-            user_instruction = f"Analyse cette image de plante et fournis un diagnostic précis. Question spécifique : {prompt}" if prompt else "Analyse cette image de plante et fournis un diagnostic précis."
-            system_message = "Tu es un expert en pathologie végétale. Réponds de manière structurée et précise, en incluant diagnostic, causes, symptômes, traitement et urgence."
-        else: # English
-            user_instruction = f"Analyze this plant image and provide a precise diagnosis. Specific question: {prompt}" if prompt else "Analyze this plant image and provide a precise diagnosis."
-            system_message = "You are an expert in plant pathology. Respond in a structured and precise manner, including diagnosis, causes, symptoms, treatment, and urgency."
+        # Construire le prompt basé sur les détails fournis par l'utilisateur
+        plant_identification_part = f"Le type de plante est : **MANIOC**." # Par défaut, mais sera surchargé par user_details_prompt si présent.
+        symptoms_description_part = ""
+        plant_identification_instruction = ""
         
+        if user_details_prompt.strip():
+            # Essayer d'extraire des informations clés du prompt utilisateur
+            # C'est une approche simplifiée. Une analyse NLP plus poussée serait plus robuste.
+            if "manioc" in user_details_prompt.lower():
+                plant_identification_part = "Le type de plante est : **MANIOC**."
+            elif "manguier" in user_details_prompt.lower():
+                plant_identification_part = "Le type de plante est : **MANGO**."
+            else:
+                 plant_identification_part = "Le type de plante n'est pas clairement spécifié, mais le diagnostic doit être fait avec prudence."
+                 
+            symptoms_description_part = f"J'observe les symptômes suivants : {user_details_prompt}"
+            plant_identification_instruction = t("ask_plant_identification")
+        else:
+            # Prompt par défaut si l'utilisateur ne fournit pas de détails
+            plant_identification_part = "Le type de plante n'est pas clairement spécifié. Soyez prudent lors de l'identification."
+            symptoms_description_part = "Je n'ai pas de détails spécifiques sur les symptômes."
+            plant_identification_instruction = "Essayez d'identifier le type de plante et la maladie."
+        
+        # Assembler le prompt final pour le modèle
+        if st.session_state.language == "fr":
+            system_message = "Tu es un expert en pathologie végétale, spécialisé dans les cultures tropicales comme le MANIOC et le MANGUIER. Réponds de manière structurée et précise, en incluant diagnostic, causes, symptômes, traitement et urgence."
+            user_instruction = f"{plant_identification_part} {symptoms_description_part} {plant_identification_instruction} {t('analysis_structure')['fr']}"
+        else: # English
+            system_message = "You are an expert in plant pathology, specialized in tropical crops like MANIOC and MANGO. Respond in a structured and precise manner, including diagnosis, causes, symptoms, treatment, and urgency."
+            user_instruction = f"{plant_identification_part} {symptoms_description_part} {plant_identification_instruction} {t('analysis_structure')['en']}"
+
         messages = [
             {"role": "system", "content": [{"type": "text", "text": system_message}]},
             {"role": "user", "content": [
@@ -281,9 +337,6 @@ def analyze_image_multilingual(image, prompt=""):
         input_len = inputs["input_ids"].shape[-1]
         
         with torch.inference_mode():
-            # Appel générique de model.generate, en passant les inputs correctement
-            # La gestion des arguments spécifiques comme `pixel_values` doit être faite par le modèle lui-même.
-            # Si le bug #2751 est présent, il peut se manifester ici.
             generation = model.generate(
                 **inputs, # Déballer le dictionnaire des inputs
                 max_new_tokens=500,
@@ -300,10 +353,7 @@ def analyze_image_multilingual(image, prompt=""):
         final_response = final_response.replace("<start_of_turn>", "").replace("<end_of_turn>", "").strip()
         
         # Formatage de la réponse pour l'affichage
-        if st.session_state.language == "fr":
-            return f"## 🧠 **Analyse par Gemma 3n e2b it**\n\n{final_response}"
-        else:
-            return f"## 🧠 **Analysis by Gemma 3n e2b it**\n\n{final_response}"
+        return f"## 🧠 **Analyse par Gemma 3n e2b it**\n\n{final_response}"
             
     except Exception as e:
         error_msg = str(e)
@@ -323,9 +373,9 @@ def analyze_text_multilingual(text):
     try:
         # Construction du prompt selon la langue
         if st.session_state.language == "fr":
-            prompt_template = f"Tu es un assistant agricole expert. Analyse ce problème de plante : \n\n**Description du problème :**\n{text}\n\n**Instructions :**\n1. **Diagnostic** : Quel est le problème principal ?\n2. **Causes** : Quelles sont les causes possibles ?\n3. **Traitement** : Quelles sont les actions à entreprendre ?\n4. **Prévention** : Comment éviter le problème à l'avenir ?"
+            prompt_template = f"{t('text_prompt_details')['fr']} {text}{t('text_prompt_instructions')['fr']}"
         else: # English
-            prompt_template = f"You are an expert agricultural assistant. Analyze this plant problem: \n\n**Problem Description:**\n{text}\n\n**Instructions:**\n1. **Diagnosis**: What is the main problem?\n2. **Causes**: What are the possible causes?\n3. **Treatment**: What actions should be taken?\n4. **Prevention**: How to avoid the problem in the future?"
+            prompt_template = f"{t('text_prompt_details')['en']} {text}{t('text_prompt_instructions')['en']}"
         
         messages = [{"role": "user", "content": [{"type": "text", "text": prompt_template}]}]
         
@@ -380,7 +430,6 @@ if 'model_status' not in st.session_state:
 # Tentative de chargement automatique au démarrage si le modèle n'est pas déjà chargé
 if not st.session_state.model_loaded:
     try:
-        # Tente de charger le modèle avec la meilleure stratégie disponible
         model, processor = get_model_and_processor()
         st.session_state.model = model
         st.session_state.processor = processor
@@ -407,7 +456,7 @@ with st.sidebar:
     )
     if st.session_state.language != ("fr" if language_choice == "Français" else "en"):
         st.session_state.language = "fr" if language_choice == "Français" else "en"
-        st.rerun() # Recharge l'application pour appliquer la langue
+        st.rerun()
 
     st.divider()
 
@@ -437,7 +486,7 @@ with st.sidebar:
                 st.session_state.processor = None
                 st.session_state.model_loaded = False
                 st.session_state.model_status = t("not_loaded")
-                # Désactive le cache pour forcer le rechargement
+                # Efface le cache de la fonction load_ai_model pour forcer le rechargement
                 if 'load_ai_model' in st.cache_resource.__wrapped__.__wrapped__.__self__.__dict__:
                     st.cache_resource.__wrapped__.__wrapped__.__self__['load_ai_model'].clear()
                 st.rerun()
@@ -450,7 +499,6 @@ with st.sidebar:
     else:
         st.warning(f"{t('model_status')} {st.session_state.model_status}")
         if st.button(t("load_model_button"), type="primary"):
-            # Essaye de charger le modèle manuellement
             try:
                 model, processor = get_model_and_processor()
                 st.session_state.model = model
@@ -534,10 +582,11 @@ with tab1:
                 st.write(f"• Taille originale : {original_size[0]}x{original_size[1]} pixels")
                 st.write(f"• Taille actuelle : {image.size[0]}x{image.size[1]} pixels")
                 
-            question = st.text_area(
-                "Question spécifique (optionnel) :",
-                placeholder="Ex: Les feuilles ont des taches jaunes, que faire ?",
-                height=100
+            # --- AJOUT DU CHAMP POUR LES DÉTAILS DE LA PLANTE ET DES SYMPTÔMES ---
+            user_details_prompt = st.text_area(
+                "Décrivez la plante et les symptômes en détail (ex: 'feuilles de MANIOC avec taches jaunes...' ) :",
+                placeholder="Ex: Feuilles de MANIOC avec taches jaunes sur les bords, texture poudreuse blanche au centre, nervures jaunies.",
+                height=150
             )
             
             if st.button(t("analyze_button"), disabled=not st.session_state.model_loaded, type="primary"):
@@ -545,7 +594,7 @@ with tab1:
                     st.error("❌ Modèle non chargé. Veuillez le charger dans les réglages.")
                 else:
                     with st.spinner("🔍 Analyse d'image en cours..."):
-                        result = analyze_image_multilingual(image, question)
+                        result = analyze_image_multilingual(image, user_details_prompt) # Passe les détails utilisateur
                     
                     st.markdown(t("analysis_results"))
                     st.markdown("---")
@@ -585,16 +634,17 @@ with tab3:
         ### 🚀 **Démarrage Rapide**
         1. **Charger le modèle** : Cliquez sur 'Charger le modèle IA' dans les réglages (sidebar). Le modèle Gemma 3n e2b it est gourmand en ressources. Si le chargement échoue, essayez une stratégie différente (ex: quantisation 8-bit ou CPU).
         2. **Choisir le mode** : Allez à l'onglet '📸 Analyse d'Image' ou '💬 Analyse de Texte'.
-        3. **Soumettre votre demande** : Upload d'image, capture webcam, ou description textuelle détaillée.
+        3. **Soumettre votre demande** : Upload d'image, capture webcam, ou description textuelle détaillée. Pour l'image, décrivez les symptômes et le type de plante pour une meilleure précision.
         4. **Obtenir le diagnostic** : Lisez les résultats avec recommandations.
         
         ### 📸 **Analyse d'Image**
         *  **Formats acceptés** : PNG, JPG, JPEG.
         *  **Qualité** : Privilégiez des images claires, bien éclairées, avec le problème bien visible.
         *  **Redimensionnement** : Les images trop grandes sont automatiquement redimensionnées pour optimiser le traitement.
+        *  **Détails** : Fournissez une description des symptômes et du type de plante dans le champ prévu à cet effet pour aider l'IA à mieux diagnostiquer.
         
         ### 💬 **Analyse de Texte**
-        *  **Soyez précis** : Décrivez les symptômes, le type de plante, les conditions de culture, et les actions déjà tentées. Plus la description est détaillée, plus le diagnostic sera pertinent.
+        *  **Soyez précis** : Décrivez les symptômes, le type de plante (manioc, manguier, etc.), les conditions de culture, et les actions déjà tentées. Plus la description est détaillée et spécifique au MANIOC (si c'est le cas), plus le diagnostic sera pertinent.
         
         ### 🔍 **Interprétation des Résultats**
         *  Les résultats incluent un diagnostic potentiel, les causes probables, des recommandations de traitement et des conseils de prévention.
@@ -617,16 +667,17 @@ with tab3:
         ### 🚀 **Quick Start**
         1. **Load the model** : Click 'Load AI Model' in the settings (sidebar). The Gemma 3n e2b it model is resource-intensive. If loading fails, try a different strategy (e.g., 8-bit quantization or CPU).
         2. **Choose mode** : Navigate to the '📸 Image Analysis' or '💬 Text Analysis' tab.
-        3. **Submit your request** : Upload an image, capture via webcam, or provide a detailed text description.
+        3. **Submit your request** : Upload an image, capture via webcam, or provide a detailed text description. For images, describe symptoms and plant type for better accuracy.
         4. **Get diagnosis** : Read the results with recommendations.
         
         ### 📸 **Image Analysis**
         *  **Accepted formats** : PNG, JPG, JPEG.
         *  **Quality** : Prefer clear, well-lit images with the problem clearly visible.
         *  **Resizing** : Oversized images are automatically resized for processing optimization.
+        *  **Details** : Provide a description of symptoms and plant type in the designated field to aid the AI's diagnosis.
         
         ### 💬 **Text Analysis**
-        *  **Be specific** : Describe symptoms, plant type, growing conditions, and actions already taken. More detail leads to better accuracy.
+        *  **Be specific** : Describe symptoms, plant type (manioc, mango, etc.), growing conditions, and actions already taken. More detail and specificity for MANIOC (if applicable) lead to better diagnosis.
         
         ### 🔍 **Result Interpretation**
         *  Results include a potential diagnosis, likely causes, treatment recommendations, and preventive advice.
@@ -665,22 +716,11 @@ with tab4:
     
     st.markdown("### 🔧 Technologie / Technology")
     
-    # Détecter si le modèle local est présent pour adapter le texte
-    # is_local = os.path.exists(LOCAL_MODEL_PATH) # Si LOCAL_MODEL_PATH est défini et utilisé
-    is_local = False # Pour l'instant, on assume chargement HF
-    
-    if is_local:
-        st.markdown(f"""
-        • **Modèle** : Gemma 3n E4B IT (Local - {LOCAL_MODEL_PATH})
-        • **Framework** : Streamlit
-        • **Déploiement** : Local
-        """)
-    else:
-        st.markdown("""
-        • **Modèle** : Gemma 3n e2b it (Hugging Face - en ligne)
-        • **Framework** : Streamlit
-        • **Déploiement** : Hugging Face Spaces / En ligne
-        """)
+    st.markdown("""
+    • **Modèle** : Gemma 3n e2b it (Hugging Face - en ligne)
+    • **Framework** : Streamlit
+    • **Déploiement** : Hugging Face Spaces / En ligne
+    """)
     
     st.markdown(f"### {t('creator_title')}")
     st.markdown(f"{t('creator_name')}")
