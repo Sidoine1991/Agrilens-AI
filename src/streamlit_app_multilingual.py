@@ -291,21 +291,12 @@ if is_local and not st.session_state.model_loaded:
                     st.error(f"❌ Erreur lors du chargement automatique du modèle local : {e}")
                     st.write(f"🔍 DEBUG: Exception détaillée: {str(e)}")
 elif not is_local and not st.session_state.model_loaded:
-    st.info("🔄 Chargement direct du modèle Hugging Face : google/gemma-3n-E4B-it ...")
-    try:
-        from transformers import AutoProcessor, Gemma3nForConditionalGeneration
-        processor = AutoProcessor.from_pretrained("google/gemma-3n-E4B-it", trust_remote_code=True)
-        model = Gemma3nForConditionalGeneration.from_pretrained("google/gemma-3n-E4B-it", trust_remote_code=True, low_cpu_mem_usage=True)
-        st.session_state.model = model
-        st.session_state.processor = processor
-        st.session_state.model_loaded = True
-        st.session_state.model_status = "Chargé direct (Hugging Face)"
-        st.session_state.model_load_time = time.time()
-        st.success("✅ Modèle Hugging Face chargé directement au démarrage !")
-    except Exception as e:
-        st.session_state.model_loaded = False
-        st.session_state.model_status = "Erreur chargement direct"
-        st.error(f"❌ Erreur lors du chargement direct du modèle Hugging Face : {e}")
+    # Ne pas charger automatiquement sur HF Spaces - laisser l'utilisateur choisir
+    st.info("🔄 Environnement Hugging Face Spaces détecté")
+    st.info("⚠️ Chargement automatique désactivé pour éviter les erreurs de mémoire")
+    st.info("💡 Utilisez le bouton 'Charger le modèle' pour charger un modèle compatible")
+    st.session_state.model_loaded = False
+    st.session_state.model_status = "En attente de chargement manuel"
 
 # Configuration Gemini API
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
@@ -321,7 +312,7 @@ translations = {
         "title": "🌱 AgriLens AI - Diagnostic des Plantes",
         "subtitle": "**Application de diagnostic des maladies de plantes avec IA**",
         "config_title": "⚙️ Configuration",
-        "load_model": "Charger le modèle Gemma 3n E4B IT",
+        "load_model": "Charger un modèle IA",
         "model_status": "**Statut du modèle :**",
         "not_loaded": "Non chargé",
         "loaded": "✅ Chargé",
@@ -352,7 +343,7 @@ translations = {
         "title": "🌱 AgriLens AI - Plant Disease Diagnosis",
         "subtitle": "**AI-powered plant disease diagnosis application**",
         "config_title": "⚙️ Configuration",
-        "load_model": "Load Gemma 3n E4B IT Model",
+        "load_model": "Load AI Model",
         "model_status": "**Model Status:**",
         "not_loaded": "Not loaded",
         "loaded": "✅ Loaded",
