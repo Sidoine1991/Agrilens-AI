@@ -55,7 +55,83 @@ TRANSLATIONS = {
     "export_format": {"fr": "Format d'Exportation", "en": "Export Format"},
     "export_format_options": {"fr": ["JSON", "Markdown", "CSV"], "en": ["JSON", "Markdown", "CSV"]},
     "export_success": {"fr": "Résultats exportés avec succès !", "en": "Results exported successfully!"},
-    "mobile_mode_warning": {"fr": "Mode Mobile détecté. Certaines fonctionnalités peuvent ne pas fonctionner comme prévu. Veuillez utiliser un appareil de bureau pour une meilleure expérience.", "en": "Mobile mode detected. Some features may not work as expected. Please use a desktop device for a better experience."}
+    "export_error": {"fr": "❌ Erreur lors de l'export", "en": "❌ Export error"},
+    "html_filename": {"fr": "diagnostic_agrilens_{date}.html", "en": "agrilens_diagnosis_{date}.html"},
+    "text_filename": {"fr": "diagnostic_agrilens_{date}.txt", "en": "agrilens_diagnosis_{date}.txt"},
+    "language_selection": {"fr": "Sélectionnez votre langue :", "en": "Select your language:"},
+    "language_help": {"fr": "Change la langue de l'interface et des réponses de l'IA.", "en": "Changes the language of the interface and AI responses."},
+    "hf_token_title": {"fr": "🔑 Jeton Hugging Face", "en": "🔑 Hugging Face Token"},
+    "hf_token_found": {"fr": "✅ Jeton HF trouvé et configuré.", "en": "✅ HF token found and configured."},
+    "hf_token_not_found": {"fr": "⚠️ Jeton HF non trouvé.", "en": "⚠️ HF token not found."},
+    "hf_token_info": {"fr": "Il est recommandé de définir la variable d'environnement `HF_TOKEN` avec votre jeton personnel Hugging Face pour éviter les erreurs d'accès (403).", "en": "It is recommended to set the `HF_TOKEN` environment variable with your personal Hugging Face token to avoid access errors (403)."},
+    "get_hf_token": {"fr": "Obtenir un jeton HF", "en": "Get HF token"},
+    "model_title": {"fr": "🤖 Modèle IA Gemma 3n", "en": "🤖 Gemma 3n AI Model"},
+    "model_loaded": {"fr": "✅ Modèle chargé", "en": "✅ Model loaded"},
+    "model_not_loaded": {"fr": "❌ Modèle non chargé.", "en": "❌ Model not loaded."},
+    "load_time": {"fr": "Heure de chargement : ", "en": "Load time: "},
+    "device_used": {"fr": "Device utilisé : ", "en": "Device used: "},
+    "reload_model": {"fr": "🔄 Recharger le modèle", "en": "🔄 Reload model"},
+    "force_persistence": {"fr": "💾 Forcer Persistance", "en": "💾 Force Persistence"},
+    "persistence_success": {"fr": "Persistance forcée avec succès.", "en": "Persistence forced successfully."},
+    "persistence_failed": {"fr": "Échec de la persistance.", "en": "Persistence failed."},
+    "loading_model": {"fr": "Chargement du modèle en cours...", "en": "Loading model..."},
+    "model_loaded_success": {"fr": "✅ Modèle chargé avec succès !", "en": "✅ Model loaded successfully!"},
+    "model_load_failed": {"fr": "❌ Échec du chargement du modèle.", "en": "❌ Model loading failed."},
+    "persistence_title": {"fr": "💾 Persistance du Modèle", "en": "💾 Model Persistence"},
+    "persistence_loaded": {"fr": "✅ Modèle chargé et persistant en cache.", "en": "✅ Model loaded and persistent in cache."},
+    "persistence_warning": {"fr": "⚠️ Modèle chargé mais non persistant. Cliquez sur 'Forcer Persistance'.", "en": "⚠️ Model loaded but not persistent. Click 'Force Persistence'."},
+    "persistence_not_loaded": {"fr": "⚠️ Modèle non chargé.", "en": "⚠️ Model not loaded."},
+    "upload_image": {"fr": "📁 Upload d'image", "en": "📁 Upload image"},
+    "webcam_capture": {"fr": "📷 Capture par webcam", "en": "📷 Webcam capture"},
+    "choose_method": {"fr": "Choisissez votre méthode :", "en": "Choose your method:"},
+    "webcam_title": {"fr": "**📷 Capture d'image par webcam**", "en": "**📷 Webcam image capture**"},
+    "image_info_title": {"fr": "**Informations de l'image :**", "en": "**Image information:**"},
+    "format_label": {"fr": "• Format : ", "en": "• Format: "},
+    "original_size": {"fr": "• Taille originale : ", "en": "• Original size: "},
+    "current_size": {"fr": "• Taille actuelle : ", "en": "• Current size: "},
+    "mode_label": {"fr": "• Mode : ", "en": "• Mode: "},
+    "pixels": {"fr": " pixels", "en": " pixels"},
+    "symptoms_label": {"fr": "Description des symptômes :", "en": "Symptom description:"},
+    "mission_title": {"fr": "### 🌱 Notre Mission / Our Mission", "en": "### 🌱 Our Mission"},
+    "mission_text": {"fr": "AgriLens AI est une application de diagnostic des maladies de plantes utilisant l'intelligence artificielle pour aider les agriculteurs à identifier et traiter les problèmes de leurs cultures.", "en": "AgriLens AI is a plant disease diagnosis application using artificial intelligence to help farmers identify and treat problems with their crops."},
+    "features_title": {"fr": "### 🚀 Fonctionnalités / Features", "en": "### 🚀 Features"},
+    "features_text": {"fr": "• **Analyse d'images** : Diagnostic visuel des maladies\n• **Analyse de texte** : Conseils basés sur les descriptions\n• **Recommandations pratiques** : Actions concrètes à entreprendre\n• **Interface optimisée** : Pour une utilisation sur divers appareils\n• **Support multilingue** : Français et Anglais", "en": "• **Image analysis** : Visual diagnosis of diseases\n• **Text analysis** : Advice based on descriptions\n• **Practical recommendations** : Concrete actions to take\n• **Optimized interface** : For use on various devices\n• **Multilingual support** : French and English"},
+    "technology_title": {"fr": "### 🔧 Technologie / Technology", "en": "### 🔧 Technology"},
+    "local_model_text": {"fr": "• **Modèle** : Gemma 3n E4B IT (Local - {path})\n• **Framework** : Streamlit\n• **Déploiement** : Local", "en": "• **Model** : Gemma 3n E4B IT (Local - {path})\n• **Framework** : Streamlit\n• **Deployment** : Local"},
+    "online_model_text": {"fr": "• **Modèle** : Gemma 3n E4B IT (Hugging Face - en ligne)\n• **Framework** : Streamlit\n• **Déploiement** : Hugging Face Spaces", "en": "• **Model** : Gemma 3n E4B IT (Hugging Face - online)\n• **Framework** : Streamlit\n• **Deployment** : Hugging Face Spaces"},
+    "warning_title": {"fr": "### ⚠️ Avertissement / Warning", "en": "### ⚠️ Warning"},
+    "warning_text": {"fr": "Les résultats fournis par l'IA sont à titre indicatif uniquement et ne remplacent pas l'avis d'un expert agricole qualifié.", "en": "The results provided by AI are for guidance only and do not replace the advice of a qualified agricultural expert."},
+    "support_title": {"fr": "### 📞 Support", "en": "### 📞 Support"},
+    "support_text": {"fr": "Pour toute question ou problème, consultez la documentation ou contactez le créateur.", "en": "For any questions or issues, consult the documentation or contact the creator."},
+    "settings_button": {"fr": "⚙️ Réglages", "en": "⚙️ Settings"},
+    "specific_question": {"fr": "Question spécifique (optionnel) :", "en": "Specific question (optional):"},
+    "question_placeholder": {"fr": "Ex: Les feuilles ont des taches jaunes, que faire ?", "en": "Ex: The leaves have yellow spots, what to do?"},
+    "webcam_info": {"fr": "💡 Positionnez votre plante malade devant la webcam et cliquez sur 'Prendre une photo'. Assurez-vous d'un bon éclairage.", "en": "💡 Position your sick plant in front of the webcam and click 'Take a photo'. Make sure you have good lighting."},
+    "take_photo": {"fr": "Prendre une photo de la plante", "en": "Take a photo of the plant"},
+    "image_processing_error": {"fr": "❌ Erreur lors du traitement de l'image uploadée : ", "en": "❌ Error processing uploaded image: "},
+    "image_processing_error_webcam": {"fr": "❌ Erreur lors du traitement de l'image capturée : ", "en": "❌ Error processing captured image: "},
+    "try_different_image": {"fr": "💡 Essayez avec une image différente ou un format différent (PNG, JPG, JPEG).", "en": "💡 Try with a different image or format (PNG, JPG, JPEG)."},
+    "try_retake_photo": {"fr": "💡 Essayez de reprendre la photo.", "en": "💡 Try taking the photo again."},
+    "image_resized_warning": {"fr": "⚠️ L'image a été redimensionnée de  à {new_size} pour optimiser le traitement.", "en": "⚠️ Image has been resized from  to {new_size} to optimize processing."},
+    "model_not_loaded_error": {"fr": "❌ Modèle non chargé. Veuillez le charger dans les réglages.", "en": "❌ Model not loaded. Please load it in settings."},
+    "analyzing_image": {"fr": "🔍 Analyse d'image en cours...", "en": "🔍 Analyzing image..."},
+    "image_processing_general_error": {"fr": "Erreur lors du traitement de l'image : ", "en": "Error processing image: "},
+    "symptoms_placeholder": {"fr": "Ex: Mes tomates ont des taches brunes sur les feuilles et les fruits, une poudre blanche sur les tiges...", "en": "Ex: My tomatoes have brown spots on leaves and fruits, white powder on stems..."},
+    "culture_clarification": {"fr": "🌱 Clarification de la Culture", "en": "🌱 Culture Clarification"},
+    "culture_question": {"fr": "Quelle est la culture concernée ?", "en": "What is the crop concerned?"},
+    "culture_placeholder": {"fr": "Ex: Tomate, Piment, Maïs, Haricot, Aubergine...", "en": "Ex: Tomato, Pepper, Corn, Bean, Eggplant..."},
+    "culture_help": {"fr": "Précisez le type de plante pour un diagnostic plus précis", "en": "Specify the plant type for more accurate diagnosis"},
+    "diagnosis_with_culture": {"fr": "🔬 Diagnostic avec Culture Spécifiée", "en": "🔬 Diagnosis with Specified Culture"},
+    "culture_specified": {"fr": "Culture spécifiée : ", "en": "Specified culture: "},
+    "export_diagnostic": {"fr": "📄 Exporter le Diagnostic", "en": "📄 Export Diagnosis"},
+    "export_html": {"fr": "💻 Exporter en HTML", "en": "💻 Export as HTML"},
+    "export_text": {"fr": "📝 Exporter en Texte", "en": "📝 Export as Text"},
+    "download_html": {"fr": "Télécharger HTML", "en": "Download HTML"},
+    "download_text": {"fr": "Télécharger Texte", "en": "Download Text"},
+    "export_success": {"fr": "✅ Diagnostic exporté avec succès !", "en": "✅ Diagnosis exported successfully!"},
+    "export_error": {"fr": "❌ Erreur lors de l'export", "en": "❌ Export error"},
+    "html_filename": {"fr": "diagnostic_agrilens_{date}.html", "en": "agrilens_diagnosis_{date}.html"},
+    "text_filename": {"fr": "diagnostic_agrilens_{date}.txt", "en": "agrilens_diagnosis_{date}.txt"}
 }
 
 def t(key):
@@ -653,10 +729,10 @@ with st.sidebar:
     language_options = ["Français", "English"]
     current_lang_index = 0 if st.session_state.language == "fr" else 1
     language_choice = st.selectbox(
-        "Sélectionnez votre langue :",
+        t("language_selection"),
         language_options,
         index=current_lang_index,
-        help="Change la langue de l'interface et des réponses de l'IA."
+        help=t("language_help")
     )
     if st.session_state.language != ("fr" if language_choice == "Français" else "en"):
         st.session_state.language = "fr" if language_choice == "Français" else "en"
@@ -665,27 +741,27 @@ with st.sidebar:
     st.divider()
 
     # Configuration du jeton Hugging Face
-    st.subheader("🔑 Jeton Hugging Face")
+    st.subheader(t("hf_token_title"))
     hf_token_found = HfFolder.get_token() or os.environ.get("HF_TOKEN")
     if hf_token_found:
-        st.success("✅ Jeton HF trouvé et configuré.")
+        st.success(t("hf_token_found"))
     else:
-        st.warning("⚠️ Jeton HF non trouvé.")
-    st.info("Il est recommandé de définir la variable d'environnement `HF_TOKEN` avec votre jeton personnel Hugging Face pour éviter les erreurs d'accès (403).")
-    st.markdown("[Obtenir un jeton HF](https://huggingface.co/settings/tokens)")
+        st.warning(t("hf_token_not_found"))
+    st.info(t("hf_token_info"))
+    st.markdown(f"[{t('get_hf_token')}](https://huggingface.co/settings/tokens)")
 
     st.divider()
 
     # Gestion du modèle IA
-    st.header("🤖 Modèle IA Gemma 3n")
+    st.header(t("model_title"))
     if st.session_state.model_loaded:
         st.success(f"{t('model_status')} {st.session_state.model_status}")
         if st.session_state.model and hasattr(st.session_state.model, 'device'):
-            st.write(f"Device utilisé : `{st.session_state.model.device}`")
+            st.write(f"{t('device_used')}`{st.session_state.model.device}`")
         
         col1_btn, col2_btn = st.columns(2)
         with col1_btn:
-            if st.button("🔄 Recharger le modèle", type="secondary"):
+            if st.button(t("reload_model"), type="secondary"):
                 st.session_state.model = None
                 st.session_state.processor = None
                 st.session_state.model_loaded = False
@@ -696,9 +772,9 @@ with st.sidebar:
                 st.rerun()
         with col2_btn:
             # Bouton pour forcer la persistance via @st.cache_resource
-            if st.button("💾 Forcer Persistance", type="secondary"):
+            if st.button(t("force_persistence"), type="secondary"):
                 st.cache_resource.clear() # Efface le cache pour forcer le rechargement et la ré-application du cache
-                st.success("Cache effacé. Le modèle sera rechargé et mis en cache la prochaine fois.")
+                st.success(t("persistence_success"))
                 st.rerun()
     else:
         st.warning(f"{t('model_status')} {st.session_state.model_status}")
@@ -710,10 +786,10 @@ with st.sidebar:
                 st.session_state.processor = processor
                 st.session_state.model_loaded = True
                 st.session_state.model_status = t("loaded")
-                st.success("✅ Modèle chargé avec succès !")
+                st.success(t("model_loaded_success"))
             except Exception as e:
                 st.session_state.model_status = f"{t('error')} : {e}"
-                st.error(f"❌ Échec du chargement du modèle : {e}")
+                st.error(t("model_load_failed"))
             st.rerun()
 
 # --- BOUTONS DE CONTRÔLE ---
@@ -758,8 +834,8 @@ with tab1:
     st.markdown(t("image_analysis_desc"))
     
     capture_option = st.radio(
-        "Choisissez votre méthode :",
-        ["📁 Upload d'image", "📷 Capture par webcam"],
+        t("choose_method"),
+        [t("upload_image"), t("webcam_capture")],
         horizontal=True,
         key="image_capture_method"
     )
@@ -767,7 +843,7 @@ with tab1:
     uploaded_file = None
     captured_image = None
     
-    if capture_option == "📁 Upload d'image":
+    if capture_option == t("upload_image"):
         uploaded_file = st.file_uploader(
             t("choose_image"),
             type=['png', 'jpg', 'jpeg'],
@@ -786,7 +862,9 @@ with tab1:
             elif uploaded_file.size > (MAX_FILE_SIZE_BYTES * 0.8):
                 st.warning("Attention : Le fichier est très volumineux, le chargement peut prendre du temps.")
     else:
-        captured_image = st.camera_input("Prendre une photo de la plante", key="webcam_capture")
+        st.markdown(t("webcam_title"))
+        st.info(t("webcam_info"))
+        captured_image = st.camera_input(t("take_photo"), key="webcam_capture")
     
     image = None
     image_source = None
@@ -796,13 +874,15 @@ with tab1:
             image = Image.open(uploaded_file)
             image_source = "upload"
         except Exception as e:
-            st.error(f"❌ Erreur lors du traitement de l'image uploadée : {e}")
+            st.error(t("image_processing_error") + str(e))
+            st.info(t("try_different_image"))
     elif captured_image is not None:
         try:
             image = Image.open(captured_image)
             image_source = "webcam"
         except Exception as e:
-            st.error(f"❌ Erreur lors du traitement de l'image capturée : {e}")
+            st.error(t("image_processing_error_webcam") + str(e))
+            st.info(t("try_retake_photo"))
     
     if image is not None:
         try:
@@ -813,34 +893,36 @@ with tab1:
             with col1:
                 st.image(image, caption=f"Image ({image_source})", use_container_width=True)
                 if was_resized:
-                    st.warning(f"⚠️ L'image a été redimensionnée de {original_size} à {image.size} pour optimiser le traitement.")
+                    st.warning(t("image_resized_warning").format(new_size=image.size))
             
             with col2:
-                st.markdown("**Informations de l'image :**")
-                st.write(f"• Taille originale : {original_size[0]}x{original_size[1]} pixels")
-                st.write(f"• Taille actuelle : {image.size[0]}x{image.size[1]} pixels")
-                
+                st.markdown(t("image_info_title"))
+                st.write(f"{t('format_label')}{image.format}")
+                st.write(f"{t('original_size')}{original_size[0]}x{original_size[1]}{t('pixels')}")
+                st.write(f"{t('current_size')}{image.size[0]}x{image.size[1]}{t('pixels')}")
+                st.write(f"{t('mode_label')}{image.mode}")
+            
             # Section de clarification de la culture
             st.markdown("---")
-            st.subheader("🌱 Clarification de la Culture")
+            st.subheader(t("culture_clarification"))
             
             culture_input = st.text_input(
-                "Quelle est la culture concernée ?",
-                placeholder="Ex: Tomate, Piment, Maïs, Haricot, Aubergine...",
-                help="Précisez le type de plante pour un diagnostic plus précis"
+                t("culture_question"),
+                placeholder=t("culture_placeholder"),
+                help=t("culture_help")
             )
             
             question = st.text_area(
-                "Question spécifique (optionnel) :",
-                placeholder="Ex: Les feuilles ont des taches jaunes, que faire ?",
+                t("specific_question"),
+                placeholder=t("question_placeholder"),
                 height=100
             )
             
             if st.button(t("analyze_button"), disabled=not st.session_state.model_loaded, type="primary"):
                 if not st.session_state.model_loaded:
-                    st.error("❌ Modèle non chargé. Veuillez le charger dans les réglages.")
+                    st.error(t("model_not_loaded_error"))
                 else:
-                    with st.spinner("🔍 Analyse d'image en cours..."):
+                    with st.spinner(t("analyzing_image")):
                         # Construire le prompt avec la culture spécifiée
                         enhanced_prompt = ""
                         if culture_input:
@@ -854,14 +936,14 @@ with tab1:
                     
                     # Afficher la culture spécifiée si elle existe
                     if culture_input:
-                        st.info(f"🌱 Culture spécifiée : **{culture_input}**")
+                        st.info(f"🌱 {t('culture_specified')} **{culture_input}**")
                     
                     st.markdown("---")
                     st.markdown(result)
                     
                     # Section d'export du diagnostic
                     st.markdown("---")
-                    st.subheader("📄 Exporter le Diagnostic")
+                    st.subheader(t("export_diagnostic"))
                     
                     # Préparer les informations pour l'export
                     timestamp = datetime.now().strftime("%d/%m/%Y à %H:%M")
@@ -876,25 +958,25 @@ with tab1:
                         # Export HTML
                         html_content = generate_html_diagnostic(result, culture_input, image_info, timestamp)
                         st.download_button(
-                            label="💻 Exporter en HTML",
+                            label=t("download_html"),
                             data=html_content,
-                            file_name=f"diagnostic_agrilens_{datetime.now().strftime('%Y%m%d_%H%M')}.html",
+                            file_name=t("html_filename").format(date=datetime.now().strftime('%Y%m%d_%H%M')),
                             mime="text/html",
-                            help="Télécharger le diagnostic au format HTML"
+                            help=t("export_html")
                         )
                     
                     with col2:
                         # Export Texte
                         text_content = generate_text_diagnostic(result, culture_input, image_info, timestamp)
                         st.download_button(
-                            label="📝 Exporter en Texte",
+                            label=t("download_text"),
                             data=text_content,
-                            file_name=f"diagnostic_agrilens_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
+                            file_name=t("text_filename").format(date=datetime.now().strftime('%Y%m%d_%H%M')),
                             mime="text/plain",
-                            help="Télécharger le diagnostic au format texte"
+                            help=t("export_text")
                         )
         except Exception as e:
-            st.error(f"Erreur lors du traitement de l'image : {e}")
+            st.error(t("image_processing_general_error") + str(e))
 
 # --- ONGLET 2: ANALYSE DE TEXTE ---
 with tab2:
@@ -903,13 +985,13 @@ with tab2:
     
     text_input = st.text_area(
         t("symptoms_desc"),
-        placeholder="Ex: Mes tomates ont des taches brunes sur les feuilles et les fruits, une poudre blanche sur les tiges...",
+        placeholder=t("symptoms_placeholder"),
         height=150
     )
     
     if st.button("🧠 Analyser avec l'IA", disabled=not st.session_state.model_loaded, type="primary"):
         if not st.session_state.model_loaded:
-            st.error("❌ Modèle non chargé. Veuillez le charger dans les réglages.")
+            st.error(t("model_not_loaded_error"))
         elif not text_input.strip():
             st.error("❌ Veuillez saisir une description des symptômes.")
         else:
@@ -922,7 +1004,7 @@ with tab2:
             
             # Section d'export du diagnostic (analyse de texte)
             st.markdown("---")
-            st.subheader("📄 Exporter le Diagnostic")
+            st.subheader(t("export_diagnostic"))
             
             # Préparer les informations pour l'export
             timestamp = datetime.now().strftime("%d/%m/%Y à %H:%M")
@@ -933,22 +1015,22 @@ with tab2:
                 # Export HTML
                 html_content = generate_html_diagnostic(result, None, None, timestamp)
                 st.download_button(
-                    label="💻 Exporter en HTML",
+                    label=t("download_html"),
                     data=html_content,
-                    file_name=f"diagnostic_agrilens_{datetime.now().strftime('%Y%m%d_%H%M')}.html",
+                    file_name=t("html_filename").format(date=datetime.now().strftime('%Y%m%d_%H%M')),
                     mime="text/html",
-                    help="Télécharger le diagnostic au format HTML"
+                    help=t("export_html")
                 )
             
             with col2:
                 # Export Texte
                 text_content = generate_text_diagnostic(result, None, None, timestamp)
                 st.download_button(
-                    label="📝 Exporter en Texte",
+                    label=t("download_text"),
                     data=text_content,
-                    file_name=f"diagnostic_agrilens_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
+                    file_name=t("text_filename").format(date=datetime.now().strftime('%Y%m%d_%H%M')),
                     mime="text/plain",
-                    help="Télécharger le diagnostic au format texte"
+                    help=t("export_text")
                 )
 
 # --- ONGLET 3: MANUEL ---
@@ -1427,36 +1509,22 @@ with tab3:
 # --- ONGLET 4: À PROPOS ---
 with tab4:
     st.header(t("about_title"))
-    st.markdown("### 🌱 Notre Mission / Our Mission")
-    st.markdown("AgriLens AI est une application de diagnostic des maladies de plantes utilisant l'intelligence artificielle pour aider les agriculteurs à identifier et traiter les problèmes de leurs cultures.")
+    st.markdown(t("mission_title"))
+    st.markdown(t("mission_text"))
     
-    st.markdown("### 🚀 Fonctionnalités / Features")
-    st.markdown("""
-    • **Analyse d'images** : Diagnostic visuel des maladies
-    • **Analyse de texte** : Conseils basés sur les descriptions
-    • **Recommandations pratiques** : Actions concrètes à entreprendre
-    • **Interface optimisée** : Pour une utilisation sur divers appareils
-    • **Support multilingue** : Français et Anglais
-    """)
+    st.markdown(t("features_title"))
+    st.markdown(t("features_text"))
     
-    st.markdown("### 🔧 Technologie / Technology")
+    st.markdown(t("technology_title"))
     
     # Détecter si le modèle local est présent pour adapter le texte
     # is_local = os.path.exists(LOCAL_MODEL_PATH) # Si LOCAL_MODEL_PATH est défini et utilisé
     is_local = False # Pour l'instant, on assume chargement HF
     
     if is_local:
-        st.markdown(f"""
-        • **Modèle** : Gemma 3n E4B IT (Local - {LOCAL_MODEL_PATH})
-        • **Framework** : Streamlit
-        • **Déploiement** : Local
-        """)
+        st.markdown(t("local_model_text").format(path=LOCAL_MODEL_PATH))
     else:
-        st.markdown("""
-        • **Modèle** : Gemma 3n e2b it (Hugging Face - en ligne)
-        • **Framework** : Streamlit
-        • **Déploiement** : Hugging Face Spaces / En ligne
-        """)
+        st.markdown(t("online_model_text"))
     
     st.markdown(f"### {t('creator_title')}")
     st.markdown(f"{t('creator_name')}")
@@ -1464,15 +1532,16 @@ with tab4:
     st.markdown(f"📞 {t('creator_phone')}")
     st.markdown(f"📧 {t('creator_email')}")
     st.markdown(f"🔗 [{t('creator_linkedin')}](https://{t('creator_linkedin')})")
+    st.markdown(f"📁 {t('creator_portfolio')}")
     
     st.markdown(f"### {t('competition_title')}")
     st.markdown(t("competition_text"))
     
-    st.markdown("### ⚠️ Avertissement / Warning")
-    st.markdown("Les résultats fournis par l'IA sont à titre indicatif uniquement et ne remplacent pas l'avis d'un expert agricole qualifié.")
+    st.markdown(t("warning_title"))
+    st.markdown(t("warning_text"))
     
-    st.markdown("### 📞 Support")
-    st.markdown("Pour toute question ou problème, consultez la documentation ou contactez le créateur.")
+    st.markdown(t("support_title"))
+    st.markdown(t("support_text"))
 
 # --- PIED DE PAGE ---
 st.markdown("---")
