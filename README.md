@@ -106,18 +106,30 @@ streamlit run src/streamlit_app_multilingual.py
 
 AgriLens AI is designed to work **completely offline** once the model is downloaded. Here's how farmers in remote areas without internet access can use the application:
 
-#### **📱 Mobile Device Setup (Recommended)**
+#### **📱 Smartphone Setup (Most Practical for Farmers)**
+
+**Option A: Mobile Web App (Recommended)**
 ```bash
-# 1. Install on a smartphone/tablet with internet access
-git clone https://github.com/Sidoine1991/Agrilens-AI.git
-cd AgriLens-AI
-pip install -r requirements.txt
+# 1. Farmer visits AgriLens AI website on smartphone
+# 2. Takes photo directly with phone camera
+# 3. Gets instant diagnosis via mobile-optimized interface
+# 4. Works offline after initial page load
+```
 
-# 2. Download the model (one-time, requires internet)
-streamlit run src/streamlit_app_multilingual.py
-# Click "Load AI Model" - this downloads ~8GB model locally
+**Option B: Progressive Web App (PWA)**
+```bash
+# 1. Install AgriLens AI as app on smartphone
+# 2. Works like native app but uses web technology
+# 3. Can work offline with cached data
+# 4. No complex installation required
+```
 
-# 3. Disconnect from internet - app works offline!
+**Option C: Community Hub Model**
+```bash
+# 1. One smartphone/tablet per village/cooperative
+# 2. Farmers bring plant samples to community center
+# 3. Trained operator uses AgriLens AI for diagnosis
+# 4. Results shared with all farmers
 ```
 
 #### **💻 Computer Setup (Alternative)**
@@ -166,44 +178,61 @@ streamlit run src/streamlit_app_multilingual.py
 # All analysis works without internet
 ```
 
-### **📊 Offline vs Online Comparison**
+### **📊 Real-World Usage Comparison**
 
-| Feature | Online (Hugging Face) | Offline (Local) |
-|---------|----------------------|-----------------|
-| **Internet Required** | ✅ Always | ❌ Only for initial setup |
-| **Cost per Analysis** | ❌ Potential API costs | ✅ Free unlimited use |
-| **Data Privacy** | ❌ Data sent to cloud | ✅ Data stays local |
-| **Speed** | ⚠️ Depends on connection | ✅ Instant local processing |
-| **Reliability** | ⚠️ Depends on internet | ✅ Always available |
-| **Setup Complexity** | ✅ Simple (just visit URL) | ⚠️ One-time installation |
+| Feature | AgriLens AI Web App | Traditional Methods |
+|---------|-------------------|-------------------|
+| **Accessibility** | ✅ Any smartphone with internet | ❌ Requires expert visit |
+| **Cost** | ✅ Free (open source) | ❌ Expensive consultation fees |
+| **Speed** | ✅ Instant diagnosis | ❌ Days/weeks wait time |
+| **Accuracy** | ✅ AI-powered analysis | ⚠️ Depends on expert availability |
+| **Availability** | ✅ 24/7 online access | ❌ Limited expert availability |
+| **Language** | ✅ French & English | ❌ Often language barriers |
 
 ### **🚀 Deployment Options for Farmers**
 
-#### **Option 1: Individual Farmer Setup**
+#### **Option 1: Individual Farmer Smartphone Setup**
 - **Cost** : Free (open source)
-- **Requirements** : Smartphone/tablet with 8GB+ storage
-- **Setup Time** : 30 minutes (one-time)
-- **Best For** : Individual farmers with basic tech skills
+- **Requirements** : Any smartphone with internet access
+- **Setup Time** : 2 minutes (just visit website)
+- **Best For** : Individual farmers with basic smartphone skills
+- **Advantages** : No installation, works on any phone, instant access
 
-#### **Option 2: Community Computer**
+#### **Option 2: Community Smartphone Hub**
 - **Cost** : Free (open source)
-- **Requirements** : One computer for entire community
-- **Setup Time** : 1 hour (one-time)
+- **Requirements** : One smartphone/tablet for entire community
+- **Setup Time** : 5 minutes (just visit website)
 - **Best For** : Villages, cooperatives, extension services
+- **Advantages** : Affordable, portable, easy to maintain
 
 #### **Option 3: Mobile Extension Service**
 - **Cost** : Free (open source)
-- **Requirements** : Tablet for extension workers
-- **Setup Time** : 30 minutes per device
+- **Requirements** : Extension worker's smartphone
+- **Setup Time** : 2 minutes (just visit website)
 - **Best For** : Agricultural extension programs
+- **Advantages** : Professional diagnosis anywhere, immediate recommendations, no setup needed
 
-### **💡 Practical Tips for Offline Use**
+### **💡 Practical Tips for Real-World Use**
 
-1. **Model Storage** : Ensure 8GB+ free space for model download
-2. **Battery Life** : Charge device before field work
-3. **Photo Quality** : Good lighting improves diagnosis accuracy
-4. **Crop Specification** : Always specify crop type for better results
-5. **Export Results** : Save important diagnoses for future reference
+1. **Internet Access** : Visit AgriLens AI website when in town with internet
+2. **Photo Quality** : Good lighting improves diagnosis accuracy
+3. **Crop Specification** : Always specify crop type for better results
+4. **Save Results** : Take screenshot or note down important diagnoses
+5. **Community Sharing** : Share results with other farmers in the area
+
+### **🎯 Why Web-Based Solution is Practical for Farmers**
+
+**Realistic Approach for Rural Areas:**
+- **Smartphone Penetration** : 70%+ of farmers in developing countries have smartphones
+- **Internet Access** : Available in most towns and villages (even if limited)
+- **No Technical Skills** : Just visit website, no complex installation
+- **Cost-Effective** : Free to use, no expensive hardware required
+- **Scalable** : Works for millions of farmers simultaneously
+
+**Traditional vs AgriLens AI:**
+- **Before** : Wait weeks for agricultural expert, pay consultation fees
+- **Now** : Instant diagnosis on smartphone, completely free
+- **Impact** : Faster treatment, reduced crop losses, better yields
 
 ### Quick Start (After Installation)
 
