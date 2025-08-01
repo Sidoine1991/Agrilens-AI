@@ -62,7 +62,7 @@ See what the diagnosis results look like:
 
 ## 🏗️ Architecture
 
-![AgriLens AI Architecture](https://github.com/Sidoine1991/Agrilens-AI/blob/main/appdesign.png?raw=true)
+![AgriLens AI Architecture](architecture_app.png)
 
 **Technology Stack:**
 - **AI Model**: Google Gemma 3n (multimodal)
