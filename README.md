@@ -56,7 +56,7 @@ See what the diagnosis results look like:
 
 | **Interface Overview** | **Image Upload** | **Results Output** | **Mobile Mode** |
 |:---:|:---:|:---:|:---:|
-| ![Interface Overview](screenshots/Interface_overview.png) | ![Image Upload](screenshots/image_uploding.jpeg) | ![Results Output](screenshots/result_output.jpeg) | ![Mobile Mode](screenshots/mobile%20mode.jpg) |
+| ![Interface Overview](screenshots/Interface_overview.png) | ![Image Upload](screenshots/image_uploding.jpeg) | ![Results Output](screenshots/result_output.jpeg) | ![Mobile Mode](screenshots/mobile_mode1.jpg) |
 
 ## 🏗️ Architecture
 
