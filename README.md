@@ -77,7 +77,6 @@ AgriLens AI is an innovative **plant disease diagnosis application** using artif
 - Python 3.11+
 - Modern web browser
 - Internet connection (for model loading)
-- Internet connection (for model loading)
 - Minimum 8GB RAM (16GB+ recommended for full Gemma 3n)
 
 ### Local Installation
@@ -100,6 +99,15 @@ pip install -r requirements.txt
 # Run the application
 streamlit run src/streamlit_app_multilingual.py
 ```
+
+### Quick Start (After Installation)
+
+1. **Load the AI Model** : Click "Load AI Model" in the sidebar settings
+2. **Choose Language** : Select French or English from the language selector
+3. **Upload Image** : Take a photo or upload an image of the diseased plant
+4. **Specify Crop Type** : Enter the crop type for better accuracy (optional but recommended)
+5. **Get Diagnosis** : Receive AI-powered analysis and treatment recommendations
+6. **Export Results** : Download diagnosis in HTML or text format if needed
 
 ### Docker Installation
 
@@ -125,15 +133,13 @@ docker run -p 8501:7860 agrilens-ai
 ### 📸 Image Analysis Process
 1. **Image Upload** : Upload or capture plant image
 2. **Crop Specification** : Specify the crop type (optional but recommended)
-3. **Gemma 3n Analysis** : Initial visual diagnosis by Gemma 3n
+3. **Gemma 3n Analysis** : Complete visual diagnosis by Gemma 3n
 4. **Results Display** : Comprehensive diagnosis with treatment options
-5. **Results Display** : Comprehensive diagnosis with treatment options
 
 ## 🔬 Technology Stack
 
 ### Core Technologies
 - **Framework** : [Streamlit](https://streamlit.io/) - Web application framework
-- **Primary AI Model** : [Gemma 3n E4B IT](https://huggingface.co/google/gemma-3n-E4B-it) - Google's multimodal model
 - **AI Model** : [Gemma 3n E4B IT](https://huggingface.co/google/gemma-3n-E4B-it) - Google's multimodal model for diagnosis
 - **Deployment** : [Hugging Face Spaces](https://huggingface.co/spaces) - Cloud hosting platform
 - **Languages** : Python, HTML, CSS, JavaScript
@@ -143,7 +149,6 @@ docker run -p 8501:7860 agrilens-ai
 - **PyTorch** : Deep learning framework
 - **Pillow** : Image processing
 - **Streamlit** : Web interface
-- **Torch** : Tensor operations and model inference
 
 ## ⚙️ Model Configuration
 
