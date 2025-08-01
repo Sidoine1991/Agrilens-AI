@@ -109,9 +109,48 @@ pip install -r requirements.txt
 streamlit run src/streamlit_app_multilingual.py
 ```
 
+### 📥 Model Download for Offline Use
+
+**Important**: For true offline functionality, you need to download the complete model files locally.
+
+#### Model Information
+- **Model**: `google/gemma-3n-E4B-it`
+- **Size**: ~10GB+ (complete model files)
+- **Location**: Hugging Face Hub
+
+#### Download Methods
+
+**Method 1: Automatic Download (First Run)**
+```bash
+# The app will download automatically on first run
+streamlit run src/streamlit_app_multilingual.py
+# This downloads ~10GB to your local cache
+```
+
+**Method 2: Manual Download**
+```bash
+# Download model files manually
+python -c "
+from transformers import AutoProcessor, AutoModelForCausalLM
+model_name = 'google/gemma-3n-E4B-it'
+processor = AutoProcessor.from_pretrained(model_name)
+model = AutoModelForCausalLM.from_pretrained(model_name)
+print('Model downloaded successfully!')
+"
+```
+
+**Method 3: From Kaggle Notebook**
+- Use the [Kaggle Notebook](https://www.kaggle.com/code/sidoineyebadokpo/agrilens-ai?scriptVersionId=253640926)
+- Download model files from Kaggle environment
+- Transfer to local machine
+
+#### Offline Setup Complete
+Once downloaded, the model files are cached locally and the app works completely offline. No internet connection needed for diagnosis.
+
 ### Requirements
 - Python 3.11+
 - 8GB+ RAM (16GB recommended)
+- 15GB+ free disk space (for model files)
 - Internet connection (first time only)
 
 ### Docker
