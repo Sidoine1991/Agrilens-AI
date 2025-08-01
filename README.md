@@ -15,24 +15,25 @@ license: mit
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.28+-red.svg)](https://streamlit.io/)
 [![Hugging Face](https://img.shields.io/badge/Hugging%20Face-Spaces-yellow.svg)](https://huggingface.co/spaces)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-CC%20BY%204.0-green.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-Production%20Ready-brightgreen.svg)](https://huggingface.co/spaces/sido1991/Agrilens_IAv1)
 
 ## 🎯 Overview
 
-AgriLens AI is an innovative **plant disease diagnosis application** using artificial intelligence to help farmers identify and treat problems in their crops. This first version was specifically developed to participate in the **Kaggle competition** and represents our expertise in AI applied to agriculture.
+AgriLens AI is an innovative **plant disease diagnosis application** using artificial intelligence to help farmers identify and treat problems in their crops. This application leverages **Google's Gemma 3n multimodal model** for initial visual analysis, enhanced by **Google's Gemini AI** for precise diagnosis interpretation.
 
 ### 🌟 Key Features
 
-- **📸 Image Analysis** : Visual disease diagnosis using AI
+- **📸 Image Analysis** : Visual disease diagnosis using Gemma 3n multimodal AI
 - **💬 Text Analysis** : Advice based on symptom descriptions
 - **🌐 Multilingual Support** : French and English interfaces
 - **📱 Mobile Responsive** : Optimized for smartphones and tablets
 - **🔧 Practical Recommendations** : Concrete actions to take
 - **⚡ Real-time Processing** : Fast AI-powered analysis
-- **🧠 Advanced AI** : Gemini API integration for precise diagnosis
+- **🧠 Advanced AI** : Gemini API integration for enhanced diagnosis interpretation
 - **🔄 Adaptive Model Loading** : Smart model selection based on available resources
 - **💾 Memory Optimization** : Efficient resource management for deployment
+- **📄 Export Functionality** : Export diagnostics in HTML or text format
 
 ## 🚀 Live Demo
 
@@ -46,13 +47,15 @@ AgriLens AI is an innovative **plant disease diagnosis application** using artif
 - Interface automatically adapts to mobile screens
 - Touch-friendly controls and navigation
 
-## 🏗️ Architecture
+## 🏗️ Project Architecture
+
+![AgriLens AI Architecture](appdesign.png)
 
 ### System Design
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │   Frontend      │    │   Backend        │    │   AI Models     │
-│   (Streamlit)   │◄──►│   (Python)       │◄──►│   (Hugging Face)│
+│   (Streamlit)   │◄──►│   (Python)       │◄──►│   (Gemma 3n)    │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
          │                       │                       │
          ▼                       ▼                       ▼
@@ -62,11 +65,13 @@ AgriLens AI is an innovative **plant disease diagnosis application** using artif
 └─────────────────┘    └──────────────────┘    └─────────────────┘
 ```
 
-### Model Architecture
-- **Primary Model** : Gemma 3B IT (Google) - Lightweight multimodal model
-- **Fallback Models** : DialoGPT-medium, DistilBERT for resource-constrained environments
-- **Enhancement** : Gemini 1.5 Flash API for improved diagnosis interpretation
-- **Processing Pipeline** : Adaptive model loading based on available memory
+### AI Architecture
+- **Primary Model** : **Gemma 3n E4B IT** (Google) - Multimodal model for visual analysis
+- **Enhancement Model** : **Gemini 1.5 Flash API** (Google) - For improved diagnosis interpretation
+- **Processing Pipeline** : 
+  1. Gemma 3n analyzes the image and provides initial diagnosis
+  2. Gemini API enhances the interpretation with detailed recommendations
+  3. Results are presented in a user-friendly format
 
 ## 🛠️ Installation
 
@@ -74,15 +79,15 @@ AgriLens AI is an innovative **plant disease diagnosis application** using artif
 - Python 3.11+
 - Modern web browser
 - Internet connection (for model loading)
-- Google API Key (optional, for enhanced diagnosis)
-- Minimum 4GB RAM (8GB+ recommended)
+- Google API Key (for Gemini enhancement)
+- Minimum 8GB RAM (16GB+ recommended for full Gemma 3n)
 
 ### Local Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/Sidoineko/AgriLensAI.git
-cd AgriLensAI
+git clone https://github.com/Sidoine1991/Agrilens-AI.git
+cd AgriLens-AI
 
 # Create virtual environment
 python -m venv venv
@@ -108,39 +113,32 @@ docker build -t agrilens-ai .
 docker run -p 8501:7860 agrilens-ai
 ```
 
-### Quick Start Scripts
-```bash
-# Windows
-lancer_app_local.bat
-
-# Linux/Mac
-./start.sh
-```
-
-## 📖 User Manuals
-
-### 📚 Complete Documentation
-- **[French Manual](docs/user_manual_fr.md)** : Manuel utilisateur complet en français
-- **[English Manual](docs/user_manual_en.md)** : Complete user manual in English
+## 📖 User Guide
 
 ### 🎯 Quick Start Guide
 
 1. **Load the AI Model** : Click "Load AI Model" in settings
 2. **Choose Language** : Select French or English
 3. **Upload Image** : Take a photo of the diseased plant
-4. **Get Diagnosis** : Receive AI-powered analysis and recommendations
+4. **Specify Crop Type** : Enter the crop type for better accuracy
+5. **Get Diagnosis** : Receive AI-powered analysis and recommendations
+6. **Export Results** : Download diagnosis in HTML or text format
+
+### 📸 Image Analysis Process
+1. **Image Upload** : Upload or capture plant image
+2. **Crop Specification** : Specify the crop type (optional but recommended)
+3. **Gemma 3n Analysis** : Initial visual diagnosis by Gemma 3n
+4. **Gemini Enhancement** : Detailed interpretation and recommendations
+5. **Results Display** : Comprehensive diagnosis with treatment options
 
 ## 🔬 Technology Stack
 
 ### Core Technologies
 - **Framework** : [Streamlit](https://streamlit.io/) - Web application framework
-- **AI Models** : 
-  - [Gemma 3B IT](https://huggingface.co/google/gemma-3b-it) - Primary multimodal model
-  - [DialoGPT-medium](https://huggingface.co/microsoft/DialoGPT-medium) - Lightweight fallback
-  - [DistilBERT](https://huggingface.co/distilbert/distilbert-base-uncased) - Ultra-lightweight option
-- **Advanced AI** : [Gemini API](https://ai.google.dev/) - Google's advanced AI for precise diagnosis
+- **Primary AI Model** : [Gemma 3n E4B IT](https://huggingface.co/google/gemma-3n-E4B-it) - Google's multimodal model
+- **Enhancement AI** : [Gemini 1.5 Flash API](https://ai.google.dev/) - Google's advanced AI for diagnosis interpretation
 - **Deployment** : [Hugging Face Spaces](https://huggingface.co/spaces) - Cloud hosting platform
-- **Languages** : Python, HTML, CSS
+- **Languages** : Python, HTML, CSS, JavaScript
 
 ### Key Libraries
 - **Transformers** : Hugging Face's AI model library
@@ -152,36 +150,33 @@ lancer_app_local.bat
 
 ## ⚙️ Model Configuration
 
-### Adaptive Model Loading
-The application automatically selects the best model based on available resources:
+### AI Model Architecture
+The application uses a two-stage AI approach:
 
 ```python
-# Memory-constrained environments (HF Spaces)
-load_ultra_lightweight_for_hf_spaces()  # DistilBERT
+# Stage 1: Gemma 3n for initial visual analysis
+gemma_diagnosis = gemma3n_analyze_image(image, crop_type)
 
-# Standard environments
-load_basic_pipeline()                   # Pipeline approach
-
-# High-memory environments
-load_gemma_full()                       # Full Gemma 3n E4B IT
-
-# Conservative approach
-load_conservative()                     # Gemma with CPU optimization
+# Stage 2: Gemini for enhanced interpretation
+enhanced_diagnosis = gemini_enhance_diagnosis(gemma_diagnosis)
 ```
 
 ### Model Specifications
-| Model | Size | Memory Usage | Use Case |
-|-------|------|--------------|----------|
-| Gemma 3n E4B IT | ~8GB | 16GB+ | Full-featured analysis |
-| Gemma 3B IT | ~2GB | 4-8GB | Standard deployment |
-| DialoGPT-medium | ~500MB | 2-4GB | Lightweight deployment |
-| DistilBERT | ~250MB | 1-2GB | Ultra-lightweight |
+| Model | Size | Memory Usage | Purpose |
+|-------|------|--------------|---------|
+| Gemma 3n E4B IT | ~8GB | 16GB+ | Primary visual analysis |
+| Gemini 1.5 Flash | API | Minimal | Diagnosis enhancement |
+
+### Memory Management
+- **Dynamic Model Loading** : Loads Gemma 3n based on available RAM
+- **Cache Management** : Efficient model persistence and restoration
+- **Resource Monitoring** : Real-time memory usage tracking
 
 ## 🎯 Performance Metrics
 
 ### Accuracy & Speed
-- **Image Recognition** : High accuracy in disease identification
-- **Diagnostic Precision** : Enhanced with Gemini AI integration
+- **Image Recognition** : High accuracy in disease identification using Gemma 3n
+- **Diagnostic Precision** : Enhanced with Gemini AI interpretation
 - **Response Time** : < 30 seconds for complete analysis
 - **Memory Efficiency** : Adaptive loading prevents OOM errors
 
@@ -202,7 +197,7 @@ load_conservative()                     # Gemma with CPU optimization
 ## 🔧 Advanced Features
 
 ### Memory Management
-- **Dynamic Model Loading** : Loads appropriate model based on available RAM
+- **Dynamic Model Loading** : Loads Gemma 3n based on available RAM
 - **Cache Management** : Efficient model persistence and restoration
 - **Resource Monitoring** : Real-time memory usage tracking
 
@@ -216,6 +211,11 @@ load_conservative()                     # Gemma with CPU optimization
 - **English Interface** : Full English support
 - **Dynamic Translation** : Context-aware language switching
 
+### Export Functionality
+- **HTML Export** : Styled diagnostic reports
+- **Text Export** : Plain text diagnostic summaries
+- **Timestamped Files** : Organized export with timestamps
+
 ## 👨‍💻 Creator Information
 
 ### **Sidoine Kolaolé YEBADOKPO**
@@ -223,10 +223,10 @@ load_conservative()                     # Gemma with CPU optimization
 - **Phone** : +229 01 96 91 13 46
 - **Email** : syebadokpo@gmail.com
 - **LinkedIn** : [linkedin.com/in/sidoineko](https://linkedin.com/in/sidoineko)
-- **Hugging Face Portfolio** : [Sidoineko/portfolio](https://huggingface.co/Sidoineko/portfolio)
+- **Hugging Face Portfolio** : [Sidoineko/portfolio](https://huggingface.co/spaces/Sidoineko/portfolio)
 
 ### 🏆 Competition Version
-This first version of AgriLens AI was specifically developed to participate in the **Kaggle competition**. It represents our initial public production and demonstrates our expertise in AI applied to agriculture.
+This version of AgriLens AI was specifically developed for the **Google - Gemma 3n Hackathon**. It demonstrates advanced AI integration using Google's latest multimodal models for agricultural applications.
 
 ## ⚙️ Configuration
 
@@ -239,28 +239,29 @@ GOOGLE_API_KEY=your_google_api_key_here
 HF_TOKEN=your_huggingface_token_here
 
 # Optional: Force specific model loading strategy
-FORCE_MODEL_STRATEGY=ultra_lightweight
+FORCE_MODEL_STRATEGY=conservative
 ```
 
 ### Model Configuration
-- **Primary Model** : Gemma 3B IT (Google)
-- **Enhanced AI** : Gemini 1.5 Flash (Google)
+- **Primary Model** : Gemma 3n E4B IT (Google)
+- **Enhancement AI** : Gemini 1.5 Flash (Google)
 - **Processing** : CPU optimized for deployment
 - **Memory Management** : Adaptive based on environment
 
 ## 🗺️ Roadmap
 
 ### Version 1.0 (Current) ✅
-- ✅ Basic image analysis
+- ✅ Gemma 3n image analysis
+- ✅ Gemini AI enhancement
 - ✅ Text-based diagnosis
 - ✅ Multilingual support
 - ✅ Mobile responsiveness
-- ✅ Gemini AI integration
+- ✅ Export functionality
 - ✅ Adaptive model loading
 - ✅ Memory optimization
 - ✅ Error handling
 
-### Version 1.1 (In Progress) 🔄
+### Version 1.1 (Planned) 🔄
 - 🔄 Real-time video analysis
 - 🔄 Offline mode support
 - 🔄 More plant species
@@ -284,19 +285,6 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-### Development Setup
-```bash
-# Install development dependencies
-pip install -r requirements_dev.txt
-
-# Run tests
-python -m pytest tests/
-
-# Format code
-black src/
-isort src/
-```
-
 ## 📄 License
 
 This project is developed for the **Google - Gemma 3n Hackathon** and is licensed under **Creative Commons Attribution 4.0 International (CC BY 4.0)**.
@@ -311,40 +299,47 @@ See the [LICENSE](LICENSE) file for full details.
 
 ## ⚠️ Disclaimer
 
-This application is designed to assist farmers and gardeners in identifying plant diseases. While we strive for accuracy, the diagnosis should not replace professional agricultural advice. Always consult with local agricultural experts for critical decisions.
+This application is designed to assist farmers and gardeners in identifying plant diseases. While we strive for accuracy using advanced AI models (Gemma 3n + Gemini), the diagnosis should not replace professional agricultural advice. Always consult with local agricultural experts for critical decisions.
 
 ## 🐛 Known Issues & Solutions
 
 ### Memory Issues on HF Spaces
-- **Problem** : Model loading fails due to 16GB RAM limit
-- **Solution** : Application automatically uses ultra-lightweight models
+- **Problem** : Gemma 3n loading fails due to 16GB RAM limit
+- **Solution** : Application automatically uses conservative loading strategy
 - **Workaround** : Manual model selection in settings
 
 ### Model Loading Timeouts
 - **Problem** : Long loading times on slow connections
-- **Solution** : Implemented timeout protection with fallback models
+- **Solution** : Implemented timeout protection with fallback strategies
 - **Workaround** : Use local deployment for faster loading
 
 ## 🙏 Acknowledgments
 
-- **Google** : For providing Gemma and Gemini AI models
+- **Google** : For providing Gemma 3n and Gemini AI models
 - **Hugging Face** : For the deployment platform and transformers library
 - **Streamlit** : For the web framework
-- **Kaggle** : For hosting the competition that inspired this project
+- **Google - Gemma 3n Hackathon** : For inspiring this project
 - **Open Source Community** : For the amazing tools and libraries
 
 ## 📊 Project Statistics
 
 - **Lines of Code** : ~2,000+
-- **Models Supported** : 4 different AI models
+- **AI Models** : 2 (Gemma 3n + Gemini)
 - **Languages** : 2 (French, English)
 - **Deployment Platforms** : 3 (Local, Docker, HF Spaces)
 - **Test Coverage** : Comprehensive error handling
 
+## 🔗 Important Links
+
+- **Live Demo** : [Hugging Face Spaces](https://huggingface.co/spaces/sido1991/Agrilens_IAv1)
+- **Kaggle Notebook** : [AgriLens AI Notebook](https://www.kaggle.com/code/sidoineyebadokpo/agrilens-ai?scriptVersionId=253640926)
+- **Portfolio** : [Hugging Face Portfolio](https://huggingface.co/spaces/Sidoineko/portfolio)
+- **Repository** : [GitHub](https://github.com/Sidoine1991/Agrilens-AI)
+
 ---
 
-*AgriLens AI - Intelligent plant disease diagnosis with AI* 🌱
+*AgriLens AI - Intelligent plant disease diagnosis with Google's Gemma 3n and Gemini AI* 🌱
 
-**Last Updated** : July 2024  
+**Last Updated** : July 2025  
 **Version** : 1.0.0  
 **Status** : Production Ready 
