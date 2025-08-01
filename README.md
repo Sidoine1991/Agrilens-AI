@@ -218,6 +218,56 @@ print('Model downloaded successfully!')
 - Download model files from Kaggle environment
 - Transfer to local machine
 
+### 🚨 Critical First-Time Setup Process
+
+**Important**: For offline-first usage, you need to download the complete model locally. This is a **one-time critical process** that requires stable internet connection.
+
+#### Step-by-Step Process:
+
+1. **Create Hugging Face Account**
+   - Go to [Hugging Face](https://huggingface.co/join)
+   - Create an account and verify your email
+   - This step is mandatory for model access
+
+2. **Access the Model**
+   - Visit: `https://huggingface.co/google/gemma-3n-E4B-it`
+   - Accept the model terms and conditions
+   - This grants you download permissions
+
+3. **Download Model Files**
+   - **Model Size**: ~10GB (complete files)
+   - **Critical**: Ensure stable internet connection
+   - If download fails, you must restart from beginning
+   - Download all model files individually if needed
+
+4. **Organize Files**
+   - Create folder: `model_gemma`
+   - Place all downloaded files in this folder
+   - Update path in code: `LOCAL_MODEL_PATH = "D:/Dev/model_gemma"`
+
+#### ⚠️ Critical Requirements:
+
+- **Stable Internet**: 10GB download requires reliable connection
+- **Sufficient Storage**: 15GB+ free space recommended
+- **Patience**: Download may take 30-60 minutes depending on connection
+- **No Interruption**: Avoid system sleep or network disconnection
+
+#### 🆚 Demo vs Offline Usage:
+
+| Feature | Hugging Face Demo | Local Offline Setup |
+|---------|------------------|-------------------|
+| **Internet** | Required | Only for initial download |
+| **Speed** | Depends on server | Instant local processing |
+| **Reliability** | Subject to outages | Always available |
+| **Setup Time** | Instant | 30-60 minutes one-time |
+| **Model Access** | Pre-loaded | Downloaded locally |
+
+#### 🔄 Alternative: Kaggle Download
+If Hugging Face download fails:
+1. Use our [Kaggle Notebook](https://www.kaggle.com/code/sidoineyebadokpo/agrilens-ai)
+2. Download model from Kaggle environment
+3. Transfer files to local `model_gemma` folder
+
 #### Offline Setup Complete
 Once downloaded, the model files are cached locally and the app works completely offline. No internet connection needed for diagnosis.
 
