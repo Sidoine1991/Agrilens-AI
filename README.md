@@ -165,9 +165,10 @@ To avoid disruptions to the AI model during analysis, it is **strongly recommend
 - **Use "Do Not Disturb" mode** to avoid interruptions
 
 #### Why This is Important:
-- The AI model requires **2-3 minutes** for complete analysis
+- The AI model requires **2-20 minutes** for complete analysis (depending on RAM)
 - Sleep mode can **interrupt the process** and corrupt results
 - **System stability** ensures accurate diagnostics
+- **Patience is crucial** - do not interrupt the process even if it seems slow
 
 ## 🛠️ Installation
 
@@ -286,7 +287,24 @@ docker run -p 8501:7860 agrilens-ai
 
 ## 🎯 Performance
 
-- **Response Time**: < 30 seconds
+### Response Time by Hardware Configuration
+
+| RAM Configuration | Expected Response Time | Notes |
+|------------------|----------------------|-------|
+| **16GB+ RAM** | < 30 seconds | Optimal performance |
+| **8-12GB RAM** | 1-3 minutes | Good performance |
+| **4-8GB RAM** | 5-10 minutes | Acceptable performance |
+| **< 4GB RAM** | 10-20 minutes | **Maximum wait time** |
+
+### ⚠️ Important Performance Notes
+
+- **RAM is Critical**: The AI model requires significant memory for processing
+- **First Run**: Initial model loading may take longer on all systems
+- **Background Processes**: Close other applications to free up RAM
+- **Patience Required**: On low-RAM devices, the diagnostic process can take up to **20 minutes maximum**
+- **No Interruption**: Do not close the application during analysis, even if it seems slow
+
+### Accuracy & Capabilities
 - **Accuracy**: High precision with Gemma 3n
 - **Memory**: Adaptive loading for different hardware
 - **Supported Plants**: Vegetables, fruits, grains, ornamentals, herbs
