@@ -633,6 +633,17 @@ def analyze_text_multilingual(text):
         return f"❌ Erreur lors de l'analyse de texte : {e}"
 
 # --- INTERFACE UTILISATEUR STREAMLIT ---
+
+# --- INITIALISATION DES VARIABLES DE SESSION ---
+if 'model' not in st.session_state:
+    st.session_state.model = None
+if 'processor' not in st.session_state:
+    st.session_state.processor = None
+if 'model_loaded' not in st.session_state:
+    st.session_state.model_loaded = False
+if 'model_status' not in st.session_state:
+    st.session_state.model_status = t("not_loaded")
+
 # --- SIDEBAR (RÉGLAGES) ---
 with st.sidebar:
     st.header("⚙️ " + t("config_title"))
