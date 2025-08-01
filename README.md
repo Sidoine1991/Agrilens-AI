@@ -49,7 +49,7 @@ AgriLens AI is an innovative **plant disease diagnosis application** using artif
 
 ## 🏗️ Project Architecture
 
-![AgriLens AI Architecture](appdesign.png)
+![AgriLens AI Architecture](https://github.com/Sidoine1991/Agrilens-AI/blob/main/appdesign.png?raw=true)
 
 ### System Design
 ```
