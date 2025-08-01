@@ -804,72 +804,97 @@ def load_model_strategy(model_identifier, device_map=None, torch_dtype=None, qua
         raise Exception(f"Échec du chargement avec la stratégie : {e}")
 
 def load_model():
-    """Charge le modèle Gemma 3n E4B IT (local ou Hugging Face) avec des stratégies robustes."""
+    """Charge le modèle avec une stratégie adaptative basée sur l'environnement."""
     try:
-        issues = diagnose_loading_issues()
-        with st.expander("📊 Diagnostic système", expanded=False):
-            for issue in issues:
-                st.markdown(issue)
-
-        gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-
-        is_local = os.path.exists(LOCAL_MODEL_PATH)
-        strategies_to_try = []
-
-        if is_local:
-            strategies_to_try.append(("Local (ultra-conservateur CPU)", lambda: load_model_strategy(LOCAL_MODEL_PATH, device_map="cpu", torch_dtype=torch.bfloat16, quantization=None, force_persistence=True)))
-            strategies_to_try.append(("Local (conservateur CPU)", lambda: load_model_strategy(LOCAL_MODEL_PATH, device_map="cpu", torch_dtype=torch.bfloat16, quantization=None, force_persistence=True)))
-        else:
-            st.info("Modèle local non trouvé. Tentative de chargement depuis Hugging Face...")
-            if torch.cuda.is_available():
-                gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1024**3
-                st.info(f"Mémoire GPU disponible : {gpu_memory:.1f} GB")
-                
-                if gpu_memory >= 10:
-                    strategies_to_try.append(("Hugging Face (float16)", lambda: load_model_strategy(MODEL_ID_HF, device_map="auto", torch_dtype=torch.float16, quantization=None)))
-                if gpu_memory >= 8:
-                    strategies_to_try.append(("Hugging Face (8-bit quantization)", lambda: load_model_strategy(MODEL_ID_HF, device_map="auto", torch_dtype=torch.float16, quantization="8bit")))
-                if gpu_memory >= 6:
-                    strategies_to_try.append(("Hugging Face (4-bit quantization)", lambda: load_model_strategy(MODEL_ID_HF, device_map="auto", torch_dtype=torch.float16, quantization="4bit")))
-                
-                if gpu_memory < 6:
-                     st.warning("Mémoire GPU limitée. L'utilisation du CPU sera probablement plus stable.")
-
-            strategies_to_try.append(("Hugging Face (conservative CPU)", lambda: load_model_strategy(MODEL_ID_HF, device_map="cpu", torch_dtype=torch.float32, quantization=None)))
-            strategies_to_try.append(("Hugging Face (ultra-conservative CPU)", lambda: load_model_strategy(MODEL_ID_HF, device_map="cpu", torch_dtype=torch.float32, quantization=None)))
-
-        for i, (name, strategy_func) in enumerate(strategies_to_try):
-            st.info(f"Tentative {i+1}/{len(strategies_to_try)} : Chargement via '{name}'...")
-            try:
-                model, processor = strategy_func()
-                if model and processor:
-                    st.success(f"✅ Modèle chargé avec succès via la stratégie : '{name}'")
-                    return model, processor
-            except Exception as e:
-                error_msg = str(e)
-                st.warning(f"La stratégie '{name}' a échoué : {error_msg}")
-                if "disk_offload" in error_msg.lower() or "out of memory" in error_msg.lower():
-                    st.warning("Problème de mémoire ou de disk_offload. Tentative suivante...")
-                elif "403" in error_msg or "Forbidden" in error_msg:
-                    st.error(f"❌ Erreur d'accès Hugging Face (403) avec la stratégie '{name}'. Vérifiez votre HF_TOKEN.")
-                    return None, None
-                else:
-                    st.warning("Tentative suivante...")
-                
-                gc.collect()
-                if torch.cuda.is_available(): torch.cuda.empty_cache()
-                continue
+        st.info("🔍 Début du processus de chargement du modèle...")
         
-        st.error("Toutes les stratégies de chargement du modèle ont échoué.")
-        return None, None
-
+        # Détecter l'environnement Hugging Face Spaces
+        is_hf_spaces = os.environ.get('SPACE_ID') is not None
+        st.info(f"🌍 Environnement détecté : {'Hugging Face Spaces' if is_hf_spaces else 'Local'}")
+        
+        if is_hf_spaces:
+            st.info("🌐 Environnement Hugging Face Spaces détecté - Utilisation de la stratégie optimisée")
+            result = load_ultra_lightweight_for_hf_spaces()
+            st.info(f"📊 Résultat du chargement HF Spaces : {result[0] is not None and result[1] is not None}")
+            return result
+        else:
+            st.info("💻 Environnement local détecté - Chargement du modèle Gemma 3n complet")
+            result = load_gemma_full()
+            st.info(f"📊 Résultat du chargement local : {result[0] is not None and result[1] is not None}")
+            return result
+            
     except ImportError as e:
-        st.error(f"❌ Erreur de dépendance : . Installez avec `pip install transformers torch accelerate bitsandbytes`.")
+        st.error(f"❌ Erreur de dépendance : {str(e)}. Installez avec `pip install transformers torch accelerate bitsandbytes`.")
         return None, None
     except Exception as e:
-        st.error(f"❌ Une erreur générale s'est produite lors du chargement du modèle : ")
+        st.error(f"❌ Une erreur générale s'est produite lors du chargement du modèle : {str(e)}")
+        return None, None
+
+def load_ultra_lightweight_for_hf_spaces():
+    """Charge un modèle léger pour Hugging Face Spaces (16GB RAM limit)"""
+    try:
+        st.info("🔄 Début du chargement du modèle Gemma 3B IT pour Hugging Face Spaces...")
+        
+        from transformers import AutoTokenizer, AutoModelForCausalLM
+        
+        # Charger Gemma 3B IT (plus léger que Gemma 3n E4B IT)
+        model_id = "google/gemma-3b-it"
+        st.info(f"📦 Modèle cible : {model_id}")
+        
+        st.info("🔧 Configuration ultra-légère en cours...")
+        
+        # Configuration ultra-légère
+        model = AutoModelForCausalLM.from_pretrained(
+            model_id,
+            device_map="cpu",
+            torch_dtype=torch.float32,
+            low_cpu_mem_usage=True,
+            offload_folder="offload",
+            offload_state_dict=True,
+            max_memory={0: "12GB", "cpu": "4GB"}
+        )
+        
+        st.info("✅ Modèle chargé, chargement du tokenizer...")
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        
+        if model and tokenizer:
+            st.success("✅ Modèle Gemma 3B IT chargé avec succès pour Hugging Face Spaces")
+            st.info(f"📊 Modèle type : {type(model).__name__}")
+            st.info(f"📊 Tokenizer type : {type(tokenizer).__name__}")
+            return model, tokenizer
+        else:
+            st.error("❌ Échec du chargement du modèle ou du tokenizer")
+            return None, None
+            
+    except Exception as e:
+        st.error(f"❌ Erreur lors du chargement du modèle léger : {str(e)}")
+        st.error(f"🔍 Type d'erreur : {type(e).__name__}")
+        return None, None
+
+def load_gemma_full():
+    """Charge le modèle Gemma 3n E4B IT complet pour usage local"""
+    try:
+        st.info("🔄 Chargement du modèle Gemma 3n E4B IT complet...")
+        
+        # Configuration pour usage local avec plus de ressources
+        model = Gemma3nForConditionalGeneration.from_pretrained(
+            MODEL_ID_HF,
+            device_map="auto" if torch.cuda.is_available() else "cpu",
+            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+            low_cpu_mem_usage=True
+        )
+        
+        processor = AutoProcessor.from_pretrained(MODEL_ID_HF)
+        
+        if model and processor:
+            st.success("✅ Modèle Gemma 3n E4B IT chargé avec succès")
+            return model, processor
+        else:
+            st.error("❌ Échec du chargement du modèle complet")
+            return None, None
+            
+    except Exception as e:
+        st.error(f"❌ Erreur lors du chargement du modèle complet : {str(e)}")
         return None, None
 
 def analyze_image_multilingual(image, prompt=""):
@@ -1133,12 +1158,26 @@ with st.sidebar:
     else:
         st.warning(t("model_not_loaded"))
         if st.button(t("load_model"), type="primary"):
-            with st.spinner(t("loading_model")):
-                model, processor = load_model()
-                if model and processor:
-                    st.success(t("model_loaded_success"))
-                else:
-                    st.error(t("model_load_failed"))
+            try:
+                with st.spinner(t("loading_model")):
+                    model, processor = load_model()
+                    if model and processor:
+                        # Mettre à jour les variables de session
+                        st.session_state.model = model
+                        st.session_state.processor = processor
+                        st.session_state.model_loaded = True
+                        st.session_state.model_status = "Chargé avec succès"
+                        st.session_state.model_load_time = time.time()
+                        st.session_state.model_persistence_check = True
+                        st.success(t("model_loaded_success"))
+                    else:
+                        st.error(t("model_load_failed"))
+                        st.session_state.model_loaded = False
+                        st.session_state.model_status = "Échec du chargement"
+            except Exception as e:
+                st.error(f"❌ Erreur lors du chargement : {str(e)}")
+                st.session_state.model_loaded = False
+                st.session_state.model_status = f"Erreur : {str(e)}"
             st.rerun()
 
     st.divider()
