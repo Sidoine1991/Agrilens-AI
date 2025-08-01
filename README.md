@@ -113,9 +113,9 @@ AgriLens AI is designed for **offline use** in rural areas:
 | **Language** | French + English | Often language barriers |
 | **Internet** | Only for setup | Not required |
 
-## 🔄 Workflow d'Utilisation
+## 🔄 Usage Workflow
 
-### Diagramme de Flux Complet
+### Complete Flow Diagram
 
 ```mermaid
 flowchart TD
@@ -146,28 +146,28 @@ flowchart TD
     style O fill:#f3e5f5
 ```
 
-### ⚠️ Conseils Importants
+### ⚠️ Important Tips
 
-**🖥️ Prévention de la Mise en Veille**
+**🖥️ Sleep Prevention**
 
-Pour éviter les perturbations du modèle AI pendant l'analyse, il est **fortement recommandé** de :
+To avoid disruptions to the AI model during analysis, it is **strongly recommended** to:
 
-#### Sur Laptop/Desktop :
-- **Désactiver la mise en veille** dans les paramètres système
-- **Augmenter le délai de mise en veille** à au moins 10 minutes
-- **Désactiver l'écran de veille** pendant l'utilisation
-- **Maintenir l'alimentation** branchée si possible
+#### On Laptop/Desktop:
+- **Disable sleep mode** in system settings
+- **Increase sleep delay** to at least 10 minutes
+- **Disable screen saver** during use
+- **Keep power connected** if possible
 
-#### Sur Mobile :
-- **Augmenter la luminosité** de l'écran
-- **Désactiver la rotation automatique** de l'écran
-- **Fermer les autres applications** pour économiser la batterie
-- **Utiliser le mode "Ne pas déranger"** pour éviter les interruptions
+#### On Mobile:
+- **Increase screen brightness**
+- **Disable auto-rotation** of the screen
+- **Close other applications** to save battery
+- **Use "Do Not Disturb" mode** to avoid interruptions
 
-#### Pourquoi c'est Important :
-- Le modèle AI nécessite **2-3 minutes** pour l'analyse complète
-- Une mise en veille peut **interrompre le processus** et corrompre les résultats
-- La **stabilité du système** garantit des diagnostics précis
+#### Why This is Important:
+- The AI model requires **2-3 minutes** for complete analysis
+- Sleep mode can **interrupt the process** and corrupt results
+- **System stability** ensures accurate diagnostics
 
 ## 🛠️ Installation
 
