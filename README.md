@@ -119,26 +119,26 @@ AgriLens AI is designed for **offline use** in rural areas:
 
 ```mermaid
 flowchart TD
-    A[🚀 Démarrage] --> B{📱 Type d'Appareil}
-    B -->|💻 Laptop/Desktop| C[🖥️ Installation Locale]
-    B -->|📱 Mobile| D[🌐 Accès Web]
+    A[🚀 Start] --> B{📱 Device Type}
+    B -->|💻 Laptop/Desktop| C[🖥️ Local Installation]
+    B -->|📱 Mobile| D[🌐 Web Access]
     
-    C --> E[📥 Cloner le Repository]
-    E --> F[🐍 Installer Python 3.11+]
-    F --> G[📦 Installer les Dépendances]
-    G --> H[🤖 Télécharger le Modèle AI]
-    H --> I[⚡ Lancer l'Application]
+    C --> E[📥 Clone Repository]
+    E --> F[🐍 Install Python 3.11+]
+    F --> G[📦 Install Dependencies]
+    G --> H[🤖 Download AI Model]
+    H --> I[⚡ Launch Application]
     
-    D --> J[🔗 Ouvrir le Lien Hugging Face]
-    J --> K[📱 Interface Mobile Adaptée]
+    D --> J[🔗 Open Hugging Face Link]
+    J --> K[📱 Mobile Interface]
     
-    I --> L[📸 Prendre/Uploader une Photo]
+    I --> L[📸 Take/Upload Photo]
     K --> L
-    L --> M[🌾 Spécifier le Type de Culture]
-    M --> N[🔍 Analyse par l'IA]
-    N --> O[📋 Diagnostic + Recommandations]
-    O --> P[💾 Exporter les Résultats]
-    P --> Q[✅ Diagnostic Terminé]
+    L --> M[🌾 Specify Crop Type]
+    M --> N[🔍 AI Analysis]
+    N --> O[📋 Diagnosis + Recommendations]
+    O --> P[💾 Export Results]
+    P --> Q[✅ Diagnosis Complete]
     
     style A fill:#e1f5fe
     style Q fill:#c8e6c9
