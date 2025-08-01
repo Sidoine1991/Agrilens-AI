@@ -113,6 +113,62 @@ AgriLens AI is designed for **offline use** in rural areas:
 | **Language** | French + English | Often language barriers |
 | **Internet** | Only for setup | Not required |
 
+## 🔄 Workflow d'Utilisation
+
+### Diagramme de Flux Complet
+
+```mermaid
+flowchart TD
+    A[🚀 Démarrage] --> B{📱 Type d'Appareil}
+    B -->|💻 Laptop/Desktop| C[🖥️ Installation Locale]
+    B -->|📱 Mobile| D[🌐 Accès Web]
+    
+    C --> E[📥 Cloner le Repository]
+    E --> F[🐍 Installer Python 3.11+]
+    F --> G[📦 Installer les Dépendances]
+    G --> H[🤖 Télécharger le Modèle AI]
+    H --> I[⚡ Lancer l'Application]
+    
+    D --> J[🔗 Ouvrir le Lien Hugging Face]
+    J --> K[📱 Interface Mobile Adaptée]
+    
+    I --> L[📸 Prendre/Uploader une Photo]
+    K --> L
+    L --> M[🌾 Spécifier le Type de Culture]
+    M --> N[🔍 Analyse par l'IA]
+    N --> O[📋 Diagnostic + Recommandations]
+    O --> P[💾 Exporter les Résultats]
+    P --> Q[✅ Diagnostic Terminé]
+    
+    style A fill:#e1f5fe
+    style Q fill:#c8e6c9
+    style N fill:#fff3e0
+    style O fill:#f3e5f5
+```
+
+### ⚠️ Conseils Importants
+
+**🖥️ Prévention de la Mise en Veille**
+
+Pour éviter les perturbations du modèle AI pendant l'analyse, il est **fortement recommandé** de :
+
+#### Sur Laptop/Desktop :
+- **Désactiver la mise en veille** dans les paramètres système
+- **Augmenter le délai de mise en veille** à au moins 10 minutes
+- **Désactiver l'écran de veille** pendant l'utilisation
+- **Maintenir l'alimentation** branchée si possible
+
+#### Sur Mobile :
+- **Augmenter la luminosité** de l'écran
+- **Désactiver la rotation automatique** de l'écran
+- **Fermer les autres applications** pour économiser la batterie
+- **Utiliser le mode "Ne pas déranger"** pour éviter les interruptions
+
+#### Pourquoi c'est Important :
+- Le modèle AI nécessite **2-3 minutes** pour l'analyse complète
+- Une mise en veille peut **interrompre le processus** et corrompre les résultats
+- La **stabilité du système** garantit des diagnostics précis
+
 ## 🛠️ Installation
 
 ### Quick Start
