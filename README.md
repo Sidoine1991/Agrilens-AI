@@ -56,7 +56,7 @@ See what the diagnosis results look like:
 
 | **Interface Overview** | **Image Upload** | **Results Output** | **Mobile Mode** |
 |:---:|:---:|:---:|:---:|
-| ![Interface Overview](screenshots/Interface_overview.png) | ![Image Upload](screenshots/image_uploding.jpeg) | ![Results Output](screenshots/result_output.jpeg) | ![Mobile Mode](screenshots/mobile_mode1.jpg) |
+| ![Interface Overview](https://github.com/Sidoine1991/Agrilens-AI/raw/main/screenshots/Interface_overview.png) | ![Image Upload](https://github.com/Sidoine1991/Agrilens-AI/raw/main/screenshots/image_uploding.jpeg) | ![Results Output](https://github.com/Sidoine1991/Agrilens-AI/raw/main/screenshots/result_output.jpeg) | ![Mobile Mode](https://github.com/Sidoine1991/Agrilens-AI/raw/main/screenshots/mobile%20mode.jpg) |
 
 ## 🏗️ Architecture
 
