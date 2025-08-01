@@ -20,7 +20,7 @@ license: mit
 
 ## 🎯 Overview
 
-AgriLens AI is an innovative **plant disease diagnosis application** using artificial intelligence to help farmers identify and treat problems in their crops. This application leverages **Google's Gemma 3n multimodal model** for initial visual analysis, enhanced by **Google's Gemini AI** for precise diagnosis interpretation.
+AgriLens AI is an innovative **plant disease diagnosis application** using artificial intelligence to help farmers identify and treat problems in their crops. This application leverages **Google's Gemma 3n multimodal model** for visual analysis and precise diagnosis interpretation.
 
 ### 🌟 Key Features
 
@@ -30,7 +30,7 @@ AgriLens AI is an innovative **plant disease diagnosis application** using artif
 - **📱 Mobile Responsive** : Optimized for smartphones and tablets
 - **🔧 Practical Recommendations** : Concrete actions to take
 - **⚡ Real-time Processing** : Fast AI-powered analysis
-- **🧠 Advanced AI** : Gemini API integration for enhanced diagnosis interpretation
+- **🧠 Advanced AI** : Gemma 3n for precise diagnosis interpretation
 - **🔄 Adaptive Model Loading** : Smart model selection based on available resources
 - **💾 Memory Optimization** : Efficient resource management for deployment
 - **📄 Export Functionality** : Export diagnostics in HTML or text format
@@ -39,7 +39,7 @@ AgriLens AI is an innovative **plant disease diagnosis application** using artif
 
 ### 🌐 Online Version
 - **Hugging Face Spaces** : [AgriLens AI Demo](https://huggingface.co/spaces/sido1991/Agrilens_IAv1)
-- **Status** : ✅ Fully functional with multilingual support and Gemini AI
+- **Status** : ✅ Fully functional with multilingual support
 - **Performance** : Optimized for 16GB RAM environments
 
 ### 📱 Mobile Access
@@ -60,18 +60,16 @@ AgriLens AI is an innovative **plant disease diagnosis application** using artif
          │                       │                       │
          ▼                       ▼                       ▼
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   User Input    │    │   Model Manager  │    │   Gemini API    │
-│   (Image/Text)  │    │   (Adaptive)     │    │   (Enhancement) │
+│   User Input    │    │   Model Manager  │    │   AI Analysis   │
+│   (Image/Text)  │    │   (Adaptive)     │    │   (Gemma 3n)    │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
 ```
 
 ### AI Architecture
-- **Primary Model** : **Gemma 3n E4B IT** (Google) - Multimodal model for visual analysis
-- **Enhancement Model** : **Gemini 1.5 Flash API** (Google) - For improved diagnosis interpretation
+- **Primary Model** : **Gemma 3n E4B IT** (Google) - Multimodal model for visual analysis and diagnosis
 - **Processing Pipeline** : 
-  1. Gemma 3n analyzes the image and provides initial diagnosis
-  2. Gemini API enhances the interpretation with detailed recommendations
-  3. Results are presented in a user-friendly format
+  1. Gemma 3n analyzes the image and provides comprehensive diagnosis
+  2. Results are presented in a user-friendly format with detailed recommendations
 
 ## 🛠️ Installation
 
@@ -79,7 +77,7 @@ AgriLens AI is an innovative **plant disease diagnosis application** using artif
 - Python 3.11+
 - Modern web browser
 - Internet connection (for model loading)
-- Google API Key (for Gemini enhancement)
+- Internet connection (for model loading)
 - Minimum 8GB RAM (16GB+ recommended for full Gemma 3n)
 
 ### Local Installation
@@ -97,7 +95,7 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
 # Set up environment variables (optional)
-echo "GOOGLE_API_KEY=your_api_key_here" > .env
+# No additional API keys required
 
 # Run the application
 streamlit run src/streamlit_app_multilingual.py
@@ -128,7 +126,7 @@ docker run -p 8501:7860 agrilens-ai
 1. **Image Upload** : Upload or capture plant image
 2. **Crop Specification** : Specify the crop type (optional but recommended)
 3. **Gemma 3n Analysis** : Initial visual diagnosis by Gemma 3n
-4. **Gemini Enhancement** : Detailed interpretation and recommendations
+4. **Results Display** : Comprehensive diagnosis with treatment options
 5. **Results Display** : Comprehensive diagnosis with treatment options
 
 ## 🔬 Technology Stack
@@ -136,13 +134,12 @@ docker run -p 8501:7860 agrilens-ai
 ### Core Technologies
 - **Framework** : [Streamlit](https://streamlit.io/) - Web application framework
 - **Primary AI Model** : [Gemma 3n E4B IT](https://huggingface.co/google/gemma-3n-E4B-it) - Google's multimodal model
-- **Enhancement AI** : [Gemini 1.5 Flash API](https://ai.google.dev/) - Google's advanced AI for diagnosis interpretation
+- **AI Model** : [Gemma 3n E4B IT](https://huggingface.co/google/gemma-3n-E4B-it) - Google's multimodal model for diagnosis
 - **Deployment** : [Hugging Face Spaces](https://huggingface.co/spaces) - Cloud hosting platform
 - **Languages** : Python, HTML, CSS, JavaScript
 
 ### Key Libraries
 - **Transformers** : Hugging Face's AI model library
-- **Google Generative AI** : Gemini API integration
 - **PyTorch** : Deep learning framework
 - **Pillow** : Image processing
 - **Streamlit** : Web interface
@@ -151,21 +148,17 @@ docker run -p 8501:7860 agrilens-ai
 ## ⚙️ Model Configuration
 
 ### AI Model Architecture
-The application uses a two-stage AI approach:
+The application uses Gemma 3n for comprehensive visual analysis and diagnosis:
 
 ```python
-# Stage 1: Gemma 3n for initial visual analysis
-gemma_diagnosis = gemma3n_analyze_image(image, crop_type)
-
-# Stage 2: Gemini for enhanced interpretation
-enhanced_diagnosis = gemini_enhance_diagnosis(gemma_diagnosis)
+# Gemma 3n for complete visual analysis and diagnosis
+diagnosis = gemma3n_analyze_image(image, crop_type)
 ```
 
 ### Model Specifications
 | Model | Size | Memory Usage | Purpose |
 |-------|------|--------------|---------|
-| Gemma 3n E4B IT | ~8GB | 16GB+ | Primary visual analysis |
-| Gemini 1.5 Flash | API | Minimal | Diagnosis enhancement |
+| Gemma 3n E4B IT | ~8GB | 16GB+ | Complete visual analysis and diagnosis |
 
 ### Memory Management
 - **Dynamic Model Loading** : Loads Gemma 3n based on available RAM
@@ -176,7 +169,7 @@ enhanced_diagnosis = gemini_enhance_diagnosis(gemma_diagnosis)
 
 ### Accuracy & Speed
 - **Image Recognition** : High accuracy in disease identification using Gemma 3n
-- **Diagnostic Precision** : Enhanced with Gemini AI interpretation
+- **Diagnostic Precision** : High accuracy with Gemma 3n analysis
 - **Response Time** : < 30 seconds for complete analysis
 - **Memory Efficiency** : Adaptive loading prevents OOM errors
 
@@ -232,9 +225,6 @@ This version of AgriLens AI was specifically developed for the **Google - Gemma 
 
 ### Environment Variables
 ```bash
-# Required for enhanced diagnosis
-GOOGLE_API_KEY=your_google_api_key_here
-
 # Optional Hugging Face token
 HF_TOKEN=your_huggingface_token_here
 
@@ -244,7 +234,6 @@ FORCE_MODEL_STRATEGY=conservative
 
 ### Model Configuration
 - **Primary Model** : Gemma 3n E4B IT (Google)
-- **Enhancement AI** : Gemini 1.5 Flash (Google)
 - **Processing** : CPU optimized for deployment
 - **Memory Management** : Adaptive based on environment
 
@@ -252,7 +241,6 @@ FORCE_MODEL_STRATEGY=conservative
 
 ### Version 1.0 (Current) ✅
 - ✅ Gemma 3n image analysis
-- ✅ Gemini AI enhancement
 - ✅ Text-based diagnosis
 - ✅ Multilingual support
 - ✅ Mobile responsiveness
@@ -299,7 +287,7 @@ See the [LICENSE](LICENSE) file for full details.
 
 ## ⚠️ Disclaimer
 
-This application is designed to assist farmers and gardeners in identifying plant diseases. While we strive for accuracy using advanced AI models (Gemma 3n + Gemini), the diagnosis should not replace professional agricultural advice. Always consult with local agricultural experts for critical decisions.
+This application is designed to assist farmers and gardeners in identifying plant diseases. While we strive for accuracy using advanced AI models (Gemma 3n), the diagnosis should not replace professional agricultural advice. Always consult with local agricultural experts for critical decisions.
 
 ## 🐛 Known Issues & Solutions
 
@@ -315,7 +303,7 @@ This application is designed to assist farmers and gardeners in identifying plan
 
 ## 🙏 Acknowledgments
 
-- **Google** : For providing Gemma 3n and Gemini AI models
+- **Google** : For providing Gemma 3n model
 - **Hugging Face** : For the deployment platform and transformers library
 - **Streamlit** : For the web framework
 - **Google - Gemma 3n Hackathon** : For inspiring this project
@@ -324,7 +312,7 @@ This application is designed to assist farmers and gardeners in identifying plan
 ## 📊 Project Statistics
 
 - **Lines of Code** : ~2,000+
-- **AI Models** : 2 (Gemma 3n + Gemini)
+- **AI Models** : 1 (Gemma 3n)
 - **Languages** : 2 (French, English)
 - **Deployment Platforms** : 3 (Local, Docker, HF Spaces)
 - **Test Coverage** : Comprehensive error handling
@@ -338,7 +326,7 @@ This application is designed to assist farmers and gardeners in identifying plan
 
 ---
 
-*AgriLens AI - Intelligent plant disease diagnosis with Google's Gemma 3n and Gemini AI* 🌱
+*AgriLens AI - Intelligent plant disease diagnosis with Google's Gemma 3n* 🌱
 
 **Last Updated** : July 2025  
 **Version** : 1.0.0  

@@ -19,8 +19,8 @@ RUN pip install --no-cache-dir --default-timeout=600 \
 # Installer timm pour les modèles de vision
 RUN pip install --no-cache-dir timm>=0.9.0
 
-# Installer Gemini API
-RUN pip install --no-cache-dir google-generativeai>=0.3.0
+# Installer les dépendances pour les modèles de vision
+RUN pip install --no-cache-dir pillow>=10.0.0
 
 # Installer le reste des dépendances
 RUN pip install --no-cache-dir --default-timeout=600 -r requirements.txt -i https://pypi.org/simple
