@@ -831,7 +831,11 @@ else:
     # Logo et titre
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.image("logo_app/logo_agrilesai.png", width=200)
+        try:
+            st.image("logo_app/logo_agrilesai.png", width=200)
+        except:
+            # Si le logo n'est pas disponible, afficher un emoji et le titre
+            st.markdown("## 🌱 AgriLens AI")
     
     st.title(t("title"))
     st.markdown(t("subtitle"))
