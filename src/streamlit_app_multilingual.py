@@ -1074,12 +1074,13 @@ def analyze_with_gemma3n(image, prompt=""):
 """
             
     except Exception as e:
-        return f"❌ Erreur lors de l'analyse avec Gemma 3n : {str(e)}"
+        error_msg = str(e)
+        if "403" in error_msg or "Forbidden" in error_msg:
             return "❌ Erreur 403 - Accès refusé. Veuillez vérifier votre jeton Hugging Face (HF_TOKEN) et les quotas."
         elif "Number of images does not match number of special image tokens" in error_msg:
             return f"❌ Erreur : Le modèle n'a pas pu lier l'image au texte. Ceci est un problème connu (#2751) lié aux versions de Transformers/Gemma. Assurez-vous d'utiliser les versions spécifiées dans requirements.txt."
         else:
-            return f"❌ Erreur lors de l'analyse d'image : {e}"
+            return f"❌ Erreur lors de l'analyse avec Gemma 3n : {str(e)}"
 
 def analyze_text_multilingual(text):
     """Analyse un texte avec le modèle Gemma 3n E4B IT."""
