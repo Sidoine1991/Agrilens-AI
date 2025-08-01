@@ -817,11 +817,22 @@ if is_mobile():
     </div>
     ''', unsafe_allow_html=True)
     
+    # Logo mobile
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.image("logo_app/logo_agrilesai.png", width=150)
+    
     st.markdown(f'<p style="text-align: center; color: #666;">Interface simulant l\'application mobile offline</p>', unsafe_allow_html=True)
     
 else:
     # Mode Desktop
     st.markdown('<div class="desktop-container">', unsafe_allow_html=True)
+    
+    # Logo et titre
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.image("logo_app/logo_agrilesai.png", width=200)
+    
     st.title(t("title"))
     st.markdown(t("subtitle"))
 

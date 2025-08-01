@@ -14,6 +14,8 @@ license: mit
 
 **Plant disease diagnosis for farmers using Google's Gemma 3n AI**
 
+![AgriLens AI Logo](logo_app/logo_agrilesai.png)
+
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.28+-red.svg)](https://streamlit.io/)
 [![License](https://img.shields.io/badge/License-CC%20BY%204.0-green.svg)](LICENSE)
