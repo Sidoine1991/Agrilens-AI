@@ -8,6 +8,7 @@ import gc
 import time
 import sys
 import psutil
+from datetime import datetime
 from transformers import AutoProcessor, AutoModelForCausalLM # Utilisation générique pour Gemma
 from huggingface_hub import HfFolder, hf_hub_download, snapshot_download
 from functools import lru_cache # Alternative pour le caching, mais st.cache_resource est mieux pour les modèles
@@ -49,7 +50,12 @@ TRANSLATIONS = {
     "creator_linkedin": {"fr": "linkedin.com/in/sidoineko", "en": "linkedin.com/in/sidoineko"},
     "competition_title": {"fr": "🏆 Version Compétition Kaggle", "en": "🏆 Kaggle Competition Version"},
     "competition_text": {"fr": "Cette première version d'AgriLens AI a été développée spécifiquement pour participer à la compétition Kaggle. Elle représente notre première production publique et démontre notre expertise en IA appliquée à l'agriculture.", "en": "This first version of AgriLens AI was specifically developed to participate in the Kaggle competition. It represents our first public production and demonstrates our expertise in AI applied to agriculture."},
-    "footer": {"fr": "*AgriLens AI - Diagnostic intelligent des plantes avec IA*", "en": "*AgriLens AI - Intelligent plant diagnosis with AI*"}
+    "footer": {"fr": "*AgriLens AI - Diagnostic intelligent des plantes avec IA*", "en": "*AgriLens AI - Intelligent plant diagnosis with AI*"},
+    "export_button": {"fr": "Exporter les Résultats", "en": "Export Results"},
+    "export_format": {"fr": "Format d'Exportation", "en": "Export Format"},
+    "export_format_options": {"fr": ["JSON", "Markdown", "CSV"], "en": ["JSON", "Markdown", "CSV"]},
+    "export_success": {"fr": "Résultats exportés avec succès !", "en": "Results exported successfully!"},
+    "mobile_mode_warning": {"fr": "Mode Mobile détecté. Certaines fonctionnalités peuvent ne pas fonctionner comme prévu. Veuillez utiliser un appareil de bureau pour une meilleure expérience.", "en": "Mobile mode detected. Some features may not work as expected. Please use a desktop device for a better experience."}
 }
 
 def t(key):
@@ -62,6 +68,89 @@ def t(key):
 # --- INITIALISATION DE LA LANGUE ET DES CONSTATATIONS GLOBALES ---
 if 'language' not in st.session_state:
     st.session_state.language = 'fr'
+
+# --- MODE MOBILE DETECTION ---
+def is_mobile():
+    """Détecte si l'utilisateur est en mode mobile."""
+    return st.session_state.get('mobile_mode', False)
+
+def toggle_mobile_mode():
+    """Bascule entre le mode desktop et mobile."""
+    if 'mobile_mode' not in st.session_state:
+        st.session_state.mobile_mode = False
+    st.session_state.mobile_mode = not st.session_state.mobile_mode
+
+# --- CSS POUR MODE MOBILE ---
+MOBILE_CSS = """
+<style>
+    /* Mode Mobile - Interface simulant un smartphone */
+    .mobile-container {
+        max-width: 375px !important;
+        margin: 0 auto !important;
+        border: 2px solid #ddd !important;
+        border-radius: 20px !important;
+        padding: 20px !important;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.1) !important;
+        position: relative !important;
+        overflow: hidden !important;
+    }
+    
+    /* Indicateur de notch pour smartphone */
+    .mobile-container::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 60px;
+        height: 4px;
+        background: #333;
+        border-radius: 0 0 10px 10px;
+    }
+    
+    /* Header mobile avec gradient */
+    .mobile-header {
+        text-align: center;
+        margin-bottom: 20px;
+        padding: 10px;
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        border-radius: 15px;
+        color: white;
+        font-weight: bold;
+    }
+    
+    /* Badge de statut offline */
+    .mobile-status {
+        display: inline-block;
+        padding: 5px 10px;
+        background: #28a745;
+        color: white;
+        border-radius: 20px;
+        font-size: 12px;
+        margin-top: 10px;
+    }
+    
+    /* Mode Desktop - Interface classique */
+    .desktop-container {
+        max-width: 100% !important;
+        margin: 0 auto !important;
+        padding: 20px !important;
+    }
+    
+    /* Design responsive pour petits écrans */
+    @media (max-width: 768px) {
+        .mobile-container {
+            max-width: 100% !important;
+            border-radius: 0 !important;
+            margin: 0 !important;
+        }
+    }
+</style>
+"""
+
+# Appliquer le CSS personnalisé
+st.markdown(MOBILE_CSS, unsafe_allow_html=True)
 
 # --- FONCTIONS UTILITAIRES SYSTÈME ---
 def get_device():
@@ -114,11 +203,191 @@ def afficher_ram_disponible():
     """Affiche l'utilisation de la RAM."""
     try:
         mem = psutil.virtual_memory()
-        st.info(f"💾 RAM disponible : {mem.available // (1024**3)} GB")
-        if mem.available < 4 * 1024**3: # Seuil de 4GB RAM
+        st.info(f"💾 RAM : {mem.available // (1024**3)} GB disponible")
+        if mem.available < 4 * 1024**3:
             st.warning("⚠️ Moins de 4GB de RAM disponible, le chargement du modèle risque d'échouer !")
     except ImportError:
         st.warning("⚠️ Impossible de vérifier la RAM système.")
+
+def generate_html_diagnostic(diagnostic_text, culture=None, image_info=None, timestamp=None):
+    """
+    Génère un fichier HTML formaté pour le diagnostic.
+    
+    Args:
+        diagnostic_text (str): Le texte du diagnostic
+        culture (str): La culture spécifiée
+        image_info (dict): Informations sur l'image
+        timestamp (str): Horodatage de l'analyse
+        
+    Returns:
+        str: Contenu HTML formaté
+    """
+    if timestamp is None:
+        timestamp = datetime.now().strftime("%d/%m/%Y à %H:%M")
+    
+    html_content = f"""
+<!DOCTYPE html>
+<html lang="{'fr' if st.session_state.language == 'fr' else 'en'}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgriLens AI - Diagnostic</title>
+    <style>
+        body {{
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+        }}
+        .container {{
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }}
+        .header {{
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #4CAF50;
+        }}
+        .logo {{
+            font-size: 2.5em;
+            color: #4CAF50;
+            margin-bottom: 10px;
+        }}
+        .title {{
+            color: #333;
+            font-size: 1.8em;
+            margin-bottom: 5px;
+        }}
+        .subtitle {{
+            color: #666;
+            font-size: 1.1em;
+        }}
+        .info-section {{
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+            border-left: 4px solid #4CAF50;
+        }}
+        .info-title {{
+            font-weight: bold;
+            color: #4CAF50;
+            margin-bottom: 10px;
+        }}
+        .diagnostic-content {{
+            background: #fff;
+            padding: 25px;
+            border-radius: 10px;
+            border: 1px solid #e0e0e0;
+            margin-bottom: 20px;
+        }}
+        .footer {{
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+            color: #666;
+            font-size: 0.9em;
+        }}
+        .highlight {{
+            background: #fff3cd;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #ffc107;
+            margin: 15px 0;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">🌱</div>
+            <h1 class="title">AgriLens AI</h1>
+            <p class="subtitle">Diagnostic Intelligent des Plantes</p>
+        </div>
+        
+        <div class="info-section">
+            <div class="info-title">📋 Informations de l'Analyse</div>
+            <p><strong>Date et heure :</strong> {timestamp}</p>
+            <p><strong>Modèle utilisé :</strong> Gemma 3n E4B IT</p>
+            {f'<p><strong>Culture analysée :</strong> {culture}</p>' if culture else ''}
+            {f'<p><strong>Format image :</strong> {image_info.get("format", "N/A")}</p>' if image_info else ''}
+            {f'<p><strong>Taille image :</strong> {image_info.get("size", "N/A")}</p>' if image_info else ''}
+        </div>
+        
+        <div class="diagnostic-content">
+            <h2>🔬 Résultats du Diagnostic</h2>
+            {diagnostic_text.replace('##', '<h3>').replace('**', '<strong>').replace('*', '<em>')}
+        </div>
+        
+        <div class="highlight">
+            <strong>⚠️ Avertissement :</strong> Ce diagnostic est fourni à titre indicatif. 
+            Pour des cas critiques, consultez un expert agricole qualifié.
+        </div>
+        
+        <div class="footer">
+            <p>Généré par AgriLens AI - Créé par Sidoine Kolaolé YEBADOKPO</p>
+            <p>Bohicon, République du Bénin | syebadokpo@gmail.com</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+    return html_content
+
+def generate_text_diagnostic(diagnostic_text, culture=None, image_info=None, timestamp=None):
+    """
+    Génère un fichier texte formaté pour le diagnostic.
+    
+    Args:
+        diagnostic_text (str): Le texte du diagnostic
+        culture (str): La culture spécifiée
+        image_info (dict): Informations sur l'image
+        timestamp (str): Horodatage de l'analyse
+        
+    Returns:
+        str: Contenu texte formaté
+    """
+    if timestamp is None:
+        timestamp = datetime.now().strftime("%d/%m/%Y à %H:%M")
+    
+    text_content = f"""
+================================================================================
+AGRILENS AI - DIAGNOSTIC INTELLIGENT DES PLANTES
+================================================================================
+
+📋 INFORMATIONS DE L'ANALYSE
+---------------------------
+Date et heure : {timestamp}
+Modèle utilisé : Gemma 3n E4B IT
+{f'Culture analysée : {culture}' if culture else ''}
+{f'Format image : {image_info.get("format", "N/A")}' if image_info else ''}
+{f'Taille image : {image_info.get("size", "N/A")}' if image_info else ''}
+
+🔬 RÉSULTATS DU DIAGNOSTIC
+-------------------------
+{diagnostic_text}
+
+⚠️ AVERTISSEMENT
+---------------
+Ce diagnostic est fourni à titre indicatif. Pour des cas critiques, 
+consultez un expert agricole qualifié.
+
+================================================================================
+Généré par AgriLens AI
+Créé par Sidoine Kolaolé YEBADOKPO
+Bohicon, République du Bénin
+Email : syebadokpo@gmail.com
+================================================================================
+"""
+    return text_content
 
 # --- CHARGEMENT DU MODÈLE AVEC CACHING ---
 # Modèle principal à utiliser (corriger l'ID si nécessaire)
@@ -364,39 +633,12 @@ def analyze_text_multilingual(text):
         return f"❌ Erreur lors de l'analyse de texte : {e}"
 
 # --- INTERFACE UTILISATEUR STREAMLIT ---
-st.title(t("title"))
-st.markdown(t("subtitle"))
-
-# --- INITIALISATION ET GESTION DU MODÈLE ---
-if 'model' not in st.session_state:
-    st.session_state.model = None
-if 'processor' not in st.session_state:
-    st.session_state.processor = None
-if 'model_loaded' not in st.session_state:
-    st.session_state.model_loaded = False
-if 'model_status' not in st.session_state:
-    st.session_state.model_status = t("not_loaded")
-
-# Tentative de chargement automatique au démarrage si le modèle n'est pas déjà chargé
-if not st.session_state.model_loaded:
-    try:
-        # Tente de charger le modèle avec la meilleure stratégie disponible
-        model, processor = get_model_and_processor()
-        st.session_state.model = model
-        st.session_state.processor = processor
-        st.session_state.model_loaded = True
-        st.session_state.model_status = t("loaded")
-        st.success("✅ Modèle chargé avec succès au démarrage.")
-    except Exception as e:
-        st.session_state.model_status = f"{t('error')} : {e}"
-        st.error(f"❌ Échec du chargement automatique du modèle : {e}")
-
-# --- BARRE LATÉRALE (SIDEBAR) ---
+# --- SIDEBAR (RÉGLAGES) ---
 with st.sidebar:
-    st.header(t("config_title"))
+    st.header("⚙️ " + t("config_title"))
     
-    # Sélecteur de langue
-    st.subheader("🌐 Langue / Language")
+    # Sélection de la langue
+    st.subheader("🌐 Sélection de la langue")
     language_options = ["Français", "English"]
     current_lang_index = 0 if st.session_state.language == "fr" else 1
     language_choice = st.selectbox(
@@ -462,6 +704,39 @@ with st.sidebar:
                 st.session_state.model_status = f"{t('error')} : {e}"
                 st.error(f"❌ Échec du chargement du modèle : {e}")
             st.rerun()
+
+# --- BOUTONS DE CONTRÔLE ---
+col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
+with col1:
+    if st.button("🔄 Changer de mode", type="secondary"):
+        toggle_mobile_mode()
+        st.rerun()
+with col2:
+    if st.button("⚙️ Réglages", type="secondary"):
+        # Bascule la sidebar
+        st.sidebar_state = not st.sidebar_state if hasattr(st, 'sidebar_state') else True
+        st.rerun()
+
+# --- AFFICHAGE CONDITIONNEL SELON LE MODE ---
+if is_mobile():
+    # Mode Mobile
+    st.markdown('<div class="mobile-container">', unsafe_allow_html=True)
+    
+    # Header mobile
+    st.markdown(f'''
+    <div class="mobile-header">
+        <h1>{t("title")}</h1>
+        <div class="mobile-status">Mode: OFFLINE ✅</div>
+    </div>
+    ''', unsafe_allow_html=True)
+    
+    st.markdown(f'<p style="text-align: center; color: #666;">Interface simulant l\'application mobile offline</p>', unsafe_allow_html=True)
+    
+else:
+    # Mode Desktop
+    st.markdown('<div class="desktop-container">', unsafe_allow_html=True)
+    st.title(t("title"))
+    st.markdown(t("subtitle"))
 
 # --- ONGLET PRINCIPAUX ---
 tab1, tab2, tab3, tab4 = st.tabs(t("tabs"))
@@ -534,6 +809,16 @@ with tab1:
                 st.write(f"• Taille originale : {original_size[0]}x{original_size[1]} pixels")
                 st.write(f"• Taille actuelle : {image.size[0]}x{image.size[1]} pixels")
                 
+            # Section de clarification de la culture
+            st.markdown("---")
+            st.subheader("🌱 Clarification de la Culture")
+            
+            culture_input = st.text_input(
+                "Quelle est la culture concernée ?",
+                placeholder="Ex: Tomate, Piment, Maïs, Haricot, Aubergine...",
+                help="Précisez le type de plante pour un diagnostic plus précis"
+            )
+            
             question = st.text_area(
                 "Question spécifique (optionnel) :",
                 placeholder="Ex: Les feuilles ont des taches jaunes, que faire ?",
@@ -545,11 +830,58 @@ with tab1:
                     st.error("❌ Modèle non chargé. Veuillez le charger dans les réglages.")
                 else:
                     with st.spinner("🔍 Analyse d'image en cours..."):
-                        result = analyze_image_multilingual(image, question)
+                        # Construire le prompt avec la culture spécifiée
+                        enhanced_prompt = ""
+                        if culture_input:
+                            enhanced_prompt += f"Culture spécifiée : {culture_input}. "
+                        if question:
+                            enhanced_prompt += f"Question : {question}. "
+                        
+                        result = analyze_image_multilingual(image, enhanced_prompt)
                     
                     st.markdown(t("analysis_results"))
+                    
+                    # Afficher la culture spécifiée si elle existe
+                    if culture_input:
+                        st.info(f"🌱 Culture spécifiée : **{culture_input}**")
+                    
                     st.markdown("---")
                     st.markdown(result)
+                    
+                    # Section d'export du diagnostic
+                    st.markdown("---")
+                    st.subheader("📄 Exporter le Diagnostic")
+                    
+                    # Préparer les informations pour l'export
+                    timestamp = datetime.now().strftime("%d/%m/%Y à %H:%M")
+                    image_info = {
+                        "format": image.format if hasattr(image, 'format') else "N/A",
+                        "size": f"{image.size[0]}x{image.size[1]} pixels" if hasattr(image, 'size') else "N/A"
+                    } if image else None
+                    
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        # Export HTML
+                        html_content = generate_html_diagnostic(result, culture_input, image_info, timestamp)
+                        st.download_button(
+                            label="💻 Exporter en HTML",
+                            data=html_content,
+                            file_name=f"diagnostic_agrilens_{datetime.now().strftime('%Y%m%d_%H%M')}.html",
+                            mime="text/html",
+                            help="Télécharger le diagnostic au format HTML"
+                        )
+                    
+                    with col2:
+                        # Export Texte
+                        text_content = generate_text_diagnostic(result, culture_input, image_info, timestamp)
+                        st.download_button(
+                            label="📝 Exporter en Texte",
+                            data=text_content,
+                            file_name=f"diagnostic_agrilens_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
+                            mime="text/plain",
+                            help="Télécharger le diagnostic au format texte"
+                        )
         except Exception as e:
             st.error(f"Erreur lors du traitement de l'image : {e}")
 
@@ -576,74 +908,507 @@ with tab2:
             st.markdown(t("analysis_results"))
             st.markdown("---")
             st.markdown(result)
+            
+            # Section d'export du diagnostic (analyse de texte)
+            st.markdown("---")
+            st.subheader("📄 Exporter le Diagnostic")
+            
+            # Préparer les informations pour l'export
+            timestamp = datetime.now().strftime("%d/%m/%Y à %H:%M")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Export HTML
+                html_content = generate_html_diagnostic(result, None, None, timestamp)
+                st.download_button(
+                    label="💻 Exporter en HTML",
+                    data=html_content,
+                    file_name=f"diagnostic_agrilens_{datetime.now().strftime('%Y%m%d_%H%M')}.html",
+                    mime="text/html",
+                    help="Télécharger le diagnostic au format HTML"
+                )
+            
+            with col2:
+                # Export Texte
+                text_content = generate_text_diagnostic(result, None, None, timestamp)
+                st.download_button(
+                    label="📝 Exporter en Texte",
+                    data=text_content,
+                    file_name=f"diagnostic_agrilens_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
+                    mime="text/plain",
+                    help="Télécharger le diagnostic au format texte"
+                )
 
 # --- ONGLET 3: MANUEL ---
 with tab3:
     st.header(t("manual_title"))
     manual_content = {
         "fr": """
-        ### 🚀 **Démarrage Rapide**
-        1. **Charger le modèle** : Cliquez sur 'Charger le modèle IA' dans les réglages (sidebar). Le modèle Gemma 3n e2b it est gourmand en ressources. Si le chargement échoue, essayez une stratégie différente (ex: quantisation 8-bit ou CPU).
-        2. **Choisir le mode** : Allez à l'onglet '📸 Analyse d'Image' ou '💬 Analyse de Texte'.
-        3. **Soumettre votre demande** : Upload d'image, capture webcam, ou description textuelle détaillée.
-        4. **Obtenir le diagnostic** : Lisez les résultats avec recommandations.
+        ## 🚀 **GUIDE DE DÉMARRAGE RAPIDE**
         
-        ### 📸 **Analyse d'Image**
-        *  **Formats acceptés** : PNG, JPG, JPEG.
-        *  **Qualité** : Privilégiez des images claires, bien éclairées, avec le problème bien visible.
-        *  **Redimensionnement** : Les images trop grandes sont automatiquement redimensionnées pour optimiser le traitement.
+        ### **Étape 1 : Configuration Initiale**
+        1. **Choisir la langue** : Dans la sidebar, sélectionnez Français ou English
+        2. **Charger le modèle** : Cliquez sur 'Charger le modèle Gemma 3n E4B IT'
+        3. **Attendre le chargement** : Le processus peut prendre 1-2 minutes
+        4. **Vérifier le statut** : Le modèle doit afficher "✅ Chargé"
+
+        ### **Étape 2 : Première Analyse**
+        1. **Aller dans l'onglet "📸 Analyse d'Image"**
+        2. **Télécharger une photo** de plante malade
+        3. **Cliquer sur "🔬 Analyser avec l'IA"**
+        4. **Consulter les résultats** avec recommandations
+
+        ## 📱 **UTILISATION DU MODE MOBILE**
         
-        ### 💬 **Analyse de Texte**
-        *  **Soyez précis** : Décrivez les symptômes, le type de plante, les conditions de culture, et les actions déjà tentées. Plus la description est détaillée, plus le diagnostic sera pertinent.
-        
-        ### 🔍 **Interprétation des Résultats**
-        *  Les résultats incluent un diagnostic potentiel, les causes probables, des recommandations de traitement et des conseils de prévention.
-        *  Ces informations sont basées sur l'IA et doivent être considérées comme un guide. Consultez un expert pour des cas critiques.
-        
-        ### 💡 **Bonnes Pratiques**
-        *  **Images multiples** : Si possible, prenez des photos sous différents angles.
-        *  **Éclairage** : La lumière naturelle est idéale.
-        *  **Focus** : Assurez-vous que la zone affectée est nette et bien visible.
-        
-        ### 💾 **Persistance du Modèle**
-        *  L'application utilise `st.cache_resource` pour garder le modèle chargé en mémoire pendant la durée de votre session Streamlit, accélérant les analyses suivantes.
-        *  Vous pouvez le recharger manuellement si nécessaire en utilisant le bouton "Forcer Persistance" (qui vide le cache) ou "Recharger le modèle".
-        
-        ### 🔒 **Jeton Hugging Face (HF_TOKEN)**
-        *  Pour garantir la stabilité et la performance lors du téléchargement de modèles depuis Hugging Face, il est fortement recommandé de définir la variable d'environnement `HF_TOKEN`.
-        *  Créez un jeton de lecture sur [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) et définissez-le dans votre environnement (ou utilisez `huggingface-cli login`) avant de lancer l'application.
+        ### **Activation du Mode Mobile**
+        - Cliquer sur le bouton "🔄 Changer de mode" en haut de l'interface
+        - L'interface se transforme en simulation d'application mobile
+        - Statut "Mode: OFFLINE" visible pour les démonstrations
+
+        ### **Avantages du Mode Mobile**
+        - ✅ **Démonstration offline** : Parfait pour les présentations
+        - ✅ **Interface intuitive** : Similaire aux vraies applications mobiles
+        - ✅ **Accessibilité** : Fonctionne sur tous les appareils
+        - ✅ **Performance** : Optimisé pour les ressources limitées
+
+        ## 📸 **ANALYSE D'IMAGES**
+
+        ### **Types d'Images Acceptées**
+        - **Formats** : PNG, JPG, JPEG
+        - **Taille maximale** : 200MB
+        - **Qualité recommandée** : Images claires et bien éclairées
+
+        ### **Bonnes Pratiques pour les Photos**
+        1. **Éclairage** : Utiliser la lumière naturelle quand possible
+        2. **Focus** : S'assurer que la zone malade est nette
+        3. **Cadrage** : Inclure la plante entière et les zones affectées
+        4. **Angles multiples** : Prendre plusieurs photos sous différents angles
+
+        ### **Processus d'Analyse**
+        1. **Téléchargement** : Glisser-déposer ou cliquer pour sélectionner
+        2. **Préparation** : L'image est automatiquement redimensionnée si nécessaire
+        3. **Clarification culture** : Spécifier le type de plante pour un diagnostic plus précis
+        4. **Analyse IA** : Le modèle Gemma 3n analyse l'image
+        5. **Résultats** : Diagnostic détaillé avec recommandations
+        6. **Export** : Possibilité d'exporter en HTML ou texte
+
+        ### **Clarification de la Culture**
+        - **Pourquoi** : Aide le modèle à se concentrer sur les maladies spécifiques à la plante
+        - **Exemples** : Tomate, Piment, Maïs, Haricot, Aubergine
+        - **Précision** : Améliore significativement la qualité du diagnostic
+
+        ### **Interprétation des Résultats**
+        Les résultats incluent :
+        - 🎯 **Diagnostic probable** : Nom de la maladie identifiée
+        - 🔍 **Symptômes observés** : Description détaillée des signes
+        - 💡 **Causes possibles** : Facteurs environnementaux ou pathogènes
+        - 💊 **Traitements recommandés** : Solutions pratiques
+        - 🛡️ **Mesures préventives** : Conseils pour éviter la récurrence
+
+        ## 💬 **ANALYSE DE TEXTE**
+
+        ### **Quand Utiliser l'Analyse de Texte**
+        - Pas de photo disponible
+        - Symptômes difficiles à photographier
+        - Besoin de conseils généraux
+        - Vérification de diagnostic
+
+        ### **Comment Décrire les Symptômes**
+        **Informations importantes à inclure :**
+        - 🌿 **Type de plante** : Nom de l'espèce si connu
+        - 🎨 **Couleur des feuilles** : Vert, jaune, brun, noir, etc.
+        - 🔍 **Forme des taches** : Circulaires, irrégulières, linéaires
+        - 📍 **Localisation** : Feuilles, tiges, fruits, racines
+        - ⏰ **Évolution** : Depuis quand, progression rapide ou lente
+        - 🌍 **Conditions** : Humidité, température, saison
+
+        ### **Exemple de Description Efficace**
+        ```
+        "Mes plants de tomates ont des taches brunes circulaires sur les feuilles inférieures. 
+        Les taches ont un contour jaune et apparaissent depuis une semaine. 
+        Il a beaucoup plu récemment et l'air est très humide. 
+        Les taches s'étendent progressivement vers le haut de la plante."
+        ```
+
+        ## 📄 **FONCTIONNALITÉS D'EXPORT**
+
+        ### **Formats Disponibles**
+        - **HTML** : Rapport formaté avec mise en page professionnelle
+        - **Texte** : Version simple pour archivage ou partage
+
+        ### **Contenu des Exports**
+        - **Informations de l'analyse** : Date, heure, modèle utilisé
+        - **Culture spécifiée** : Type de plante analysée
+        - **Informations image** : Format et taille (si applicable)
+        - **Résultats complets** : Diagnostic détaillé
+        - **Avertissements** : Disclaimers légaux
+
+        ### **Utilisation des Exports**
+        - **Archivage** : Garder une trace des diagnostics
+        - **Partage** : Envoyer à des experts ou collègues
+        - **Suivi** : Documenter l'évolution des traitements
+        - **Formation** : Exemples pour l'apprentissage
+
+        ## ⚙️ **CONFIGURATION ET PARAMÈTRES**
+
+        ### **Paramètres de Langue**
+        - **Français** : Interface et réponses en français
+        - **English** : Interface and responses in English
+        - **Changement** : Via sidebar, effet immédiat
+
+        ### **Gestion du Modèle IA**
+        - **Chargement** : Bouton "Charger le modèle" dans la sidebar
+        - **Statut** : Indicateur visuel du statut du modèle
+        - **Rechargement** : Option pour recharger le modèle si nécessaire
+        - **Persistance** : Le modèle reste en mémoire pour les analyses suivantes
+
+        ### **Jeton Hugging Face (HF_TOKEN)**
+        **Pourquoi l'utiliser ?**
+        - Évite les erreurs d'accès (403)
+        - Améliore la stabilité du téléchargement
+        - Accès prioritaire aux modèles
+
+        **Comment l'obtenir :**
+        1. Aller sur [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
+        2. Créer un nouveau jeton avec les permissions "read"
+        3. Copier le jeton généré
+        4. Définir la variable d'environnement : `HF_TOKEN=votre_jeton`
+
+        ## 🎯 **CAS D'USAGE PRATIQUES**
+
+        ### **Scénario 1 : Diagnostic de Mildiou**
+        1. **Symptômes** : Taches brunes sur feuilles de tomate
+        2. **Photo** : Prendre une photo des feuilles affectées
+        3. **Culture** : Spécifier "Tomate" dans la clarification
+        4. **Analyse** : L'IA identifie le mildiou précoce
+        5. **Traitement** : Recommandations de fongicides et mesures préventives
+        6. **Export** : Sauvegarder le diagnostic pour suivi
+
+        ### **Scénario 2 : Problème de Nutrition**
+        1. **Symptômes** : Feuilles jaunies, croissance ralentie
+        2. **Description** : Décrire les conditions de culture
+        3. **Analyse** : L'IA suggère une carence en azote
+        4. **Solution** : Recommandations d'engrais et d'amendements
+        5. **Export** : Documenter pour référence future
+
+        ## 🔧 **DÉPANNAGE**
+
+        ### **Problèmes Courants**
+
+        #### **Le modèle ne se charge pas**
+        **Solutions :**
+        - Vérifier la connexion internet
+        - S'assurer d'avoir suffisamment de RAM (8GB minimum)
+        - Redémarrer l'application
+        - Vérifier le jeton HF_TOKEN
+
+        #### **Erreur de mémoire**
+        **Solutions :**
+        - Fermer d'autres applications
+        - Redémarrer l'ordinateur
+        - Utiliser un modèle plus léger
+        - Libérer de l'espace disque
+
+        #### **Analyse trop lente**
+        **Solutions :**
+        - Réduire la taille des images
+        - Utiliser des images de meilleure qualité
+        - Vérifier la connexion internet
+        - Patienter lors du premier chargement
+
+        ### **Messages d'Erreur Courants**
+
+        #### **"Erreur : Le fichier est trop volumineux"**
+        - Réduire la taille de l'image (maximum 200MB)
+        - Utiliser un format de compression (JPG au lieu de PNG)
+
+        #### **"Modèle non chargé"**
+        - Cliquer sur "Charger le modèle" dans la sidebar
+        - Attendre la fin du chargement
+        - Vérifier les messages d'erreur
+
+        ## 🌍 **UTILISATION EN ZONES RURALES**
+
+        ### **Avantages pour les Agriculteurs**
+        - **Accessibilité** : Fonctionne sans internet constant
+        - **Simplicité** : Interface intuitive
+        - **Rapidité** : Diagnostic en quelques secondes
+        - **Économique** : Gratuit et sans abonnement
+        - **Export** : Possibilité de sauvegarder les diagnostics
+
+        ### **Recommandations d'Usage**
+        1. **Formation** : Former les utilisateurs aux bonnes pratiques
+        2. **Validation** : Confirmer les diagnostics critiques avec des experts
+        3. **Documentation** : Garder des traces des analyses via l'export
+        4. **Suivi** : Utiliser l'application pour le suivi des traitements
+
+        ## ⚠️ **AVERTISSEMENTS IMPORTANTS**
+
+        ### **Limitations de l'IA**
+        - Les résultats sont à titre indicatif uniquement
+        - L'IA peut faire des erreurs de diagnostic
+        - Les conditions locales peuvent affecter les recommandations
+        - L'évolution des maladies peut être imprévisible
+
+        ### **Responsabilité**
+        - L'utilisateur reste responsable des décisions prises
+        - Consulter un expert pour les cas critiques
+        - Suivre les consignes de sécurité des produits
+        - Adapter les traitements aux conditions locales
+
+        ## 📞 **SUPPORT ET CONTACT**
+
+        ### **Informations de Contact**
+        - **Créateur** : Sidoine Kolaolé YEBADOKPO
+        - **Localisation** : Bohicon, République du Bénin
+        - **Téléphone** : +229 01 96 91 13 46
+        - **Email** : syebadokpo@gmail.com
+        - **LinkedIn** : linkedin.com/in/sidoineko
+        - **Portfolio** : [Hugging Face Portfolio](https://huggingface.co/spaces/Sidoineko/portfolio)
+
+        ### **Ressources Supplémentaires**
+        - **Documentation technique** : README.md du projet
+        - **Code source** : Disponible sur GitHub
+        - **Démo en ligne** : Hugging Face Spaces
+        - **Version compétition** : [Kaggle Notebook](https://www.kaggle.com/code/sidoineyebadokpo/agrilens-ai?scriptVersionId=253640926)
+
+        ---
+
+        *Manuel créé par Sidoine Kolaolé YEBADOKPO - Version 2.0 - Juillet 2025*
         """,
         "en": """
-        ### 🚀 **Quick Start**
-        1. **Load the model** : Click 'Load AI Model' in the settings (sidebar). The Gemma 3n e2b it model is resource-intensive. If loading fails, try a different strategy (e.g., 8-bit quantization or CPU).
-        2. **Choose mode** : Navigate to the '📸 Image Analysis' or '💬 Text Analysis' tab.
-        3. **Submit your request** : Upload an image, capture via webcam, or provide a detailed text description.
-        4. **Get diagnosis** : Read the results with recommendations.
+        ## 🚀 **QUICK START GUIDE**
         
-        ### 📸 **Image Analysis**
-        *  **Accepted formats** : PNG, JPG, JPEG.
-        *  **Quality** : Prefer clear, well-lit images with the problem clearly visible.
-        *  **Resizing** : Oversized images are automatically resized for processing optimization.
+        ### **Step 1: Initial Configuration**
+        1. **Choose language** : In the sidebar, select Français or English
+        2. **Load the model** : Click on 'Load Gemma 3n E4B IT Model'
+        3. **Wait for loading** : The process may take 1-2 minutes
+        4. **Check status** : The model should display "✅ Loaded"
+
+        ### **Step 2: First Analysis**
+        1. **Go to the "📸 Image Analysis" tab**
+        2. **Upload a photo** of a diseased plant
+        3. **Click on "🔬 Analyze with AI"**
+        4. **Review the results** with recommendations
+
+        ## 📱 **MOBILE MODE USAGE**
         
-        ### 💬 **Text Analysis**
-        *  **Be specific** : Describe symptoms, plant type, growing conditions, and actions already taken. More detail leads to better accuracy.
-        
-        ### 🔍 **Result Interpretation**
-        *  Results include a potential diagnosis, likely causes, treatment recommendations, and preventive advice.
-        *  This AI-driven information is for guidance only. Consult a qualified expert for critical cases.
-        
-        ### 💡 **Best Practices**
-        *  **Multiple images** : If possible, take photos from different angles.
-        *  **Lighting** : Natural light is ideal.
-        *  **Focus** : Ensure the affected area is sharp and clearly visible.
-        
-        ### 💾 **Model Persistence**
-        *  The app uses `st.cache_resource` to keep the model loaded in memory during your Streamlit session, speeding up subsequent analyses.
-        *  You can manually reload it if needed using the 'Force Persistence' (which clears the cache) or 'Reload Model' button.
-        
-        ### 🔒 **Hugging Face Token (HF_TOKEN)**
-        *  To ensure stability and performance when downloading models from Hugging Face, it's highly recommended to set the environment variable `HF_TOKEN`.
-        *  Create a read token on [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) and set it in your environment (or use `huggingface-cli login`) before launching the application.
+        ### **Activating Mobile Mode**
+        - Click the "🔄 Toggle Mode" button at the top of the interface
+        - The interface transforms into a mobile app simulation
+        - "Mode: OFFLINE" status visible for demonstrations
+
+        ### **Mobile Mode Advantages**
+        - ✅ **Offline demonstration** : Perfect for presentations
+        - ✅ **Intuitive interface** : Similar to real mobile applications
+        - ✅ **Accessibility** : Works on all devices
+        - ✅ **Performance** : Optimized for limited resources
+
+        ## 📸 **IMAGE ANALYSIS**
+
+        ### **Accepted Image Types**
+        - **Formats** : PNG, JPG, JPEG
+        - **Maximum size** : 200MB
+        - **Recommended quality** : Clear and well-lit images
+
+        ### **Best Practices for Photos**
+        1. **Lighting** : Use natural light when possible
+        2. **Focus** : Ensure the diseased area is sharp
+        3. **Framing** : Include the entire plant and affected areas
+        4. **Multiple angles** : Take several photos from different angles
+
+        ### **Analysis Process**
+        1. **Upload** : Drag and drop or click to select
+        2. **Preparation** : Image is automatically resized if necessary
+        3. **Culture clarification** : Specify plant type for more accurate diagnosis
+        4. **AI Analysis** : The Gemma 3n model analyzes the image
+        5. **Results** : Detailed diagnosis with recommendations
+        6. **Export** : Option to export in HTML or text format
+
+        ### **Culture Clarification**
+        - **Why** : Helps the model focus on diseases specific to the plant
+        - **Examples** : Tomato, Pepper, Corn, Bean, Eggplant
+        - **Accuracy** : Significantly improves diagnostic quality
+
+        ### **Interpreting Results**
+        Results include:
+        - 🎯 **Probable diagnosis** : Name of the identified disease
+        - 🔍 **Observed symptoms** : Detailed description of signs
+        - 💡 **Possible causes** : Environmental factors or pathogens
+        - 💊 **Recommended treatments** : Practical solutions
+        - 🛡️ **Preventive measures** : Advice to prevent recurrence
+
+        ## 💬 **TEXT ANALYSIS**
+
+        ### **When to Use Text Analysis**
+        - No photo available
+        - Symptoms difficult to photograph
+        - Need for general advice
+        - Diagnosis verification
+
+        ### **How to Describe Symptoms**
+        **Important information to include:**
+        - 🌿 **Plant type** : Species name if known
+        - 🎨 **Leaf color** : Green, yellow, brown, black, etc.
+        - 🔍 **Spot shape** : Circular, irregular, linear
+        - 📍 **Location** : Leaves, stems, fruits, roots
+        - ⏰ **Evolution** : Since when, rapid or slow progression
+        - 🌍 **Conditions** : Humidity, temperature, season
+
+        ### **Example of Effective Description**
+        ```
+        "My tomato plants have brown circular spots on the lower leaves. 
+        The spots have a yellow border and appeared a week ago. 
+        It has rained a lot recently and the air is very humid. 
+        The spots are gradually spreading upward on the plant."
+        ```
+
+        ## 📄 **EXPORT FEATURES**
+
+        ### **Available Formats**
+        - **HTML** : Professionally formatted report
+        - **Text** : Simple version for archiving or sharing
+
+        ### **Export Content**
+        - **Analysis information** : Date, time, model used
+        - **Specified culture** : Type of plant analyzed
+        - **Image information** : Format and size (if applicable)
+        - **Complete results** : Detailed diagnosis
+        - **Warnings** : Legal disclaimers
+
+        ### **Using Exports**
+        - **Archiving** : Keep track of diagnoses
+        - **Sharing** : Send to experts or colleagues
+        - **Monitoring** : Document treatment progress
+        - **Training** : Examples for learning
+
+        ## ⚙️ **CONFIGURATION AND PARAMETERS**
+
+        ### **Language Settings**
+        - **Français** : Interface and responses in French
+        - **English** : Interface and responses in English
+        - **Change** : Via sidebar, immediate effect
+
+        ### **AI Model Management**
+        - **Loading** : "Load Model" button in sidebar
+        - **Status** : Visual indicator of model status
+        - **Reload** : Option to reload model if necessary
+        - **Persistence** : Model remains in memory for subsequent analyses
+
+        ### **Hugging Face Token (HF_TOKEN)**
+        **Why use it?**
+        - Avoids access errors (403)
+        - Improves download stability
+        - Priority access to models
+
+        **How to get it:**
+        1. Go to [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
+        2. Create a new token with "read" permissions
+        3. Copy the generated token
+        4. Set environment variable: `HF_TOKEN=your_token`
+
+        ## 🎯 **PRACTICAL USE CASES**
+
+        ### **Scenario 1: Blight Diagnosis**
+        1. **Symptoms** : Brown spots on tomato leaves
+        2. **Photo** : Take a photo of affected leaves
+        3. **Culture** : Specify "Tomato" in clarification
+        4. **Analysis** : AI identifies early blight
+        5. **Treatment** : Fungicide recommendations and preventive measures
+        6. **Export** : Save diagnosis for monitoring
+
+        ### **Scenario 2: Nutrition Problem**
+        1. **Symptoms** : Yellowed leaves, slowed growth
+        2. **Description** : Describe growing conditions
+        3. **Analysis** : AI suggests nitrogen deficiency
+        4. **Solution** : Fertilizer and amendment recommendations
+        5. **Export** : Document for future reference
+
+        ## 🔧 **TROUBLESHOOTING**
+
+        ### **Common Problems**
+
+        #### **Model won't load**
+        **Solutions:**
+        - Check internet connection
+        - Ensure sufficient RAM (8GB minimum)
+        - Restart the application
+        - Verify HF_TOKEN
+
+        #### **Memory error**
+        **Solutions:**
+        - Close other applications
+        - Restart computer
+        - Use a lighter model
+        - Free up disk space
+
+        #### **Analysis too slow**
+        **Solutions:**
+        - Reduce image size
+        - Use better quality images
+        - Check internet connection
+        - Be patient during first loading
+
+        ### **Common Error Messages**
+
+        #### **"Error: File too large"**
+        - Reduce image size (maximum 200MB)
+        - Use compression format (JPG instead of PNG)
+
+        #### **"Model not loaded"**
+        - Click "Load Model" in sidebar
+        - Wait for loading to complete
+        - Check error messages
+
+        ## 🌍 **RURAL AREA USAGE**
+
+        ### **Advantages for Farmers**
+        - **Accessibility** : Works without constant internet
+        - **Simplicity** : Intuitive interface
+        - **Speed** : Diagnosis in seconds
+        - **Economic** : Free and no subscription
+        - **Export** : Ability to save diagnoses
+
+        ### **Usage Recommendations**
+        1. **Training** : Train users in best practices
+        2. **Validation** : Confirm critical diagnoses with experts
+        3. **Documentation** : Keep records of analyses via export
+        4. **Follow-up** : Use application for treatment monitoring
+
+        ## ⚠️ **IMPORTANT WARNINGS**
+
+        ### **AI Limitations**
+        - Results are for guidance only
+        - AI can make diagnostic errors
+        - Local conditions can affect recommendations
+        - Disease evolution can be unpredictable
+
+        ### **Responsibility**
+        - User remains responsible for decisions made
+        - Consult expert for critical cases
+        - Follow product safety instructions
+        - Adapt treatments to local conditions
+
+        ## 📞 **SUPPORT AND CONTACT**
+
+        ### **Contact Information**
+        - **Creator** : Sidoine Kolaolé YEBADOKPO
+        - **Location** : Bohicon, Benin Republic
+        - **Phone** : +229 01 96 91 13 46
+        - **Email** : syebadokpo@gmail.com
+        - **LinkedIn** : linkedin.com/in/sidoineko
+        - **Portfolio** : [Hugging Face Portfolio](https://huggingface.co/spaces/Sidoineko/portfolio)
+
+        ### **Additional Resources**
+        - **Technical documentation** : Project README.md
+        - **Source code** : Available on GitHub
+        - **Online demo** : Hugging Face Spaces
+        - **Competition version** : [Kaggle Notebook](https://www.kaggle.com/code/sidoineyebadokpo/agrilens-ai?scriptVersionId=253640926)
+
+        ---
+
+        *Manual created by Sidoine Kolaolé YEBADOKPO - Version 2.0 - July 2025*
         """
     }
     st.markdown(manual_content[st.session_state.language])
@@ -701,3 +1466,9 @@ with tab4:
 # --- PIED DE PAGE ---
 st.markdown("---")
 st.markdown(t("footer"))
+
+# Fermer les divs selon le mode
+if is_mobile():
+    st.markdown('</div>', unsafe_allow_html=True)  # Fermer mobile-container
+else:
+    st.markdown('</div>', unsafe_allow_html=True)  # Fermer desktop-container
