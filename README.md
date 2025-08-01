@@ -54,9 +54,9 @@ Here are examples of diseased plants you can analyze:
 ### Demo Screenshots
 See what the diagnosis results look like:
 
-| **Interface Overview** | **Analysis Results** | **Mobile Mode** | **Export Options** |
+| **Interface Overview** | **Image Upload** | **Results Output** | **Mobile Mode** |
 |:---:|:---:|:---:|:---:|
-| ![Demo 1](screenshots/screenshot1.jpeg) | ![Demo 2](screenshots/screenshot2.jpeg) | ![Demo 3](screenshots/screenshot3.jpeg) | ![Demo 4](screenshots/screenshot4.jpeg) |
+| ![Interface Overview](screenshots/Interface_overview.png) | ![Image Upload](screenshots/image_uploding.jpeg) | ![Results Output](screenshots/result_output.jpeg) | ![Mobile Mode](screenshots/mobile_mode1.jpg) |
 
 ## 🏗️ Architecture
 
