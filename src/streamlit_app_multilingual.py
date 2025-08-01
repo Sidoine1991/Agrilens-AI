@@ -813,29 +813,40 @@ def load_model_strategy(model_identifier, device_map=None, torch_dtype=None, qua
 def load_model():
     """Charge le modèle avec une stratégie adaptative basée sur l'environnement."""
     try:
+        st.info("🔍 Début du processus de chargement du modèle...")
+        
         # Détecter l'environnement Hugging Face Spaces
         is_hf_spaces = os.environ.get('SPACE_ID') is not None
+        st.info(f"🌍 Environnement détecté : {'Hugging Face Spaces' if is_hf_spaces else 'Local'}")
         
         if is_hf_spaces:
             st.info("🌐 Environnement Hugging Face Spaces détecté - Utilisation de la stratégie optimisée")
-            return load_ultra_lightweight_for_hf_spaces()
+            result = load_ultra_lightweight_for_hf_spaces()
+            st.info(f"📊 Résultat du chargement HF Spaces : {result[0] is not None and result[1] is not None}")
+            return result
         else:
             st.info("💻 Environnement local détecté - Chargement du modèle Gemma 3n complet")
-            return load_gemma_full()
+            result = load_gemma_full()
+            st.info(f"📊 Résultat du chargement local : {result[0] is not None and result[1] is not None}")
+            return result
             
     except Exception as e:
         st.error(f"❌ Erreur lors du chargement du modèle : {str(e)}")
+        st.error(f"🔍 Type d'erreur : {type(e).__name__}")
         return None, None
 
 def load_ultra_lightweight_for_hf_spaces():
     """Charge un modèle léger pour Hugging Face Spaces (16GB RAM limit)"""
     try:
-        from transformers import AutoTokenizer, AutoModelForCausalLM
+        st.info("🔄 Début du chargement du modèle Gemma 3B IT pour Hugging Face Spaces...")
         
-        st.info("🔄 Chargement du modèle Gemma 3B IT pour Hugging Face Spaces...")
+        from transformers import AutoTokenizer, AutoModelForCausalLM
         
         # Charger Gemma 3B IT (plus léger que Gemma 3n E4B IT)
         model_id = "google/gemma-3b-it"
+        st.info(f"📦 Modèle cible : {model_id}")
+        
+        st.info("🔧 Configuration ultra-légère en cours...")
         
         # Configuration ultra-légère
         model = AutoModelForCausalLM.from_pretrained(
@@ -846,10 +857,13 @@ def load_ultra_lightweight_for_hf_spaces():
             trust_remote_code=True
         )
         
+        st.info("✅ Modèle chargé, chargement du tokenizer...")
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         
         if model and tokenizer:
             st.success("✅ Modèle Gemma 3B IT chargé avec succès pour Hugging Face Spaces")
+            st.info(f"📊 Modèle type : {type(model).__name__}")
+            st.info(f"📊 Tokenizer type : {type(tokenizer).__name__}")
             return model, tokenizer
         else:
             st.error("❌ Échec du chargement du modèle léger")
@@ -857,6 +871,7 @@ def load_ultra_lightweight_for_hf_spaces():
             
     except Exception as e:
         st.error(f"❌ Erreur lors du chargement du modèle léger : {str(e)}")
+        st.error(f"🔍 Type d'erreur : {type(e).__name__}")
         return None, None
 
 def load_gemma_full():
@@ -1172,10 +1187,21 @@ else:
     st.title(t("title"))
     st.markdown(t("subtitle"))
 
+# Initialisation des variables de session
 if 'model_loaded' not in st.session_state:
     st.session_state.model_loaded = False
 if 'model_status' not in st.session_state:
     st.session_state.model_status = "Non chargé"
+if 'model' not in st.session_state:
+    st.session_state.model = None
+if 'processor' not in st.session_state:
+    st.session_state.processor = None
+if 'global_model_cache' not in st.session_state:
+    st.session_state.global_model_cache = {}
+if 'model_persistence_check' not in st.session_state:
+    st.session_state.model_persistence_check = False
+if 'model_load_time' not in st.session_state:
+    st.session_state.model_load_time = None
 
 if not st.session_state.model_loaded:
     if restore_model_from_cache():
@@ -1244,12 +1270,26 @@ with st.sidebar:
     else:
         st.warning(t("model_not_loaded"))
         if st.button(t("load_model"), type="primary"):
-            with st.spinner(t("loading_model")):
-                model, processor = load_model()
-                if model and processor:
-                    st.success(t("model_loaded_success"))
-                else:
-                    st.error(t("model_load_failed"))
+            try:
+                with st.spinner(t("loading_model")):
+                    model, processor = load_model()
+                    if model and processor:
+                        # Mettre à jour les variables de session
+                        st.session_state.model = model
+                        st.session_state.processor = processor
+                        st.session_state.model_loaded = True
+                        st.session_state.model_status = "Chargé avec succès"
+                        st.session_state.model_load_time = time.time()
+                        st.session_state.model_persistence_check = True
+                        st.success(t("model_loaded_success"))
+                    else:
+                        st.error(t("model_load_failed"))
+                        st.session_state.model_loaded = False
+                        st.session_state.model_status = "Échec du chargement"
+            except Exception as e:
+                st.error(f"❌ Erreur lors du chargement : {str(e)}")
+                st.session_state.model_loaded = False
+                st.session_state.model_status = f"Erreur : {str(e)}"
             st.rerun()
 
     st.divider()
