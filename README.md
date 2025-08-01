@@ -42,6 +42,22 @@ Open the link on your phone - the interface adapts automatically.
 3. **Get Diagnosis** with treatment recommendations
 4. **Export Results** if needed
 
+## 📸 Examples
+
+### Sample Plant Images
+Here are examples of diseased plants you can analyze:
+
+| **Maize Disease** | **Cassava Mosaic** | **Tomato Early Blight** |
+|:---:|:---:|:---:|
+| ![Maize Disease](sample%20image/mais_malade.jpg) | ![Cassava Mosaic](sample%20image/mosaique_manioc.jpg) | ![Tomato Early Blight](sample%20image/tomato_early_blight.jpg) |
+
+### Demo Screenshots
+See what the diagnosis results look like:
+
+| **Interface Overview** | **Analysis Results** | **Mobile Mode** | **Export Options** |
+|:---:|:---:|:---:|:---:|
+| ![Demo 1](screenshots/screenshot1.jpeg) | ![Demo 2](screenshots/screenshot2.jpeg) | ![Demo 3](screenshots/screenshot3.jpeg) | ![Demo 4](screenshots/screenshot4.jpeg) |
+
 ## 🏗️ Architecture
 
 ![AgriLens AI Architecture](https://github.com/Sidoine1991/Agrilens-AI/blob/main/appdesign.png?raw=true)
