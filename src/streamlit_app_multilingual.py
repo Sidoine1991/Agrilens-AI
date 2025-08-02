@@ -9,7 +9,7 @@ import time
 import sys
 import psutil
 from datetime import datetime
-from transformers import AutoProcessor, AutoModelForCausalLM # Utilisation générique pour Gemma
+from transformers import AutoTokenizer, AutoModelForCausalLM # Utilisation générique pour Gemma
 from huggingface_hub import HfFolder, hf_hub_download, snapshot_download
 from functools import lru_cache # Alternative pour le caching, mais st.cache_resource est mieux pour les modèles
 
@@ -604,7 +604,7 @@ def load_ai_model(model_identifier, device_map="auto", torch_dtype=torch.float16
         
         # --- Chargement du processeur ---
         st.info("Chargement du processeur...")
-        processor = AutoProcessor.from_pretrained(model_identifier, **common_args)
+        tokenizer = AutoTokenizer.from_pretrained(model_identifier, **common_args)
         
         # --- Chargement du modèle ---
         st.info("Chargement du modèle...")
@@ -616,7 +616,7 @@ def load_ai_model(model_identifier, device_map="auto", torch_dtype=torch.float16
         else:
             st.success(f"✅ Modèle Hugging Face `{model_identifier}` chargé avec succès sur device `{device_map}`.")
         
-        return model, processor
+        return model, tokenizer
 
     except ImportError as e:
         raise ImportError(f"Erreur de dépendance : {e}. Assurez-vous que `transformers`, `torch`, `accelerate`, et `bitsandbytes` sont installés.")
@@ -628,7 +628,7 @@ def load_ai_model(model_identifier, device_map="auto", torch_dtype=torch.float16
     except Exception as e:
         raise RuntimeError(f"Une erreur est survenue lors du chargement du modèle : {e}")
 
-def get_model_and_processor():
+def get_model_and_tokenizer():
     """
     Stratégie de chargement du modèle Gemma 3n e2b it.
     Utilise le modèle local s'il est disponible, sinon télécharge depuis Hugging Face.
@@ -700,15 +700,15 @@ def get_model_and_processor():
     for i, strat in enumerate(strategies, 1):
         st.info(f"📋 Stratégie {i}/{len(strategies)} : {strat['name']}...")
         try:
-            model, processor = load_ai_model(
+            model, tokenizer = load_ai_model(
                 model_path,  # Utilise le chemin détecté automatiquement
                 device_map=strat["config"]["device_map"],
                 torch_dtype=strat["config"]["torch_dtype"],
                 quantization=strat["config"]["quantization"]
             )
-            if model and processor:
+            if model and tokenizer:
                 st.success(f"✅ Succès avec la stratégie : {strat['name']}")
-                return model, processor
+                return model, tokenizer
         except Exception as e:
             error_msg = str(e)
             st.warning(f"❌ Échec avec '{strat['name']}' : {error_msg}")
@@ -749,8 +749,8 @@ def get_model_and_processor():
 # --- FONCTIONS D'ANALYSE ---
 def analyze_image_multilingual(image, prompt=""):
     """Analyse une image avec Gemma 3n e2b it pour un diagnostic précis."""
-    model, processor = st.session_state.model, st.session_state.processor
-    if not model or not processor:
+    model, tokenizer = st.session_state.model, st.session_state.tokenizer
+    if not model or not tokenizer:
         return "❌ Modèle IA non chargé. Veuillez charger le modèle dans les réglages."
 
     try:
@@ -771,7 +771,7 @@ def analyze_image_multilingual(image, prompt=""):
         ]
         
         # Utiliser apply_chat_template pour convertir le format conversationnel en tenseurs
-        inputs = processor.apply_chat_template(
+        inputs = tokenizer.apply_chat_template(
             messages,
             add_generation_prompt=True,
             tokenize=True,
@@ -794,7 +794,7 @@ def analyze_image_multilingual(image, prompt=""):
                 **generation_config  # Utilise la configuration dynamique
             )
             
-            response = processor.decode(generation[0][input_len:], skip_special_tokens=True)
+            response = tokenizer.decode(generation[0][input_len:], skip_special_tokens=True)
 
         final_response = response.strip()
         # Nettoyage des tokens de contrôle si présents
@@ -817,8 +817,8 @@ def analyze_image_multilingual(image, prompt=""):
 
 def analyze_text_multilingual(text):
     """Analyse un texte avec le modèle Gemma 3n e2b it."""
-    model, processor = st.session_state.model, st.session_state.processor
-    if not model or not processor:
+    model, tokenizer = st.session_state.model, st.session_state.tokenizer
+    if not model or not tokenizer:
         return "❌ Modèle IA non chargé. Veuillez charger le modèle dans les réglages."
         
     try:
@@ -830,7 +830,7 @@ def analyze_text_multilingual(text):
         
         messages = [{"role": "user", "content": [{"type": "text", "text": prompt_template}]}]
         
-        inputs = processor.apply_chat_template(
+        inputs = tokenizer.apply_chat_template(
             messages,
             add_generation_prompt=True,
             tokenize=True,
@@ -852,7 +852,7 @@ def analyze_text_multilingual(text):
                 **generation_config  # Utilise la configuration dynamique
             )
             
-            response = processor.decode(generation[0][input_len:], skip_special_tokens=True)
+            response = tokenizer.decode(generation[0][input_len:], skip_special_tokens=True)
         
         cleaned_response = response.strip()
         cleaned_response = cleaned_response.replace("<start_of_turn>", "").replace("<end_of_turn>", "").strip()
@@ -867,8 +867,8 @@ def analyze_text_multilingual(text):
 # --- INITIALISATION DES VARIABLES DE SESSION ---
 if 'model' not in st.session_state:
     st.session_state.model = None
-if 'processor' not in st.session_state:
-    st.session_state.processor = None
+if 'tokenizer' not in st.session_state:
+    st.session_state.tokenizer = None
 if 'model_loaded' not in st.session_state:
     st.session_state.model_loaded = False
 if 'model_status' not in st.session_state:
@@ -1004,7 +1004,7 @@ with st.sidebar:
         with col1_btn:
             if st.button(t("reload_model"), type="secondary"):
                 st.session_state.model = None
-                st.session_state.processor = None
+                st.session_state.tokenizer = None
                 st.session_state.model_loaded = False
                 st.session_state.model_status = t("not_loaded")
                 # Désactive le cache pour forcer le rechargement
@@ -1024,9 +1024,9 @@ with st.sidebar:
         if st.button(t("load_model_button"), type="primary"):
             # Essaye de charger le modèle manuellement
             try:
-                model, processor = get_model_and_processor()
+                model, tokenizer = get_model_and_tokenizer()
                 st.session_state.model = model
-                st.session_state.processor = processor
+                st.session_state.tokenizer = tokenizer
                 st.session_state.model_loaded = True
                 st.session_state.model_status = t("loaded")
                 st.success(t("model_loaded_success"))
