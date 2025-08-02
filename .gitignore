@@ -58,4 +58,19 @@ Thumbs.db
 
 # Hugging Face cache
 .cache/
-transformers_cache/ 
+transformers_cache/
+
+# Temporary and binary files
+*.tmp
+*.temp
+h origin main
+tatus
+setup_hf_token.py
+test_*.py
+*_cache_info.py
+configure_*.py
+
+# Screenshots (optionnel - décommentez si vous ne voulez pas les inclure)
+# screenshots/*.png
+# screenshots/*.jpg
+# screenshots/*.jpeg 
