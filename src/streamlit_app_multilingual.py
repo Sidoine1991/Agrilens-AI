@@ -311,13 +311,18 @@ def diagnose_loading_issues():
     return issues
 
 def resize_image_if_needed(image, max_size=(800, 800)):
-    """Redimensionne une image PIL si elle dépasse `max_size` tout en conservant les proportions."""
+    """Redimensionne une image PIL si elle dépasse `max_size` tout en conservant les proportions et le format."""
     width, height = image.size
     if width > max_size[0] or height > max_size[1]:
         ratio = min(max_size[0] / width, max_size[1] / height)
         new_width = int(width * ratio)
         new_height = int(height * ratio)
         resized_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        
+        # Préserver le format de l'image originale
+        if hasattr(image, 'format') and image.format:
+            resized_image.format = image.format
+        
         return resized_image, True
     return image, False
 
@@ -736,20 +741,46 @@ def analyze_image_multilingual(image, prompt=""):
         # Log de débogage pour vérifier l'image
         st.info(f"🔍 Analyse d'image : Format {image.format}, Taille {image.size}, Mode {image.mode}")
         
+        # S'assurer que l'image est en mode RGB (requis pour les modèles)
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+            st.info(f"🔄 Image convertie en RGB (mode original : {image.mode})")
+        
         # Convertir l'image PIL en format compatible avec Gemma
         import io
         import base64
         
-        # Convertir l'image PIL en bytes
+        # Convertir l'image PIL en bytes avec format approprié
         img_buffer = io.BytesIO()
-        image.save(img_buffer, format='JPEG', quality=85)
+        
+        # Déterminer le format approprié pour l'image
+        if image.format and image.format.upper() in ['JPEG', 'JPG']:
+            save_format = 'JPEG'
+            mime_type = 'image/jpeg'
+        elif image.format and image.format.upper() == 'PNG':
+            save_format = 'PNG'
+            mime_type = 'image/png'
+        else:
+            # Format par défaut si non détecté
+            save_format = 'JPEG'
+            mime_type = 'image/jpeg'
+        
+        # Sauvegarder l'image avec le format approprié
+        if save_format == 'JPEG':
+            image.save(img_buffer, format=save_format, quality=85)
+        else:
+            image.save(img_buffer, format=save_format)
+            
         img_bytes = img_buffer.getvalue()
         
         # Encoder en base64
         img_base64 = base64.b64encode(img_bytes).decode('utf-8')
         
         # Créer l'URL de données pour l'image
-        img_data_url = f"data:image/jpeg;base64,{img_base64}"
+        img_data_url = f"data:{mime_type};base64,{img_base64}"
+        
+        # Log supplémentaire pour vérifier la conversion
+        st.info(f"🔧 Image convertie : Format {save_format}, MIME {mime_type}, Taille base64 {len(img_base64)} caractères")
         
         # Déterminer les messages selon la langue
         if st.session_state.language == "fr":
