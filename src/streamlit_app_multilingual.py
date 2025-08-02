@@ -9,7 +9,7 @@ import time
 import sys
 import psutil
 from datetime import datetime
-from transformers import AutoProcessor, AutoModelForCausalLM # Utilisation générique pour Gemma
+from transformers import AutoTokenizer, AutoModelForCausalLM # Utilisation générique pour Gemma
 from huggingface_hub import HfFolder, hf_hub_download, snapshot_download
 from functools import lru_cache # Alternative pour le caching, mais st.cache_resource est mieux pour les modèles
 
@@ -20,6 +20,11 @@ st.set_page_config(
     layout="centered",
     initial_sidebar_state="collapsed"
 )
+
+# --- CONFIGURATION OPTIMISÉE POUR PERFORMANCE ---
+# Configuration du modèle local
+LOCAL_MODEL_PATH = "D:/Dev/model_gemma"  # Chemin vers le modèle local
+MODEL_ID_HF = "google/gemma-3n-e2b-it"  # ID Hugging Face (pour référence)
 
 # --- TRADUCTIONS ---
 TRANSLATIONS = {
@@ -234,6 +239,47 @@ def get_device():
     if torch.cuda.is_available():
         return "cuda"
     return "cpu"
+
+def get_model_path():
+    """Détermine le chemin du modèle à utiliser (local ou Hugging Face)."""
+    # Vérifier si le modèle local existe
+    if os.path.exists(LOCAL_MODEL_PATH):
+        # Vérifier que le dossier contient les fichiers nécessaires
+        required_files = ['config.json', 'tokenizer.json']
+        if all(os.path.exists(os.path.join(LOCAL_MODEL_PATH, f)) for f in required_files):
+            return LOCAL_MODEL_PATH
+    
+    # Si le modèle local n'est pas disponible, utiliser Hugging Face
+    return MODEL_ID_HF
+
+def check_local_model():
+    """Vérifie si le modèle local est valide et retourne un statut."""
+    if not os.path.exists(LOCAL_MODEL_PATH):
+        return False, f"Dossier non trouvé : {LOCAL_MODEL_PATH}"
+    
+    try:
+        files = os.listdir(LOCAL_MODEL_PATH)
+        
+        # Vérifier les fichiers requis
+        required_files = ['config.json', 'tokenizer.json', 'tokenizer_config.json']
+        missing_files = [f for f in required_files if f not in files]
+        
+        if missing_files:
+            return False, f"Fichiers manquants : {', '.join(missing_files)}"
+        
+        # Vérifier qu'il y a des fichiers de poids du modèle
+        model_files = [f for f in files if f.endswith(('.bin', '.safetensors', '.gguf'))]
+        if not model_files:
+            return False, "Aucun fichier de poids du modèle trouvé"
+        
+        # Calculer la taille totale
+        total_size = sum(os.path.getsize(os.path.join(LOCAL_MODEL_PATH, f)) for f in files if os.path.isfile(os.path.join(LOCAL_MODEL_PATH, f)))
+        size_gb = total_size / (1024**3)
+        
+        return True, f"Modèle valide ({len(files)} fichiers, {size_gb:.1f} GB)"
+        
+    except Exception as e:
+        return False, f"Erreur lors de la vérification : {e}"
 
 def diagnose_loading_issues():
     """Diagnostique les problèmes potentiels de chargement."""
@@ -475,15 +521,16 @@ MODEL_ID_HF = "google/gemma-3n-e2b-it" # Correction de l'ID du modèle
 @st.cache_resource(show_spinner=True) # Cache la ressource (modèle) entre les exécutions
 def load_ai_model(model_identifier, device_map="auto", torch_dtype=torch.float16, quantization=None):
     """
-    Charge le modèle et son processeur avec les configurations spécifiées.
-    Retourne le modèle et le processeur, ou lève une exception en cas d'échec.
+    Charge le modèle et son tokenizer avec les configurations spécifiées.
+    Retourne le modèle et le tokenizer, ou lève une exception en cas d'échec.
     """
     try:
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-        st.info(f"Tentative de chargement du modèle : `{model_identifier}`")
+        st.info(f"🔍 Tentative de chargement du modèle : `{model_identifier}`")
+        st.info(f"📋 Configuration : device_map={device_map}, torch_dtype={torch_dtype}, quantization={quantization}")
         
         # --- Configuration des arguments pour le chargement ---
         common_args = {
@@ -491,44 +538,88 @@ def load_ai_model(model_identifier, device_map="auto", torch_dtype=torch.float16
             "low_cpu_mem_usage": True, # Aide à réduire l'utilisation CPU lors du chargement
             "device_map": device_map,
             "torch_dtype": torch_dtype,
-            "token": os.environ.get("HF_TOKEN") or HfFolder.get_token() # Récupère le token depuis l'env ou le cache HF
         }
+        
+        # Ajouter le token seulement si c'est un modèle Hugging Face (pas local)
+        if model_identifier.startswith("google/") or "/" in model_identifier:
+            token = os.environ.get("HF_TOKEN") or HfFolder.get_token()
+            if token:
+                common_args["token"] = token
+                st.info("🔑 Token Hugging Face configuré")
+            else:
+                st.warning("⚠️ Pas de token Hugging Face - peut causer des erreurs 403")
         
         # Configuration de la quantisation (pour réduire l'empreinte mémoire)
         if quantization == "4bit":
-            common_args.update({
-                "load_in_4bit": True,
-                "bnb_4bit_compute_dtype": torch.float16 # Ou torch.bfloat16 si supporté
-            })
+            try:
+                import bitsandbytes as bnb
+                if bnb.cuda_setup.get_compute_capability() is not None:
+                    common_args.update({
+                        "load_in_4bit": True,
+                        "bnb_4bit_compute_dtype": torch.float16,
+                        "bnb_4bit_use_double_quant": True,
+                        "bnb_4bit_quant_type": "nf4"
+                    })
+                    st.info("🔧 Quantisation 4-bit activée")
+                else:
+                    st.warning("⚠️ bitsandbytes sans support GPU - quantisation désactivée")
+            except Exception as e:
+                st.warning(f"⚠️ Erreur bitsandbytes : {e} - quantisation désactivée")
         elif quantization == "8bit":
-            common_args.update({"load_in_8bit": True})
+            try:
+                import bitsandbytes as bnb
+                if bnb.cuda_setup.get_compute_capability() is not None:
+                    common_args.update({"load_in_8bit": True})
+                    st.info("🔧 Quantisation 8-bit activée")
+                else:
+                    st.warning("⚠️ bitsandbytes sans support GPU - quantisation désactivée")
+            except Exception as e:
+                st.warning(f"⚠️ Erreur bitsandbytes : {e} - quantisation désactivée")
         
         # --- Chargement du tokenizer ---
-        st.info("Chargement du tokenizer...")
-        tokenizer = AutoTokenizer.from_pretrained(model_identifier, **common_args)
+        st.info("📝 Chargement du tokenizer...")
+        try:
+            tokenizer = AutoTokenizer.from_pretrained(model_identifier, **common_args)
+            st.success("✅ Tokenizer chargé avec succès")
+        except Exception as e:
+            st.error(f"❌ Erreur chargement tokenizer : {e}")
+            raise
         
         # --- Chargement du modèle ---
-        st.info("Chargement du modèle...")
-        # Utiliser AutoModelForCausalLM car Gemma est un modèle causal
-        model = AutoModelForCausalLM.from_pretrained(model_identifier, **common_args)
+        st.info("🤖 Chargement du modèle...")
+        try:
+            # Utiliser AutoModelForCausalLM car Gemma est un modèle causal
+            model = AutoModelForCausalLM.from_pretrained(model_identifier, **common_args)
+            st.success("✅ Modèle chargé avec succès")
+        except Exception as e:
+            st.error(f"❌ Erreur chargement modèle : {e}")
+            raise
         
-        st.success(f"✅ Modèle `{model_identifier}` chargé avec succès sur device `{device_map}`.")
+        st.success(f"🎉 Modèle `{model_identifier}` chargé avec succès sur device `{device_map}`.")
         return model, tokenizer
 
     except ImportError as e:
+        st.error(f"❌ Erreur de dépendance : {e}")
+        st.error("💡 Assurez-vous que `transformers`, `torch`, `accelerate`, et `bitsandbytes` sont installés.")
         raise ImportError(f"Erreur de dépendance : {e}. Assurez-vous que `transformers`, `torch`, `accelerate`, et `bitsandbytes` sont installés.")
     except ValueError as e:
-        if "403" in str(e) or "Forbidden" in str(e):
+        error_msg = str(e)
+        if "403" in error_msg or "Forbidden" in error_msg:
+            st.error("❌ Erreur d'accès Hugging Face (403)")
+            st.error("💡 Vérifiez votre jeton Hugging Face (HF_TOKEN). Il doit être défini et valide.")
             raise ValueError("❌ Erreur d'accès Hugging Face (403). Vérifiez votre jeton Hugging Face (HF_TOKEN). Il doit être défini et valide.")
         else:
+            st.error(f"❌ Erreur de configuration du modèle : {e}")
             raise ValueError(f"Erreur de configuration du modèle : {e}")
     except Exception as e:
+        st.error(f"❌ Erreur inattendue lors du chargement : {e}")
+        st.error("💡 Vérifiez les logs ci-dessus pour plus de détails")
         raise RuntimeError(f"Une erreur est survenue lors du chargement du modèle : {e}")
 
 def get_model_and_tokenizer():
     """
     Stratégie de chargement du modèle Gemma 3n e2b it.
-    Essaie différentes configurations pour s'adapter aux ressources disponibles.
+    Utilise le modèle local s'il est disponible, sinon télécharge depuis Hugging Face.
     """
     # --- Diagnostic initial ---
     issues = diagnose_loading_issues()
@@ -536,53 +627,95 @@ def get_model_and_tokenizer():
         for issue in issues:
             st.markdown(issue)
 
+    # --- Détection du mode de chargement ---
+    model_path = get_model_path()
+    is_valid, status_message = check_local_model()
+    
+    if is_valid:
+        st.success(f"✅ Modèle local valide : {LOCAL_MODEL_PATH}")
+        st.info(f"📁 {status_message}")
+        st.info("Mode : Chargement local (pas de téléchargement depuis Hugging Face)")
+    else:
+        st.warning(f"⚠️ Modèle local non disponible : {LOCAL_MODEL_PATH}")
+        st.error(f"❌ {status_message}")
+        st.info(f"Mode : Téléchargement depuis Hugging Face : {MODEL_ID_HF}")
+
     # --- Stratégies de chargement ---
     strategies = []
     device = get_device()
     
-    # Priorité aux stratégies GPU si disponibles
-    if device == "cuda":
-        gpu_memory_gb = torch.cuda.get_device_properties(0).total_memory / 1024**3
-        st.info(f"Mémoire GPU disponible : {gpu_memory_gb:.1f} GB")
-        
-        # Stratégies GPU par ordre de consommation mémoire décroissante
-        if gpu_memory_gb >= 12: # Idéal pour float16
-            strategies.append({"name": "GPU (float16)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": None}})
-        if gpu_memory_gb >= 10: # Peut fonctionner avec float16
-            strategies.append({"name": "GPU (float16)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": None}})
-        if gpu_memory_gb >= 8: # Recommandé pour 8-bit quant.
-            strategies.append({"name": "GPU (8-bit quant.)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": "8bit"}})
-        if gpu_memory_gb >= 6: # Minimum pour 4-bit quant.
-            strategies.append({"name": "GPU (4-bit quant.)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": "4bit"}})
-        
-        # Si la mémoire est très limitée, proposer une stratégie CPU
-        if gpu_memory_gb < 6:
-             st.warning("Mémoire GPU limitée (<6GB). Le chargement sur CPU est recommandé.")
-
-    # Stratégies CPU (plus lentes, mais plus robustes sur peu de ressources)
-    strategies.append({"name": "CPU (bfloat16)", "config": {"device_map": "cpu", "torch_dtype": torch.bfloat16, "quantization": None}})
-    strategies.append({"name": "CPU (float32)", "config": {"device_map": "cpu", "torch_dtype": torch.float32, "quantization": None}}) # Plus stable si bfloat16 échoue
+    # Vérifier si CUDA est disponible
+    if torch.cuda.is_available() and device == "cuda":
+        try:
+            gpu_memory_gb = torch.cuda.get_device_properties(0).total_memory / 1024**3
+            st.info(f"Mémoire GPU disponible : {gpu_memory_gb:.1f} GB")
+            
+            # Stratégies GPU par ordre de consommation mémoire décroissante
+            if gpu_memory_gb >= 12: # Idéal pour float16
+                strategies.append({"name": "GPU (float16)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": None}})
+            if gpu_memory_gb >= 10: # Peut fonctionner avec float16
+                strategies.append({"name": "GPU (float16)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": None}})
+            if gpu_memory_gb >= 8: # Recommandé pour 8-bit quant.
+                strategies.append({"name": "GPU (8-bit quant.)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": "8bit"}})
+            if gpu_memory_gb >= 6: # Minimum pour 4-bit quant.
+                strategies.append({"name": "GPU (4-bit quant.)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": "4bit"}})
+            
+            # Si la mémoire est très limitée, proposer une stratégie CPU
+            if gpu_memory_gb < 6:
+                 st.warning("Mémoire GPU limitée (<6GB). Le chargement sur CPU est recommandé.")
+        except Exception as e:
+            st.warning(f"Erreur lors de la détection GPU : {e}. Utilisation du CPU.")
+            device = "cpu"
+    
+    # Si CUDA n'est pas disponible ou a échoué, utiliser CPU
+    if not torch.cuda.is_available() or device == "cpu":
+        st.info("🖥️ Mode CPU détecté - Utilisation des stratégies CPU optimisées")
+        # Stratégies CPU optimisées pour les performances (sans quantisation)
+        strategies.append({"name": "CPU (float32)", "config": {"device_map": "cpu", "torch_dtype": torch.float32, "quantization": None}})
+        strategies.append({"name": "CPU (bfloat16)", "config": {"device_map": "cpu", "torch_dtype": torch.bfloat16, "quantization": None}})
+        # Stratégie de fallback ultra-stable
+        strategies.append({"name": "CPU (float32 - fallback)", "config": {"device_map": "cpu", "torch_dtype": torch.float32, "quantization": None}})
+    else:
+        # Stratégies CPU de fallback (plus lentes, mais plus robustes sur peu de ressources)
+        strategies.append({"name": "CPU (bfloat16)", "config": {"device_map": "cpu", "torch_dtype": torch.bfloat16, "quantization": None}})
+        strategies.append({"name": "CPU (float32)", "config": {"device_map": "cpu", "torch_dtype": torch.float32, "quantization": None}}) # Plus stable si bfloat16 échoue
     
     # --- Tentative de chargement via les stratégies ---
-    for strat in strategies:
-        st.info(f"Essai : {strat['name']}...")
+    st.info(f"🔍 Tentative de chargement avec {len(strategies)} stratégies...")
+    
+    for i, strat in enumerate(strategies, 1):
+        st.info(f"📋 Stratégie {i}/{len(strategies)} : {strat['name']}...")
         try:
             model, tokenizer = load_ai_model(
-                MODEL_ID_HF,
+                model_path,  # Utilise le chemin détecté automatiquement
                 device_map=strat["config"]["device_map"],
                 torch_dtype=strat["config"]["torch_dtype"],
                 quantization=strat["config"]["quantization"]
             )
             if model and tokenizer:
-                st.success(f"Succès avec la stratégie : {strat['name']}")
+                st.success(f"✅ Succès avec la stratégie : {strat['name']}")
                 return model, tokenizer
         except Exception as e:
-            st.warning(f"Échec avec '{strat['name']}' : {e}")
+            error_msg = str(e)
+            st.warning(f"❌ Échec avec '{strat['name']}' : {error_msg}")
+            
+            # Log détaillé pour le debugging
+            with st.expander(f"🔍 Détails de l'erreur - {strat['name']}", expanded=False):
+                st.code(f"Erreur: {error_msg}")
+                st.info(f"Configuration: {strat['config']}")
+            
             # Nettoyage mémoire avant de passer à la stratégie suivante
             gc.collect()
-            if torch.cuda.is_available(): torch.cuda.empty_cache()
+            if torch.cuda.is_available(): 
+                torch.cuda.empty_cache()
             time.sleep(1) # Petite pause pour éviter les conflits
 
+    # Si toutes les stratégies ont échoué, afficher un diagnostic détaillé
+    st.error("❌ Toutes les stratégies de chargement du modèle ont échoué.")
+    st.error("💡 Vérifiez que :")
+    st.error("   • Le modèle local est correctement installé")
+    st.error("   • Vous avez suffisamment de mémoire RAM/GPU")
+    st.error("   • Les dépendances sont à jour")
     raise RuntimeError("Toutes les stratégies de chargement du modèle ont échoué.")
 
 # --- FONCTIONS D'ANALYSE ---
