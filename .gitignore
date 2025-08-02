@@ -1,7 +1,20 @@
-# Virtual Environment
-venv/
-env/
-ENV/
+# Binary files to ignore for Hugging Face repository
+*.png
+*.jpg
+*.jpeg
+*.pdf
+*.gif
+*.bmp
+*.tiff
+*.ico
+
+# Specific binary files causing issues
+technical_note.pdf
+optimized_readme_final.pdf
+architecture_app.png
+logo_app/logo_agrilesai.png
+screenshots/
+*.pdf
 
 # Python
 __pycache__/
@@ -24,20 +37,12 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
-# PyTorch
-*.pth
-*.pt
-
-# Model files
-models/
-*.safetensors
-*.bin
-
-# Temporary files
-temp_model_offload/
-tmp/
-*.tmp
+# Virtual environments
+venv/
+env/
+ENV/
 
 # IDE
 .vscode/
@@ -49,12 +54,10 @@ tmp/
 .DS_Store
 Thumbs.db
 
-# Logs
-*.log
-
 # Environment variables
 .env
 .env.local
+.env.production
 
 # Hugging Face cache
 .cache/
@@ -73,4 +76,4 @@ configure_*.py
 # Screenshots (optionnel - décommentez si vous ne voulez pas les inclure)
 # screenshots/*.png
 # screenshots/*.jpg
-# screenshots/*.jpeg 
+# screenshots/*.jpeg
