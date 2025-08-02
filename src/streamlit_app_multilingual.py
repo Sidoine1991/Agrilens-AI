@@ -257,7 +257,19 @@ TRANSLATIONS = {
     "check_dependencies": {"fr": "   • Les dépendances sont à jour", "en": "   • Dependencies are up to date"},
     "file_too_large": {"fr": "Erreur : Le fichier est trop volumineux. Maximum 200MB.", "en": "Error: The file is too large. Maximum 200MB."},
     "file_empty": {"fr": "Erreur : Le fichier est vide.", "en": "Error: The file is empty."},
-    "symptoms_required": {"fr": "❌ Veuillez saisir une description des symptômes.", "en": "❌ Please enter a description of the symptoms."}
+    "symptoms_required": {"fr": "❌ Veuillez saisir une description des symptômes.", "en": "❌ Please enter a description of the symptoms."},
+    
+    # Messages de succès
+    "processor_loaded": {"fr": "✅ Processor chargé avec succès", "en": "✅ Processor loaded successfully"},
+    "model_loaded": {"fr": "✅ Modèle multimodal chargé avec succès", "en": "✅ Multimodal model loaded successfully"},
+    "model_loaded_device": {"fr": "🎉 Modèle multimodal `{model}` chargé avec succès sur device `{device}`.", "en": "🎉 Multimodal model `{model}` loaded successfully on device `{device}`."},
+    "local_model_valid": {"fr": "✅ Modèle local valide : {path}", "en": "✅ Local model valid : {path}"},
+    "strategy_success": {"fr": "✅ Succès avec la stratégie : {name}", "en": "✅ Success with strategy : {name}"},
+    
+    # Titres et textes divers
+    "app_title": {"fr": "## 🌱 AgriLens AI", "en": "## 🌱 AgriLens AI"},
+    "mobile_interface_desc": {"fr": "Interface simulant l'application mobile offline", "en": "Interface simulating the offline mobile application"},
+    "creator_portfolio": {"fr": "Portfolio", "en": "Portfolio"}
 }
 
 def t(key):
@@ -713,7 +725,7 @@ def load_ai_model(model_identifier, device_map="auto", torch_dtype=torch.float16
         st.info(t("loading_processor"))
         try:
             processor = AutoProcessor.from_pretrained(model_identifier, **common_args)
-            st.success("✅ Processor chargé avec succès")
+            st.success(t("processor_loaded"))
         except Exception as e:
             st.error(t("processor_load_error").format(error=e))
             raise
@@ -723,12 +735,12 @@ def load_ai_model(model_identifier, device_map="auto", torch_dtype=torch.float16
         try:
             # Utiliser AutoModelForImageTextToText pour le modèle multimodal Gemma
             model = AutoModelForImageTextToText.from_pretrained(model_identifier, **common_args)
-            st.success("✅ Modèle multimodal chargé avec succès")
+            st.success(t("model_loaded"))
         except Exception as e:
             st.error(t("model_load_error").format(error=e))
             raise
         
-        st.success(f"🎉 Modèle multimodal `{model_identifier}` chargé avec succès sur device `{device_map}`.")
+        st.success(t("model_loaded_device").format(model=model_identifier, device=device_map))
         return model, processor
 
     except ImportError as e:
@@ -765,7 +777,7 @@ def get_model_and_processor():
     is_valid, status_message = check_local_model()
     
     if is_valid:
-        st.success(f"✅ Modèle local valide : {LOCAL_MODEL_PATH}")
+        st.success(t("local_model_valid").format(path=LOCAL_MODEL_PATH))
         st.info(f"📁 {status_message}")
         st.info(t("local_mode"))
     else:
@@ -826,7 +838,7 @@ def get_model_and_processor():
                 quantization=strat["config"]["quantization"]
             )
             if model and processor:
-                st.success(f"✅ Succès avec la stratégie : {strat['name']}")
+                st.success(t("strategy_success").format(name=strat['name']))
                 return model, processor
         except Exception as e:
             error_msg = str(e)
