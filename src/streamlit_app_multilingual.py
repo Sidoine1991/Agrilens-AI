@@ -631,7 +631,7 @@ def analyze_image_multilingual(image, prompt=""):
             # Si le bug #2751 est présent, il peut se manifester ici.
             generation = model.generate(
                 **inputs, # Déballer le dictionnaire des inputs
-                max_new_tokens=600,
+                max_new_tokens=520,
                 do_sample=True,
                 temperature=0.7,
                 top_p=0.9,
@@ -691,7 +691,7 @@ def analyze_text_multilingual(text):
         with torch.inference_mode():
             generation = model.generate(
                 **inputs,
-                max_new_tokens=800,
+                max_new_tokens=500,
                 do_sample=True,
                 temperature=0.7,
                 top_p=0.9,
