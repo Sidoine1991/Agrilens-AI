@@ -197,7 +197,67 @@ TRANSLATIONS = {
     "latitude_placeholder": {"fr": "Ex: 6.3690", "en": "Ex: 6.3690"},
     "longitude": {"fr": "Longitude", "en": "Longitude"},
     "longitude_placeholder": {"fr": "Ex: 2.3883", "en": "Ex: 2.3883"},
-    "location_display": {"fr": "📍 Localisation : {location}", "en": "📍 Location: {location}"}
+    "location_display": {"fr": "📍 Localisation : {location}", "en": "📍 Location: {location}"},
+    
+    # Messages de debug et d'information
+    "ram_available": {"fr": "💾 RAM : {ram} GB disponible", "en": "💾 RAM : {ram} GB available"},
+    "model_loading_attempt": {"fr": "🔍 Tentative de chargement du modèle : `{model}`", "en": "🔍 Model loading attempt : `{model}`"},
+    "model_config": {"fr": "📋 Configuration : device_map={device}, torch_dtype={dtype}, quantization={quant}", "en": "📋 Configuration : device_map={device}, torch_dtype={dtype}, quantization={quant}"},
+    "hf_token_configured": {"fr": "🔑 Token Hugging Face configuré", "en": "🔑 Hugging Face token configured"},
+    "quantization_4bit": {"fr": "🔧 Quantisation 4-bit activée", "en": "🔧 4-bit quantization enabled"},
+    "quantization_8bit": {"fr": "🔧 Quantisation 8-bit activée", "en": "🔧 8-bit quantization enabled"},
+    "loading_processor": {"fr": "📝 Chargement du processor...", "en": "📝 Loading processor..."},
+    "loading_model": {"fr": "🤖 Chargement du modèle multimodal...", "en": "🤖 Loading multimodal model..."},
+    "local_mode": {"fr": "Mode : Chargement local (pas de téléchargement depuis Hugging Face)", "en": "Mode : Local loading (no download from Hugging Face)"},
+    "hf_mode": {"fr": "Mode : Téléchargement depuis Hugging Face : {model}", "en": "Mode : Download from Hugging Face : {model}"},
+    "gpu_memory": {"fr": "Mémoire GPU disponible : {memory:.1f} GB", "en": "GPU memory available : {memory:.1f} GB"},
+    "cpu_mode": {"fr": "🖥️ Mode CPU détecté - Utilisation des stratégies CPU optimisées", "en": "🖥️ CPU mode detected - Using optimized CPU strategies"},
+    "loading_strategies": {"fr": "🔍 Tentative de chargement avec {count} stratégies...", "en": "🔍 Loading attempt with {count} strategies..."},
+    "strategy_attempt": {"fr": "📋 Stratégie {current}/{total} : {name}...", "en": "📋 Strategy {current}/{total} : {name}..."},
+    "strategy_config": {"fr": "Configuration: {config}", "en": "Configuration: {config}"},
+    "image_analysis_info": {"fr": "🔍 Analyse d'image : Format {format}, Taille {size}, Mode {mode}", "en": "🔍 Image analysis : Format {format}, Size {size}, Mode {mode}"},
+    "image_rgb_converted": {"fr": "🔄 Image convertie en RGB (mode original : {mode})", "en": "🔄 Image converted to RGB (original mode : {mode})"},
+    "image_resized": {"fr": "🔄 Image redimensionnée à 224x224 pixels", "en": "🔄 Image resized to 224x224 pixels"},
+    "image_ready": {"fr": "✅ Image prête pour analyse : Taille finale {size}, Mode {mode}", "en": "✅ Image ready for analysis : Final size {size}, Mode {mode}"},
+    "culture_considered": {"fr": "🌱 Culture prise en compte : {culture}", "en": "🌱 Culture considered : {culture}"},
+    "location_considered": {"fr": "📍 Localisation prise en compte : {location}", "en": "📍 Location considered : {location}"},
+    "agronomic_considered": {"fr": "🌾 Variables agronomiques prises en compte : {vars}", "en": "🌾 Agronomic variables considered : {vars}"},
+    "climatic_considered": {"fr": "🌤️ Variables climatiques prises en compte : {vars}", "en": "🌤️ Climatic variables considered : {vars}"},
+    "messages_structure": {"fr": "🔍 Structure des messages : {count} messages, image type: {type}", "en": "🔍 Messages structure : {count} messages, image type: {type}"},
+    "template_success": {"fr": "✅ Template de chat appliqué avec succès", "en": "✅ Chat template applied successfully"},
+    "fallback_prompt": {"fr": "🔄 Tentative avec format de prompt simple...", "en": "🔄 Attempt with simple prompt format..."},
+    
+    # Messages d'avertissement
+    "ram_low_warning": {"fr": "⚠️ Moins de 4GB de RAM disponible, le chargement du modèle risque d'échouer !", "en": "⚠️ Less than 4GB RAM available, model loading may fail!"},
+    "ram_check_error": {"fr": "⚠️ Impossible de vérifier la RAM système.", "en": "⚠️ Unable to check system RAM."},
+    "no_hf_token": {"fr": "⚠️ Pas de token Hugging Face - peut causer des erreurs 403", "en": "⚠️ No Hugging Face token - may cause 403 errors"},
+    "bitsandbytes_no_gpu": {"fr": "⚠️ bitsandbytes sans support GPU - quantisation désactivée", "en": "⚠️ bitsandbytes without GPU support - quantization disabled"},
+    "bitsandbytes_error": {"fr": "⚠️ Erreur bitsandbytes : {error} - quantisation désactivée", "en": "⚠️ bitsandbytes error : {error} - quantization disabled"},
+    "local_model_unavailable": {"fr": "⚠️ Modèle local non disponible : {path}", "en": "⚠️ Local model unavailable : {path}"},
+    "gpu_memory_limited": {"fr": "Mémoire GPU limitée (<6GB). Le chargement sur CPU est recommandé.", "en": "GPU memory limited (<6GB). CPU loading is recommended."},
+    "gpu_detection_error": {"fr": "Erreur lors de la détection GPU : {error}. Utilisation du CPU.", "en": "Error during GPU detection : {error}. Using CPU."},
+    "strategy_failed": {"fr": "❌ Échec avec '{name}' : {error}", "en": "❌ Failed with '{name}' : {error}"},
+    "generic_response_warning": {"fr": "⚠️ Le modèle semble donner une réponse générique. L'image pourrait ne pas être correctement traitée.", "en": "⚠️ The model seems to give a generic response. The image might not be processed correctly."},
+    "large_file_warning": {"fr": "Attention : Le fichier est très volumineux, le chargement peut prendre du temps.", "en": "Warning: The file is very large, loading may take time."},
+    
+    # Messages d'erreur
+    "processor_load_error": {"fr": "❌ Erreur chargement processor : {error}", "en": "❌ Processor loading error : {error}"},
+    "model_load_error": {"fr": "❌ Erreur chargement modèle : {error}", "en": "❌ Model loading error : {error}"},
+    "dependency_error": {"fr": "❌ Erreur de dépendance : {error}", "en": "❌ Dependency error : {error}"},
+    "dependency_help": {"fr": "💡 Assurez-vous que `transformers`, `torch`, `accelerate`, et `bitsandbytes` sont installés.", "en": "💡 Make sure `transformers`, `torch`, `accelerate`, and `bitsandbytes` are installed."},
+    "hf_access_error": {"fr": "❌ Erreur d'accès Hugging Face (403)", "en": "❌ Hugging Face access error (403)"},
+    "hf_token_help": {"fr": "💡 Vérifiez votre jeton Hugging Face (HF_TOKEN). Il doit être défini et valide.", "en": "💡 Check your Hugging Face token (HF_TOKEN). It must be defined and valid."},
+    "model_config_error": {"fr": "❌ Erreur de configuration du modèle : {error}", "en": "❌ Model configuration error : {error}"},
+    "unexpected_error": {"fr": "❌ Erreur inattendue lors du chargement : {error}", "en": "❌ Unexpected error during loading : {error}"},
+    "check_logs_help": {"fr": "💡 Vérifiez les logs ci-dessus pour plus de détails", "en": "💡 Check the logs above for more details"},
+    "all_strategies_failed": {"fr": "❌ Toutes les stratégies de chargement du modèle ont échoué.", "en": "❌ All model loading strategies failed."},
+    "check_requirements": {"fr": "💡 Vérifiez que :", "en": "💡 Check that :"},
+    "check_local_model": {"fr": "   • Le modèle local est correctement installé", "en": "   • The local model is properly installed"},
+    "check_memory": {"fr": "   • Vous avez suffisamment de mémoire RAM/GPU", "en": "   • You have sufficient RAM/GPU memory"},
+    "check_dependencies": {"fr": "   • Les dépendances sont à jour", "en": "   • Dependencies are up to date"},
+    "file_too_large": {"fr": "Erreur : Le fichier est trop volumineux. Maximum 200MB.", "en": "Error: The file is too large. Maximum 200MB."},
+    "file_empty": {"fr": "Erreur : Le fichier est vide.", "en": "Error: The file is empty."},
+    "symptoms_required": {"fr": "❌ Veuillez saisir une description des symptômes.", "en": "❌ Please enter a description of the symptoms."}
 }
 
 def t(key):
@@ -391,11 +451,11 @@ def afficher_ram_disponible():
     """Affiche l'utilisation de la RAM."""
     try:
         mem = psutil.virtual_memory()
-        st.info(f"💾 RAM : {mem.available // (1024**3)} GB disponible")
+        st.info(t("ram_available").format(ram=mem.available // (1024**3)))
         if mem.available < 4 * 1024**3:
-            st.warning("⚠️ Moins de 4GB de RAM disponible, le chargement du modèle risque d'échouer !")
+            st.warning(t("ram_low_warning"))
     except ImportError:
-        st.warning("⚠️ Impossible de vérifier la RAM système.")
+        st.warning(t("ram_check_error"))
 
 def generate_html_diagnostic(diagnostic_text, culture=None, image_info=None, timestamp=None, location=None):
     """
@@ -602,8 +662,8 @@ def load_ai_model(model_identifier, device_map="auto", torch_dtype=torch.float16
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-        st.info(f"🔍 Tentative de chargement du modèle : `{model_identifier}`")
-        st.info(f"📋 Configuration : device_map={device_map}, torch_dtype={torch_dtype}, quantization={quantization}")
+        st.info(t("model_loading_attempt").format(model=model_identifier))
+        st.info(t("model_config").format(device=device_map, dtype=torch_dtype, quant=quantization))
         
         # --- Configuration des arguments pour le chargement ---
         common_args = {
@@ -618,9 +678,9 @@ def load_ai_model(model_identifier, device_map="auto", torch_dtype=torch.float16
             token = os.environ.get("HF_TOKEN") or HfFolder.get_token()
             if token:
                 common_args["token"] = token
-                st.info("🔑 Token Hugging Face configuré")
+                st.info(t("hf_token_configured"))
             else:
-                st.warning("⚠️ Pas de token Hugging Face - peut causer des erreurs 403")
+                st.warning(t("no_hf_token"))
         
         # Configuration de la quantisation (pour réduire l'empreinte mémoire)
         if quantization == "4bit":
@@ -633,60 +693,60 @@ def load_ai_model(model_identifier, device_map="auto", torch_dtype=torch.float16
                         "bnb_4bit_use_double_quant": True,
                         "bnb_4bit_quant_type": "nf4"
                     })
-                    st.info("🔧 Quantisation 4-bit activée")
+                    st.info(t("quantization_4bit"))
                 else:
-                    st.warning("⚠️ bitsandbytes sans support GPU - quantisation désactivée")
+                    st.warning(t("bitsandbytes_no_gpu"))
             except Exception as e:
-                st.warning(f"⚠️ Erreur bitsandbytes : {e} - quantisation désactivée")
+                st.warning(t("bitsandbytes_error").format(error=e))
         elif quantization == "8bit":
             try:
                 import bitsandbytes as bnb
                 if bnb.cuda_setup.get_compute_capability() is not None:
                     common_args.update({"load_in_8bit": True})
-                    st.info("🔧 Quantisation 8-bit activée")
+                    st.info(t("quantization_8bit"))
                 else:
-                    st.warning("⚠️ bitsandbytes sans support GPU - quantisation désactivée")
+                    st.warning(t("bitsandbytes_no_gpu"))
             except Exception as e:
-                st.warning(f"⚠️ Erreur bitsandbytes : {e} - quantisation désactivée")
+                st.warning(t("bitsandbytes_error").format(error=e))
         
         # --- Chargement du processor ---
-        st.info("📝 Chargement du processor...")
+        st.info(t("loading_processor"))
         try:
             processor = AutoProcessor.from_pretrained(model_identifier, **common_args)
             st.success("✅ Processor chargé avec succès")
         except Exception as e:
-            st.error(f"❌ Erreur chargement processor : {e}")
+            st.error(t("processor_load_error").format(error=e))
             raise
         
         # --- Chargement du modèle multimodal ---
-        st.info("🤖 Chargement du modèle multimodal...")
+        st.info(t("loading_model"))
         try:
             # Utiliser AutoModelForImageTextToText pour le modèle multimodal Gemma
             model = AutoModelForImageTextToText.from_pretrained(model_identifier, **common_args)
             st.success("✅ Modèle multimodal chargé avec succès")
         except Exception as e:
-            st.error(f"❌ Erreur chargement modèle : {e}")
+            st.error(t("model_load_error").format(error=e))
             raise
         
         st.success(f"🎉 Modèle multimodal `{model_identifier}` chargé avec succès sur device `{device_map}`.")
         return model, processor
 
     except ImportError as e:
-        st.error(f"❌ Erreur de dépendance : {e}")
-        st.error("💡 Assurez-vous que `transformers`, `torch`, `accelerate`, et `bitsandbytes` sont installés.")
+        st.error(t("dependency_error").format(error=e))
+        st.error(t("dependency_help"))
         raise ImportError(f"Erreur de dépendance : {e}. Assurez-vous que `transformers`, `torch`, `accelerate`, et `bitsandbytes` sont installés.")
     except ValueError as e:
         error_msg = str(e)
         if "403" in error_msg or "Forbidden" in error_msg:
-            st.error("❌ Erreur d'accès Hugging Face (403)")
-            st.error("💡 Vérifiez votre jeton Hugging Face (HF_TOKEN). Il doit être défini et valide.")
+            st.error(t("hf_access_error"))
+            st.error(t("hf_token_help"))
             raise ValueError("❌ Erreur d'accès Hugging Face (403). Vérifiez votre jeton Hugging Face (HF_TOKEN). Il doit être défini et valide.")
         else:
-            st.error(f"❌ Erreur de configuration du modèle : {e}")
+            st.error(t("model_config_error").format(error=e))
             raise ValueError(f"Erreur de configuration du modèle : {e}")
     except Exception as e:
-        st.error(f"❌ Erreur inattendue lors du chargement : {e}")
-        st.error("💡 Vérifiez les logs ci-dessus pour plus de détails")
+        st.error(t("unexpected_error").format(error=e))
+        st.error(t("check_logs_help"))
         raise RuntimeError(f"Une erreur est survenue lors du chargement du modèle : {e}")
 
 def get_model_and_processor():
@@ -707,11 +767,11 @@ def get_model_and_processor():
     if is_valid:
         st.success(f"✅ Modèle local valide : {LOCAL_MODEL_PATH}")
         st.info(f"📁 {status_message}")
-        st.info("Mode : Chargement local (pas de téléchargement depuis Hugging Face)")
+        st.info(t("local_mode"))
     else:
-        st.warning(f"⚠️ Modèle local non disponible : {LOCAL_MODEL_PATH}")
+        st.warning(t("local_model_unavailable").format(path=LOCAL_MODEL_PATH))
         st.error(f"❌ {status_message}")
-        st.info(f"Mode : Téléchargement depuis Hugging Face : {MODEL_ID_HF}")
+        st.info(t("hf_mode").format(model=MODEL_ID_HF))
 
     # --- Stratégies de chargement ---
     strategies = []
@@ -721,7 +781,7 @@ def get_model_and_processor():
     if torch.cuda.is_available() and device == "cuda":
         try:
             gpu_memory_gb = torch.cuda.get_device_properties(0).total_memory / 1024**3
-            st.info(f"Mémoire GPU disponible : {gpu_memory_gb:.1f} GB")
+            st.info(t("gpu_memory").format(memory=gpu_memory_gb))
             
             # Stratégies GPU par ordre de consommation mémoire décroissante
             if gpu_memory_gb >= 12: # Idéal pour float16
@@ -735,14 +795,14 @@ def get_model_and_processor():
             
             # Si la mémoire est très limitée, proposer une stratégie CPU
             if gpu_memory_gb < 6:
-                 st.warning("Mémoire GPU limitée (<6GB). Le chargement sur CPU est recommandé.")
+                 st.warning(t("gpu_memory_limited"))
         except Exception as e:
-            st.warning(f"Erreur lors de la détection GPU : {e}. Utilisation du CPU.")
+            st.warning(t("gpu_detection_error").format(error=e))
             device = "cpu"
     
     # Si CUDA n'est pas disponible ou a échoué, utiliser CPU
     if not torch.cuda.is_available() or device == "cpu":
-        st.info("🖥️ Mode CPU détecté - Utilisation des stratégies CPU optimisées")
+        st.info(t("cpu_mode"))
         # Stratégies CPU optimisées pour les performances (sans quantisation)
         strategies.append({"name": "CPU (float32)", "config": {"device_map": "cpu", "torch_dtype": torch.float32, "quantization": None}})
         strategies.append({"name": "CPU (bfloat16)", "config": {"device_map": "cpu", "torch_dtype": torch.bfloat16, "quantization": None}})
@@ -754,10 +814,10 @@ def get_model_and_processor():
         strategies.append({"name": "CPU (float32)", "config": {"device_map": "cpu", "torch_dtype": torch.float32, "quantization": None}}) # Plus stable si bfloat16 échoue
     
     # --- Tentative de chargement via les stratégies ---
-    st.info(f"🔍 Tentative de chargement avec {len(strategies)} stratégies...")
+    st.info(t("loading_strategies").format(count=len(strategies)))
     
     for i, strat in enumerate(strategies, 1):
-        st.info(f"📋 Stratégie {i}/{len(strategies)} : {strat['name']}...")
+        st.info(t("strategy_attempt").format(current=i, total=len(strategies), name=strat['name']))
         try:
             model, processor = load_ai_model(
                 model_path,  # Utilise le chemin détecté automatiquement
@@ -770,12 +830,12 @@ def get_model_and_processor():
                 return model, processor
         except Exception as e:
             error_msg = str(e)
-            st.warning(f"❌ Échec avec '{strat['name']}' : {error_msg}")
+            st.warning(t("strategy_failed").format(name=strat['name'], error=error_msg))
             
             # Log détaillé pour le debugging
             with st.expander(f"🔍 Détails de l'erreur - {strat['name']}", expanded=False):
                 st.code(f"Erreur: {error_msg}")
-                st.info(f"Configuration: {strat['config']}")
+                st.info(t("strategy_config").format(config=strat['config']))
             
             # Nettoyage mémoire avant de passer à la stratégie suivante
             gc.collect()
@@ -784,11 +844,11 @@ def get_model_and_processor():
             time.sleep(1) # Petite pause pour éviter les conflits
 
     # Si toutes les stratégies ont échoué, afficher un diagnostic détaillé
-    st.error("❌ Toutes les stratégies de chargement du modèle ont échoué.")
-    st.error("💡 Vérifiez que :")
-    st.error("   • Le modèle local est correctement installé")
-    st.error("   • Vous avez suffisamment de mémoire RAM/GPU")
-    st.error("   • Les dépendances sont à jour")
+            st.error(t("all_strategies_failed"))
+        st.error(t("check_requirements"))
+        st.error(t("check_local_model"))
+        st.error(t("check_memory"))
+        st.error(t("check_dependencies"))
     raise RuntimeError("Toutes les stratégies de chargement du modèle ont échoué.")
 
 # --- FONCTIONS D'ANALYSE ---
@@ -804,37 +864,37 @@ def analyze_image_multilingual(image, prompt="", culture="", agronomic_vars="", 
             return "❌ Erreur : Aucune image fournie pour l'analyse."
         
         # Log de débogage pour vérifier l'image
-        st.info(f"🔍 Analyse d'image : Format {image.format}, Taille {image.size}, Mode {image.mode}")
+        st.info(t("image_analysis_info").format(format=image.format, size=image.size, mode=image.mode))
         
         # S'assurer que l'image est en mode RGB (requis pour les modèles)
         if image.mode != 'RGB':
             image = image.convert('RGB')
-            st.info(f"🔄 Image convertie en RGB (mode original : {image.mode})")
+            st.info(t("image_rgb_converted").format(mode=image.mode))
         
         # Redimensionner l'image si nécessaire (comme dans le notebook Kaggle)
         if image.size[0] > 224 or image.size[1] > 224:
             image = image.resize((224, 224), Image.Resampling.LANCZOS)
-            st.info(f"🔄 Image redimensionnée à 224x224 pixels")
+            st.info(t("image_resized"))
         
-        st.info(f"✅ Image prête pour analyse : Taille finale {image.size}, Mode {image.mode}")
+        st.info(t("image_ready").format(size=image.size, mode=image.mode))
         
         # Construire le prompt en tenant compte de la culture, des variables agronomiques/climatiques et de la localisation
         additional_info = ""
         if culture and culture.strip():
             additional_info += f"Culture spécifiée : {culture.strip()}. "
-            st.info(f"🌱 Culture prise en compte : {culture.strip()}")
+            st.info(t("culture_considered").format(culture=culture.strip()))
         
         if location and location.strip():
             additional_info += f"Localisation : {location.strip()}. "
-            st.info(f"📍 Localisation prise en compte : {location.strip()}")
+            st.info(t("location_considered").format(location=location.strip()))
         
         if agronomic_vars and agronomic_vars.strip():
             additional_info += f"Variables agronomiques : {agronomic_vars.strip()}. "
-            st.info(f"🌾 Variables agronomiques prises en compte : {agronomic_vars.strip()}")
+            st.info(t("agronomic_considered").format(vars=agronomic_vars.strip()))
         
         if climatic_vars and climatic_vars.strip():
             additional_info += f"Variables climatiques : {climatic_vars.strip()}. "
-            st.info(f"🌤️ Variables climatiques prises en compte : {climatic_vars.strip()}")
+            st.info(t("climatic_considered").format(vars=climatic_vars.strip()))
         
         # Déterminer les messages selon la langue
         if st.session_state.language == "fr":
@@ -887,7 +947,7 @@ IMPORTANT:
         ]
         
         # Log pour debug
-        st.info(f"🔍 Structure des messages : {len(messages)} messages, image type: {type(image)}")
+        st.info(t("messages_structure").format(count=len(messages), type=type(image)))
         
         # Utiliser processor.apply_chat_template pour convertir le format conversationnel en tenseurs
         try:
@@ -898,11 +958,11 @@ IMPORTANT:
                 return_dict=True,
                 return_tensors="pt",
             )
-            st.info("✅ Template de chat appliqué avec succès")
+            st.info(t("template_success"))
         except Exception as template_error:
             st.error(f"❌ Erreur avec apply_chat_template: {template_error}")
             # Fallback : essayer un format plus simple
-            st.info("🔄 Tentative avec format de prompt simple...")
+            st.info(t("fallback_prompt"))
             simple_prompt = f"{system_message}\n\n{user_instruction}"
             inputs = processor(simple_prompt, image, return_tensors="pt", padding=True, truncation=True)
         
@@ -943,7 +1003,7 @@ IMPORTANT:
         is_generic = any(indicator.lower() in final_response.lower() for indicator in generic_indicators)
         
         if is_generic:
-            st.warning("⚠️ Le modèle semble donner une réponse générique. L'image pourrait ne pas être correctement traitée.")
+            st.warning(t("generic_response_warning"))
             # Ajouter une instruction pour forcer l'analyse de l'image
             final_response += "\n\n⚠️ **Note importante** : Cette réponse semble générique. Veuillez vérifier que l'image a été correctement uploadée et réessayer l'analyse."
         
@@ -1032,7 +1092,7 @@ with st.sidebar:
     st.header("⚙️ " + t("config_title"))
     
     # Sélection de la langue
-    st.subheader("🌐 Sélection de la langue")
+    st.subheader("🌐 " + t("language_selection"))
     language_options = ["Français", "English"]
     current_lang_index = 0 if st.session_state.language == "fr" else 1
     language_choice = st.selectbox(
@@ -1180,13 +1240,13 @@ with tab1:
         if uploaded_file is not None:
             MAX_FILE_SIZE_BYTES = 200 * 1024 * 1024
             if uploaded_file.size > MAX_FILE_SIZE_BYTES:
-                st.error("Erreur : Le fichier est trop volumineux. Maximum 200MB.")
+                st.error(t("file_too_large"))
                 uploaded_file = None
             elif uploaded_file.size == 0:
-                st.error("Erreur : Le fichier est vide.")
+                st.error(t("file_empty"))
                 uploaded_file = None
             elif uploaded_file.size > (MAX_FILE_SIZE_BYTES * 0.8):
-                st.warning("Attention : Le fichier est très volumineux, le chargement peut prendre du temps.")
+                st.warning(t("large_file_warning"))
     else:
         st.markdown(t("webcam_title"))
         st.info(t("webcam_info"))
@@ -1518,7 +1578,7 @@ with tab2:
         if not st.session_state.model_loaded:
             st.error(t("model_not_loaded_error"))
         elif not text_input.strip():
-            st.error("❌ Veuillez saisir une description des symptômes.")
+            st.error(t("symptoms_required"))
         else:
             # Créer des placeholders pour la progression
             progress_placeholder = st.empty()
