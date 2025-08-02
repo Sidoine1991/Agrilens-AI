@@ -50,12 +50,12 @@ def test_performance_modes():
         # Créer une image de test simple
         test_image = Image.new('RGB', (224, 224), color='green')
         
-        # Configurations de test
-        test_configs = {
-                "fast": {"max_new_tokens": 400, "top_k": 50},
-    "balanced": {"max_new_tokens": 500, "top_k": 100},
-    "quality": {"max_new_tokens": 550, "top_k": 200}
-        }
+                        # Configurations de test
+                test_configs = {
+                    "fast": {"max_new_tokens": 250, "top_k": 50},
+                    "balanced": {"max_new_tokens": 300, "top_k": 100},
+                    "quality": {"max_new_tokens": 350, "top_k": 200}
+                }
         
         # Test avec une image
         print("\n📸 Test d'analyse d'image :")

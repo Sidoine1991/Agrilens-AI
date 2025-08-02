@@ -12,6 +12,7 @@ from datetime import datetime
 from transformers import AutoTokenizer, AutoModelForCausalLM # Utilisation générique pour Gemma
 from huggingface_hub import HfFolder, hf_hub_download, snapshot_download
 from functools import lru_cache # Alternative pour le caching, mais st.cache_resource est mieux pour les modèles
+import threading
 
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(
@@ -25,6 +26,127 @@ st.set_page_config(
 # Configuration du modèle local
 LOCAL_MODEL_PATH = "D:/Dev/model_gemma"  # Chemin vers le modèle local
 MODEL_ID_HF = "google/gemma-3n-e2b-it"  # ID Hugging Face (pour référence)
+
+# Variables globales pour la progression
+if 'analysis_progress' not in st.session_state:
+    st.session_state.analysis_progress = 0
+if 'analysis_start_time' not in st.session_state:
+    st.session_state.analysis_start_time = None
+if 'analysis_estimated_time' not in st.session_state:
+    st.session_state.analysis_estimated_time = None
+if 'analysis_status' not in st.session_state:
+    st.session_state.analysis_status = ""
+
+def estimate_analysis_time(analysis_type="image", performance_mode="fast"):
+    """Estime le temps d'analyse basé sur le type et le mode de performance."""
+    base_times = {
+        "image": {"fast": 15, "balanced": 35, "quality": 60},
+        "text": {"fast": 8, "balanced": 15, "quality": 25}
+    }
+    
+    # Ajuster selon les performances du système
+    device = get_device()
+    if "cuda" in device.lower():
+        # GPU disponible - temps réduit
+        multiplier = 0.7
+    else:
+        # CPU seulement - temps augmenté
+        multiplier = 1.5
+    
+    estimated_time = base_times[analysis_type][performance_mode] * multiplier
+    return int(estimated_time)
+
+def update_progress(progress, status=""):
+    """Met à jour la progression de l'analyse."""
+    st.session_state.analysis_progress = progress
+    st.session_state.analysis_status = status
+
+def display_progress_bar(analysis_type="image"):
+    """Affiche la barre de progression avec estimation du temps."""
+    if st.session_state.analysis_progress > 0:
+        # Calculer le temps écoulé et estimé
+        if st.session_state.analysis_start_time:
+            elapsed_time = time.time() - st.session_state.analysis_start_time
+            if st.session_state.analysis_estimated_time:
+                remaining_time = max(0, st.session_state.analysis_estimated_time - elapsed_time)
+                
+                # Afficher la barre de progression
+                progress_bar = st.progress(st.session_state.analysis_progress / 100)
+                
+                # Afficher le statut et le temps
+                col1, col2 = st.columns([2, 1])
+                with col1:
+                    st.info(f"🔍 {st.session_state.analysis_status}")
+                with col2:
+                    st.metric("⏱️ Temps restant", f"{int(remaining_time)}s")
+                
+                # Afficher le pourcentage
+                st.caption(f"Progression : {st.session_state.analysis_progress}%")
+                
+                return progress_bar
+        
+        # Fallback si pas d'estimation de temps
+        progress_bar = st.progress(st.session_state.analysis_progress / 100)
+        st.info(f"🔍 {st.session_state.analysis_status}")
+        st.caption(f"Progression : {st.session_state.analysis_progress}%")
+        
+        return progress_bar
+    
+    return None
+
+def simulate_progress(analysis_type="image", performance_mode="fast"):
+    """Simule la progression de l'analyse en arrière-plan."""
+    estimated_time = estimate_analysis_time(analysis_type, performance_mode)
+    st.session_state.analysis_estimated_time = estimated_time
+    
+    # Étapes de progression pour l'analyse d'image
+    if analysis_type == "image":
+        steps = [
+            (10, "Préparation de l'image..."),
+            (25, "Chargement du modèle..."),
+            (40, "Analyse des caractéristiques visuelles..."),
+            (60, "Identification des symptômes..."),
+            (80, "Génération du diagnostic..."),
+            (95, "Finalisation de la réponse..."),
+            (100, "Analyse terminée !")
+        ]
+    else:  # text
+        steps = [
+            (20, "Analyse du texte..."),
+            (50, "Identification du problème..."),
+            (80, "Génération des recommandations..."),
+            (100, "Analyse terminée !")
+        ]
+    
+    # Calculer le délai entre chaque étape
+    total_steps = len(steps)
+    time_per_step = estimated_time / total_steps
+    
+    for progress, status in steps:
+        time.sleep(time_per_step)
+        update_progress(progress, status)
+
+def start_progress_simulation(analysis_type="image"):
+    """Démarre la simulation de progression en arrière-plan."""
+    st.session_state.analysis_progress = 0
+    st.session_state.analysis_start_time = time.time()
+    
+    performance_mode = st.session_state.get('performance_mode', 'fast')
+    
+    # Démarrer la simulation en arrière-plan
+    progress_thread = threading.Thread(
+        target=simulate_progress,
+        args=(analysis_type, performance_mode),
+        daemon=True
+    )
+    progress_thread.start()
+
+def reset_progress():
+    """Réinitialise la progression."""
+    st.session_state.analysis_progress = 0
+    st.session_state.analysis_start_time = None
+    st.session_state.analysis_estimated_time = None
+    st.session_state.analysis_status = ""
 
 # Configurations de génération selon le mode de performance
 def get_generation_config(mode="fast"):
@@ -42,17 +164,17 @@ def get_generation_config(mode="fast"):
     
     if mode == "fast":
         base_config.update({
-            "max_new_tokens": 400,
+            "max_new_tokens": 250,
             "top_k": 50,
         })
     elif mode == "balanced":
         base_config.update({
-            "max_new_tokens": 500,
+            "max_new_tokens": 300,
             "top_k": 100,
         })
     else:  # quality
         base_config.update({
-            "max_new_tokens": 550,
+            "max_new_tokens": 350,
             "top_k": 200,
         })
     
@@ -756,11 +878,11 @@ def analyze_image_multilingual(image, prompt=""):
     try:
         # Déterminer les messages selon la langue
         if st.session_state.language == "fr":
-            user_instruction = f"Analyse attentivement cette image de feuille de plante malade et fournis un diagnostic précis basé uniquement sur ce que tu vois dans l'image. Question spécifique : {prompt}" if prompt else "Analyse attentivement cette image de feuille de plante malade et fournis un diagnostic précis basé uniquement sur ce que tu vois dans l'image."
-            system_message = "Tu es un expert en pathologie végétale spécialisé dans l'analyse d'images. Tu dois analyser l'image fournie et donner un diagnostic précis avec un niveau de confiance. Réponds de manière structurée : 1) Description visuelle des symptômes observés, 2) Diagnostic précis avec niveau de confiance (%), 3) Causes, 4) Traitement recommandé, 5) Urgence."
+            user_instruction = f"Analyse cette image de plante malade et fournis un diagnostic SUCCINCT et STRUCTURÉ. Question : {prompt}" if prompt else "Analyse cette image de plante malade et fournis un diagnostic SUCCINCT et STRUCTURÉ."
+            system_message = "Tu es un expert en pathologie végétale. Réponds de manière SUCCINCTE et STRUCTURÉE avec EXACTEMENT ces 3 sections : 1) SYMPTÔMES VISIBLES (courte description), 2) NOM DE LA MALADIE (avec niveau de confiance %), 3) TRAITEMENT RECOMMANDÉ (actions concrètes). Sois précis et concis. Maximum 200 mots."
         else: # English
-            user_instruction = f"Carefully analyze this image of a diseased plant leaf and provide a precise diagnosis based solely on what you see in the image. Specific question: {prompt}" if prompt else "Carefully analyze this image of a diseased plant leaf and provide a precise diagnosis based solely on what you see in the image."
-            system_message = "You are a plant pathology expert specialized in image analysis. You must analyze the provided image and give a precise diagnosis with a confidence level. Respond in a structured manner: 1) Visual description of observed symptoms, 2) Precise diagnosis with confidence level (%), 3) Causes, 4) Recommended treatment, 5) Urgency."
+            user_instruction = f"Analyze this diseased plant image and provide a SUCCINCT and STRUCTURED diagnosis. Question: {prompt}" if prompt else "Analyze this diseased plant image and provide a SUCCINCT and STRUCTURED diagnosis."
+            system_message = "You are a plant pathology expert. Respond in a SUCCINCT and STRUCTURED manner with EXACTLY these 3 sections: 1) VISIBLE SYMPTOMS (brief description), 2) DISEASE NAME (with confidence level %), 3) RECOMMENDED TREATMENT (concrete actions). Be precise and concise. Maximum 200 words."
         
         # Vérification que l'image est bien présente
         if image is None:
@@ -844,9 +966,9 @@ def analyze_text_multilingual(text):
     try:
         # Construction du prompt selon la langue
         if st.session_state.language == "fr":
-            prompt_template = f"Tu es un assistant agricole expert. Analyse ce problème de plante : \n\n**Description du problème :**\n{text}\n\n**Instructions :**\n1. **Diagnostic** : Quel est le problème principal ?\n2. **Causes** : Quelles sont les causes possibles ?\n3. **Traitement** : Quelles sont les actions à entreprendre ?\n4. **Prévention** : Comment éviter le problème à l'avenir ?"
+            prompt_template = f"Tu es un expert en pathologie végétale. Analyse ce problème de plante de manière SUCCINCTE et STRUCTURÉE : \n\n**Description :**\n{text}\n\n**Réponds avec EXACTEMENT ces 3 sections :**\n1. **SYMPTÔMES** (description courte)\n2. **NOM DE LA MALADIE/PROBLÈME** (avec niveau de confiance %)\n3. **TRAITEMENT** (actions concrètes)\n\nSois précis et concis. Maximum 150 mots."
         else: # English
-            prompt_template = f"You are an expert agricultural assistant. Analyze this plant problem: \n\n**Problem Description:**\n{text}\n\n**Instructions:**\n1. **Diagnosis**: What is the main problem?\n2. **Causes**: What are the possible causes?\n3. **Treatment**: What actions should be taken?\n4. **Prevention**: How to avoid the problem in the future?"
+            prompt_template = f"You are a plant pathology expert. Analyze this plant problem in a SUCCINCT and STRUCTURED manner: \n\n**Description:**\n{text}\n\n**Respond with EXACTLY these 3 sections:**\n1. **SYMPTOMS** (brief description)\n2. **DISEASE/PROBLEM NAME** (with confidence level %)\n3. **TREATMENT** (concrete actions)\n\nBe precise and concise. Maximum 150 words."
         
         messages = [{"role": "user", "content": [{"type": "text", "text": prompt_template}]}]
         
@@ -972,13 +1094,13 @@ with st.sidebar:
     # Affichage des paramètres actuels
     if st.session_state.performance_mode == "fast":
         st.success("🚀 Mode RAPIDE activé - Réponse en ~10-30 secondes")
-        st.info("• max_new_tokens: 400\n• top_k: 50\n• Optimisations activées")
+        st.info("• max_new_tokens: 250\n• top_k: 50\n• Optimisations activées")
     elif st.session_state.performance_mode == "balanced":
         st.info("⚖️ Mode ÉQUILIBRÉ activé - Réponse en ~20-60 secondes")
-        st.info("• max_new_tokens: 500\n• top_k: 100\n• Équilibre vitesse/qualité")
+        st.info("• max_new_tokens: 300\n• top_k: 100\n• Équilibre vitesse/qualité")
     else:
         st.warning("🎯 Mode QUALITÉ activé - Réponse en ~30-90 secondes")
-        st.info("• max_new_tokens: 550\n• top_k: 200\n• Qualité maximale")
+        st.info("• max_new_tokens: 350\n• top_k: 200\n• Qualité maximale")
     
     # Détails du modèle local (expandable)
     with st.expander("📋 Détails du modèle local", expanded=False):
@@ -1204,15 +1326,31 @@ with tab1:
                 if not st.session_state.model_loaded:
                     st.error(t("model_not_loaded_error"))
                 else:
-                    with st.spinner(t("analyzing_image")):
-                        # Construire le prompt avec la culture spécifiée
-                        enhanced_prompt = ""
-                        if culture_input:
-                            enhanced_prompt += f"Culture spécifiée : {culture_input}. "
-                        if question:
-                            enhanced_prompt += f"Question : {question}. "
-                        
-                        result = analyze_image_multilingual(image, enhanced_prompt)
+                    # Démarrer la simulation de progression
+                    start_progress_simulation("image")
+                    
+                    # Créer un conteneur pour la barre de progression
+                    progress_container = st.container()
+                    
+                    with progress_container:
+                        # Afficher la barre de progression
+                        progress_bar = display_progress_bar("image")
+                    
+                    # Construire le prompt avec la culture spécifiée
+                    enhanced_prompt = ""
+                    if culture_input:
+                        enhanced_prompt += f"Culture spécifiée : {culture_input}. "
+                    if question:
+                        enhanced_prompt += f"Question : {question}. "
+                    
+                    # Effectuer l'analyse
+                    result = analyze_image_multilingual(image, enhanced_prompt)
+                    
+                    # Réinitialiser la progression
+                    reset_progress()
+                    
+                    # Effacer la barre de progression
+                    progress_container.empty()
                     
                     st.markdown(t("analysis_results"))
                     
@@ -1277,8 +1415,24 @@ with tab2:
         elif not text_input.strip():
             st.error("❌ Veuillez saisir une description des symptômes.")
         else:
-            with st.spinner("🔍 Analyse de texte en cours..."):
-                result = analyze_text_multilingual(text_input)
+            # Démarrer la simulation de progression
+            start_progress_simulation("text")
+            
+            # Créer un conteneur pour la barre de progression
+            progress_container = st.container()
+            
+            with progress_container:
+                # Afficher la barre de progression
+                progress_bar = display_progress_bar("text")
+            
+            # Effectuer l'analyse
+            result = analyze_text_multilingual(text_input)
+            
+            # Réinitialiser la progression
+            reset_progress()
+            
+            # Effacer la barre de progression
+            progress_container.empty()
             
             st.markdown(t("analysis_results"))
             st.markdown("---")

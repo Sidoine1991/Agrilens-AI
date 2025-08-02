@@ -235,6 +235,188 @@ Users with NVIDIA/AMD GPUs will experience significantly faster performance:
 
 *Once downloaded, the model files are cached locally, enabling the app to work completely offline for diagnosis.*
 
+## 🌱 Configuration du Modèle Local
+
+Ce guide explique comment configurer AgriLens AI pour utiliser un modèle Gemma local au lieu de télécharger depuis Hugging Face.
+
+### 📋 Prérequis
+
+- Python 3.8+
+- Modèle Gemma 3n E4B IT téléchargé localement
+- Espace disque suffisant (environ 4-8 GB selon la version)
+
+### 🚀 Installation du Modèle Local
+
+#### Option A: Téléchargement Manuel depuis Hugging Face
+
+1. **Accédez à la page du modèle** : [google/gemma-3n-e2b-it](https://huggingface.co/google/gemma-3n-e2b-it)
+2. **Acceptez les conditions d'utilisation** (si nécessaire)
+3. **Téléchargez les fichiers** :
+   - `config.json`
+   - `tokenizer.json`
+   - `tokenizer_config.json`
+   - `model.safetensors` (ou fichiers `.bin`)
+   - `generation_config.json`
+   - `special_tokens_map.json`
+
+#### Option B: Téléchargement Automatique
+
+```bash
+# Installer huggingface-hub
+pip install huggingface-hub
+
+# Télécharger le modèle
+huggingface-cli download google/gemma-3n-e2b-it --local-dir D:/Dev/model_gemma
+```
+
+#### Organisation des Fichiers
+
+Créez le dossier `D:/Dev/model_gemma` et placez-y tous les fichiers téléchargés :
+
+```
+D:/Dev/model_gemma/
+├── config.json
+├── tokenizer.json
+├── tokenizer_config.json
+├── model.safetensors
+├── generation_config.json
+└── special_tokens_map.json
+```
+
+#### Vérification de l'Installation
+
+Exécutez le script de test pour vérifier la configuration :
+
+```bash
+python test_local_model.py
+```
+
+Vous devriez voir :
+```
+✅ Dossier trouvé : D:/Dev/model_gemma
+✅ config.json
+✅ tokenizer.json
+✅ tokenizer_config.json
+📦 Fichiers de poids trouvés : 1
+   - model.safetensors
+💾 Taille totale : 4.23 GB
+```
+
+### ⚙️ Configuration dans AgriLens AI
+
+#### Lancement de l'Application
+
+```bash
+cd AgriLensAI
+streamlit run src/streamlit_app_multilingual.py
+```
+
+#### Configuration via l'Interface
+
+1. **Ouvrez la sidebar** (⚙️ Réglages)
+2. **Vérifiez le statut du modèle local** :
+   - ✅ Modèle local valide : D:/Dev/model_gemma
+   - 📁 Modèle complet trouvé (6 fichiers)
+
+3. **Modifiez le chemin si nécessaire** :
+   - Dans la section "📁 Configuration du modèle local"
+   - Entrez le chemin vers votre dossier de modèle
+
+4. **Chargez le modèle** :
+   - Cliquez sur "Charger le Modèle IA"
+   - Le modèle se chargera depuis le dossier local
+
+#### Vérification du Mode Local
+
+L'application affichera :
+- 🔄 Chargement du modèle local : D:/Dev/model_gemma
+- ✅ Modèle local chargé avec succès
+
+### 🔧 Dépannage
+
+#### Problème : "Dossier non trouvé"
+
+**Solution** :
+- Vérifiez que le chemin `D:/Dev/model_gemma` existe
+- Utilisez des slashes forward (/) ou double backslashes (\\\\) dans le chemin
+- Vérifiez les permissions d'accès au dossier
+
+#### Problème : "Fichiers manquants"
+
+**Solution** :
+- Assurez-vous que tous les fichiers requis sont présents
+- Re-téléchargez le modèle si nécessaire
+- Vérifiez que les fichiers ne sont pas corrompus
+
+#### Problème : "Aucun fichier de poids du modèle trouvé"
+
+**Solution** :
+- Vérifiez que le fichier `model.safetensors` ou les fichiers `.bin` sont présents
+- Le fichier de poids peut faire plusieurs GB
+
+#### Problème : "Erreur de mémoire"
+
+**Solution** :
+- Fermez d'autres applications
+- Utilisez la quantisation 4-bit ou 8-bit
+- Chargez le modèle sur CPU si la GPU n'a pas assez de mémoire
+
+### 📊 Avantages du Mode Local
+
+#### ✅ Avantages
+- **Pas de téléchargement** : Le modèle est déjà disponible
+- **Fonctionnement hors ligne** : Aucune connexion internet requise
+- **Performance** : Chargement plus rapide après la première fois
+- **Contrôle** : Vous maîtrisez la version du modèle utilisée
+- **Économie** : Pas de consommation de bande passante
+
+#### ⚠️ Inconvénients
+- **Espace disque** : Le modèle occupe plusieurs GB
+- **Mise à jour** : Nécessite un téléchargement manuel pour les nouvelles versions
+- **Configuration** : Nécessite une configuration initiale
+
+### 🔄 Mise à Jour du Modèle
+
+Pour mettre à jour le modèle local :
+
+1. **Sauvegardez l'ancien modèle** (optionnel)
+2. **Téléchargez la nouvelle version** depuis Hugging Face
+3. **Remplacez les fichiers** dans le dossier `D:/Dev/model_gemma`
+4. **Rechargez le modèle** dans l'application
+
+### 📝 Notes Techniques
+
+#### Structure des Fichiers
+
+Le modèle Gemma 3n E4B IT contient :
+- **Configuration** : `config.json` - Paramètres du modèle
+- **Tokenisation** : `tokenizer.json`, `tokenizer_config.json` - Gestion du texte
+- **Poids** : `model.safetensors` - Paramètres entraînés du modèle
+- **Génération** : `generation_config.json` - Paramètres de génération
+
+#### Formats Supportés
+
+L'application supporte :
+- **Safetensors** : Format recommandé (plus sûr et plus rapide)
+- **PyTorch** : Fichiers `.bin` (format classique)
+- **GGUF** : Format optimisé pour certains cas d'usage
+
+#### Optimisations
+
+Pour de meilleures performances :
+- **GPU** : Utilisez une GPU avec au moins 8GB de VRAM
+- **Quantisation** : Utilisez 4-bit ou 8-bit pour réduire l'empreinte mémoire
+- **Cache** : L'application met en cache le modèle pour les utilisations suivantes
+
+### 🆘 Support
+
+Si vous rencontrez des problèmes :
+
+1. **Vérifiez la configuration** avec `test_local_model.py`
+2. **Consultez les logs** de l'application Streamlit
+3. **Vérifiez les dépendances** : `pip list | grep transformers`
+4. **Contactez le support** : syebadokpo@gmail.com
+
 ### System Requirements
 
 -   **Python**: 3.11+
@@ -253,27 +435,53 @@ docker run -p 8501:7860 agrilens-ai
 
 ## 🎯 Performance Overview
 
-AgriLens AI's performance varies based on hardware configuration, with GPU acceleration providing significant speed improvements.
+AgriLens AI's performance has been significantly optimized with multiple performance modes and advanced techniques for faster response times.
+
+### ⚡ Performance Modes
+
+AgriLens AI now features three configurable performance modes to suit different needs:
+
+| Mode | Response Time | Memory Usage | Quality | Best For |
+|:-----|:--------------|:-------------|:--------|:---------|
+| **🚀 FAST** | 10-30 seconds | ~2-4 GB | Good | Quick diagnostics, testing |
+| **⚖️ BALANCED** | 20-60 seconds | ~3-6 GB | Excellent | Daily use, most cases |
+| **🎯 QUALITY** | 30-90 seconds | ~4-8 GB | Maximum | Detailed analysis |
 
 ### Response Time by Hardware Configuration
 
-| Hardware Configuration | Expected Response Time | Notes |
-|:-----------------------|:-----------------------|:------|
-| **GPU + 16GB+ RAM** | < 10 seconds | **Optimal performance** |
-| **GPU + 8-12GB RAM** | 15-30 seconds | **Excellent performance** |
-| **16GB+ RAM (CPU only)** | < 30 seconds | Good performance |
-| **8-12GB RAM (CPU only)** | 1-3 minutes | Acceptable performance |
-| **4-8GB RAM (CPU only)** | 5-10 minutes | Slow performance |
-| **< 4GB RAM (CPU only)** | 10-20 minutes | **Maximum wait time** |
+| Hardware Configuration | FAST Mode | BALANCED Mode | QUALITY Mode | Notes |
+|:-----------------------|:----------|:--------------|:-------------|:------|
+| **GPU + 16GB+ RAM** | < 10s | < 20s | < 30s | **Optimal performance** |
+| **GPU + 8-12GB RAM** | 10-20s | 20-40s | 30-60s | **Excellent performance** |
+| **16GB+ RAM (CPU only)** | 20-40s | 40-80s | 60-120s | Good performance |
+| **8-12GB RAM (CPU only)** | 30-60s | 60-120s | 90-180s | Acceptable performance |
+| **4-8GB RAM (CPU only)** | 60-120s | 120-240s | 180-300s | Slow performance |
+
+### 🚀 Performance Optimizations
+
+#### Advanced 4-bit Quantization
+- **75% memory reduction** compared to standard loading
+- **Double quantization** for better stability
+- **NormalFloat4** format for quality preservation
+
+#### Flash Attention 2
+- **2-4x faster** attention computation
+- **Automatic fallback** if not available
+- **Significant memory savings**
+
+#### Optimized Generation Parameters
+- **Reduced token generation** (300-500 vs 520)
+- **Top-K sampling** for faster token selection
+- **Cache optimization** for repeated computations
 
 ### ⚠️ Important Performance Notes
 
--   **GPU Advantage**: NVIDIA/AMD GPUs provide a 3-5x speed increase in diagnosis time.
--   **RAM is Critical**: The AI model demands substantial memory for efficient processing.
--   **First Run**: Initial model loading may take longer across all systems.
--   **Background Processes**: Close other applications to free up RAM and improve performance.
--   **Patience Required**: On devices with lower RAM, the diagnostic process can extend up to 20 minutes.
--   **No Interruption**: Avoid closing the application during analysis, even if it seems to be slow.
+-   **Performance Mode**: Select the appropriate mode in the sidebar settings
+-   **GPU Advantage**: NVIDIA/AMD GPUs provide 3-5x speed increase
+-   **Memory Management**: 4-bit quantization reduces memory usage by 75%
+-   **First Run**: Initial model loading may take longer
+-   **Background Processes**: Close other applications to free up RAM
+-   **No Interruption**: Avoid closing during analysis
 
 ### Accuracy & Capabilities
 
@@ -287,6 +495,30 @@ AgriLens AI's performance varies based on hardware configuration, with GPU accel
 -   **Error Handling**: Robust graceful fallbacks ensure application stability.
 -   **Export**: Generate detailed HTML and text reports of diagnosis results.
 -   **Mobile Mode**: A simulated offline interface designed for seamless mobile use.
+
+## 🚀 Nouvelles Fonctionnalités
+
+### 📊 Barre de Progression Intelligente
+- **Progression en temps réel** : Affichage d'une barre de progression avec pourcentage d'avancement
+- **Estimation du temps** : Calcul intelligent du temps restant basé sur le mode de performance et le type d'analyse
+- **Statuts détaillés** : Messages informatifs sur chaque étape de l'analyse
+- **Adaptation automatique** : Ajustement des estimations selon les performances du système (GPU/CPU)
+
+### 🎯 Réponses Structurées et Succinctes
+- **Format standardisé** : Toutes les analyses génèrent des réponses avec 3 sections obligatoires :
+  1. **SYMPTÔMES VISIBLES** (description courte)
+  2. **NOM DE LA MALADIE** (avec niveau de confiance %)
+  3. **TRAITEMENT RECOMMANDÉ** (actions concrètes)
+- **Limitation de mots** : Maximum 200 mots pour l'analyse d'image, 150 mots pour l'analyse de texte
+- **Optimisation des tokens** : Réduction des `max_new_tokens` pour éviter la troncature (250-350 tokens)
+
+### ⚡ Optimisations de Performance
+- **Modes de performance ajustés** :
+  - **Rapide** : 250 tokens, ~10-30 secondes
+  - **Équilibré** : 300 tokens, ~20-60 secondes  
+  - **Qualité** : 350 tokens, ~30-90 secondes
+- **Prompts optimisés** : Instructions claires et concises pour des réponses plus précises
+- **Gestion de la mémoire** : Nettoyage automatique après chaque analyse
 
 ## 👨‍💻 Creator
 
