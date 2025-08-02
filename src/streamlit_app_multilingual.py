@@ -42,17 +42,17 @@ def get_generation_config(mode="fast"):
     
     if mode == "fast":
         base_config.update({
-            "max_new_tokens": 300,
+            "max_new_tokens": 400,
             "top_k": 50,
         })
     elif mode == "balanced":
         base_config.update({
-            "max_new_tokens": 400,
+            "max_new_tokens": 500,
             "top_k": 100,
         })
     else:  # quality
         base_config.update({
-            "max_new_tokens": 500,
+            "max_new_tokens": 550,
             "top_k": 200,
         })
     
@@ -952,13 +952,13 @@ with st.sidebar:
     # Affichage des paramètres actuels
     if st.session_state.performance_mode == "fast":
         st.success("🚀 Mode RAPIDE activé - Réponse en ~10-30 secondes")
-        st.info("• max_new_tokens: 300\n• top_k: 50\n• Optimisations activées")
+        st.info("• max_new_tokens: 400\n• top_k: 50\n• Optimisations activées")
     elif st.session_state.performance_mode == "balanced":
         st.info("⚖️ Mode ÉQUILIBRÉ activé - Réponse en ~20-60 secondes")
-        st.info("• max_new_tokens: 400\n• top_k: 100\n• Équilibre vitesse/qualité")
+        st.info("• max_new_tokens: 500\n• top_k: 100\n• Équilibre vitesse/qualité")
     else:
         st.warning("🎯 Mode QUALITÉ activé - Réponse en ~30-90 secondes")
-        st.info("• max_new_tokens: 500\n• top_k: 200\n• Qualité maximale")
+        st.info("• max_new_tokens: 550\n• top_k: 200\n• Qualité maximale")
     
     # Détails du modèle local (expandable)
     with st.expander("📋 Détails du modèle local", expanded=False):
