@@ -21,6 +21,12 @@ AgriLens AI empowers farmers with immediate plant disease diagnosis using Google
 - **📱 Mobile-Friendly**: Seamlessly adapts to any smartphone for on-the-go use.
 - **💾 Offline Functionality**: Once set up, no internet connection is required for diagnosis, making it ideal for remote areas.
 - **📄 Export Options**: Save diagnosis results as HTML or plain text for easy record-keeping and sharing.
+- **🎯 Refined Diagnosis**: Advanced user input integration for more accurate results.
+- **📍 Location Awareness**: GPS coordinates or manual location input for regional context.
+- **🌾 Agronomic Variables**: Soil type, plant age, planting density, and more for precise diagnosis.
+- **🌤️ Climatic Variables**: Temperature, humidity, precipitation, and seasonal factors.
+- **📊 Progress Tracking**: Real-time progress bar with estimated completion time.
+- **🔧 Performance Optimization**: 4-bit quantization, Flash Attention 2, and adaptive loading strategies.
 
 ## 🚀 Get Started
 
@@ -38,8 +44,46 @@ Access the live version of AgriLens AI on Hugging Face:
 
 1.  **Capture**: Take a photo of the affected plant.
 2.  **Identify**: Optionally specify the crop type for more precise results.
-3.  **Diagnose**: Receive an instant diagnosis along with recommended treatments.
-4.  **Save**: Export the results for future reference.
+3.  **Enhance**: Add agronomic and climatic variables for refined diagnosis.
+4.  **Locate**: Provide GPS coordinates or location details for regional context.
+5.  **Diagnose**: Receive an instant diagnosis along with recommended treatments.
+6.  **Save**: Export the results for future reference.
+
+## 🎯 Advanced User Input Integration
+
+AgriLens AI now supports comprehensive user input integration for more accurate and contextual diagnoses:
+
+### 🌾 Agronomic Variables
+Users can specify detailed agricultural parameters to refine the diagnosis:
+- **Soil Type**: Clay, sandy, loamy, or mixed soil types
+- **Plant Age**: Growth stage and maturity level
+- **Planting Density**: Spacing and population density
+- **Irrigation**: Watering frequency and method
+- **Fertilization**: Nutrient application and timing
+- **Crop Rotation**: Previous crops and rotation patterns
+
+### 🌤️ Climatic Variables
+Environmental factors that influence disease development:
+- **Temperature**: Current and recent temperature ranges
+- **Humidity**: Relative humidity levels
+- **Precipitation**: Rainfall patterns and frequency
+- **Season**: Current growing season
+- **Sun Exposure**: Direct or partial sunlight exposure
+- **Wind Conditions**: Air circulation and wind patterns
+
+### 📍 Location Awareness
+Geographic context for regional disease patterns:
+- **GPS Coordinates**: Automatic GPS capture or manual input
+- **Country/Region**: Geographic location for climate context
+- **City/Locality**: Local environmental conditions
+- **Altitude**: Elevation above sea level
+
+### 🔄 Integrated Analysis Process
+All user inputs are intelligently combined with image analysis:
+1. **Image Processing**: Visual symptom identification
+2. **Context Integration**: User-provided variables are merged into a single refined request
+3. **Regional Adaptation**: Location-specific disease patterns are considered
+4. **Structured Output**: Results include symptoms, disease name, and recommended treatment
 
 ## 🖼️ Visual Examples
 
@@ -287,6 +331,12 @@ AgriLens AI's performance varies based on hardware configuration, with GPU accel
 -   **Error Handling**: Robust graceful fallbacks ensure application stability.
 -   **Export**: Generate detailed HTML and text reports of diagnosis results.
 -   **Mobile Mode**: A simulated offline interface designed for seamless mobile use.
+-   **Progress Tracking**: Real-time progress bar with estimated completion time.
+-   **Structured Output**: Enforced three-section format (symptoms, disease name, treatment).
+-   **Context-Aware Analysis**: Integration of multiple user inputs for refined diagnosis.
+-   **Performance Optimization**: 4-bit quantization, Flash Attention 2, and adaptive loading.
+-   **Local Model Support**: Complete offline functionality with local model loading.
+-   **Multimodal Processing**: Advanced image and text processing with Gemma 3n.
 
 ## 👨‍💻 Creator
 
