@@ -1,0 +1,11 @@
+
+google-generativeai
+streamlit
+torch
+transformers>=4.38.0 # Ou une version plus récente recommandée pour Gemma
+accelerate
+bitsandbytes
+pillow
+psutil
+requests
+huggingface_hub
