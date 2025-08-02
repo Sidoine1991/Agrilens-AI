@@ -820,7 +820,11 @@ if is_mobile():
     # Logo mobile
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.image("logo_app/logo_agrilesai.png", width=150)
+        try:
+            st.image("logo_app/logo_agrilesai.png", width=150)
+        except:
+            # Si le logo n'est pas disponible, afficher un emoji et le titre
+            st.markdown("## 🌱 AgriLens AI")
     
     st.markdown(f'<p style="text-align: center; color: #666;">Interface simulant l\'application mobile offline</p>', unsafe_allow_html=True)
     
