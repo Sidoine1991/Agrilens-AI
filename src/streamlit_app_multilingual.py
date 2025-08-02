@@ -756,17 +756,24 @@ def analyze_image_multilingual(image, prompt=""):
     try:
         # Déterminer les messages selon la langue
         if st.session_state.language == "fr":
-            user_instruction = f"Analyse cette image de plante et fournis un diagnostic précis. Question spécifique : {prompt}" if prompt else "Analyse cette image de plante et fournis un diagnostic précis."
-            system_message = "Tu es un expert en pathologie végétale. Réponds de manière structurée et précise, en incluant diagnostic, causes, symptômes, traitement et urgence."
+            user_instruction = f"Analyse attentivement cette image de feuille de plante malade et fournis un diagnostic précis basé uniquement sur ce que tu vois dans l'image. Question spécifique : {prompt}" if prompt else "Analyse attentivement cette image de feuille de plante malade et fournis un diagnostic précis basé uniquement sur ce que tu vois dans l'image."
+            system_message = "Tu es un expert en pathologie végétale spécialisé dans l'analyse d'images. Tu dois analyser l'image fournie et donner un diagnostic précis avec un niveau de confiance. Réponds de manière structurée : 1) Description visuelle des symptômes observés, 2) Diagnostic précis avec niveau de confiance (%), 3) Causes, 4) Traitement recommandé, 5) Urgence."
         else: # English
-            user_instruction = f"Analyze this plant image and provide a precise diagnosis. Specific question: {prompt}" if prompt else "Analyze this plant image and provide a precise diagnosis."
-            system_message = "You are an expert in plant pathology. Respond in a structured and precise manner, including diagnosis, causes, symptoms, treatment, and urgency."
+            user_instruction = f"Carefully analyze this image of a diseased plant leaf and provide a precise diagnosis based solely on what you see in the image. Specific question: {prompt}" if prompt else "Carefully analyze this image of a diseased plant leaf and provide a precise diagnosis based solely on what you see in the image."
+            system_message = "You are a plant pathology expert specialized in image analysis. You must analyze the provided image and give a precise diagnosis with a confidence level. Respond in a structured manner: 1) Visual description of observed symptoms, 2) Precise diagnosis with confidence level (%), 3) Causes, 4) Recommended treatment, 5) Urgency."
+        
+        # Vérification que l'image est bien présente
+        if image is None:
+            return "❌ Erreur : Aucune image fournie pour l'analyse."
+        
+        # Log de débogage pour vérifier l'image
+        st.info(f"🔍 Analyse d'image : Format {image.format}, Taille {image.size}, Mode {image.mode}")
         
         messages = [
             {"role": "system", "content": [{"type": "text", "text": system_message}]},
             {"role": "user", "content": [
                 {"type": "image", "image": image}, # L'image est transmise directement
-                {"type": "text", "text": user_instruction}
+                {"type": "text", "text": user_instruction + " IMPORTANT : Analyse uniquement ce que tu vois dans cette image spécifique. Ne donne pas de réponse générique."}
             ]}
         ]
         
@@ -799,6 +806,19 @@ def analyze_image_multilingual(image, prompt=""):
         final_response = response.strip()
         # Nettoyage des tokens de contrôle si présents
         final_response = final_response.replace("<start_of_turn>", "").replace("<end_of_turn>", "").strip()
+        
+        # Vérification que la réponse n'est pas générique
+        generic_indicators = [
+            "sans l'image", "sans voir l'image", "basé sur des connaissances générales",
+            "without the image", "without seeing the image", "based on general knowledge"
+        ]
+        
+        is_generic = any(indicator.lower() in final_response.lower() for indicator in generic_indicators)
+        
+        if is_generic:
+            st.warning("⚠️ Le modèle semble donner une réponse générique. L'image pourrait ne pas être correctement traitée.")
+            # Ajouter une instruction pour forcer l'analyse de l'image
+            final_response += "\n\n⚠️ **Note importante** : Cette réponse semble générique. Veuillez vérifier que l'image a été correctement uploadée et réessayer l'analyse."
         
         # Formatage de la réponse pour l'affichage
         if st.session_state.language == "fr":
