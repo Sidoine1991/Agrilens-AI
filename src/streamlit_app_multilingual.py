@@ -21,6 +21,55 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# --- CONFIGURATION OPTIMISÉE POUR PERFORMANCE ---
+# Configuration du modèle local
+LOCAL_MODEL_PATH = "D:/Dev/model_gemma"  # Chemin vers le modèle local
+MODEL_ID_HF = "google/gemma-3n-e2b-it"  # ID Hugging Face (pour référence)
+
+# Configurations de génération selon le mode de performance
+def get_generation_config(mode="fast"):
+    """Retourne la configuration de génération selon le mode de performance."""
+    base_config = {
+        "do_sample": True,
+        "temperature": 0.7,
+        "top_p": 0.9,
+        "repetition_penalty": 1.1,
+        "pad_token_id": None,
+        "eos_token_id": None,
+        "use_cache": True,
+        "num_beams": 1,
+    }
+    
+    if mode == "fast":
+        base_config.update({
+            "max_new_tokens": 300,
+            "top_k": 50,
+        })
+    elif mode == "balanced":
+        base_config.update({
+            "max_new_tokens": 400,
+            "top_k": 100,
+        })
+    else:  # quality
+        base_config.update({
+            "max_new_tokens": 500,
+            "top_k": 200,
+        })
+    
+    return base_config
+
+# Configuration de quantisation optimisée
+OPTIMIZED_QUANTIZATION_CONFIG = {
+    "load_in_4bit": True,
+    "bnb_4bit_compute_dtype": torch.float16,
+    "bnb_4bit_use_double_quant": True,  # Double quantisation pour économiser la mémoire
+    "bnb_4bit_quant_type": "nf4",  # NormalFloat4 pour de meilleures performances
+}
+
+# Variable de session pour le chemin du modèle local
+if 'local_model_path' not in st.session_state:
+    st.session_state.local_model_path = LOCAL_MODEL_PATH
+
 # --- TRADUCTIONS ---
 TRANSLATIONS = {
     "title": {"fr": "AgriLens AI", "en": "AgriLens AI"},
@@ -466,11 +515,39 @@ Email : syebadokpo@gmail.com
     return text_content
 
 # --- CHARGEMENT DU MODÈLE AVEC CACHING ---
-# Modèle principal à utiliser (corriger l'ID si nécessaire)
-MODEL_ID_HF = "google/gemma-3n-e2b-it" # Correction de l'ID du modèle
+# Configuration du modèle (déjà définie plus haut)
 
-# Chemin local pour le modèle (optionnel, pour tester hors ligne)
-# LOCAL_MODEL_PATH = "D:/Dev/model_gemma" # Décommentez et ajustez si vous avez un modèle local
+# Détection automatique du mode (local ou Hugging Face)
+def get_model_path():
+    """Détermine le chemin du modèle à utiliser (local ou Hugging Face)."""
+    local_path = st.session_state.get('local_model_path', LOCAL_MODEL_PATH)
+    if os.path.exists(local_path):
+        return local_path
+    else:
+        return MODEL_ID_HF
+
+def check_local_model():
+    """Vérifie le contenu du dossier du modèle local."""
+    local_path = st.session_state.get('local_model_path', LOCAL_MODEL_PATH)
+    if not os.path.exists(local_path):
+        return False, "Dossier non trouvé"
+    
+    try:
+        files = os.listdir(local_path)
+        required_files = ['config.json', 'tokenizer.json', 'tokenizer_config.json']
+        missing_files = [f for f in required_files if f not in files]
+        
+        if missing_files:
+            return False, f"Fichiers manquants : {', '.join(missing_files)}"
+        
+        # Vérifier s'il y a des fichiers de poids du modèle
+        model_files = [f for f in files if f.endswith(('.bin', '.safetensors', '.gguf'))]
+        if not model_files:
+            return False, "Aucun fichier de poids du modèle trouvé"
+        
+        return True, f"Modèle complet trouvé ({len(files)} fichiers)"
+    except Exception as e:
+        return False, f"Erreur lors de la vérification : {e}"
 
 @st.cache_resource(show_spinner=True) # Cache la ressource (modèle) entre les exécutions
 def load_ai_model(model_identifier, device_map="auto", torch_dtype=torch.float16, quantization=None):
@@ -483,7 +560,13 @@ def load_ai_model(model_identifier, device_map="auto", torch_dtype=torch.float16
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-        st.info(f"Tentative de chargement du modèle : `{model_identifier}`")
+        # Détecter si c'est un modèle local ou Hugging Face
+        is_local = os.path.exists(model_identifier)
+        
+        if is_local:
+            st.info(f"🔄 Chargement du modèle local : `{model_identifier}`")
+        else:
+            st.info(f"🌐 Téléchargement du modèle depuis Hugging Face : `{model_identifier}`")
         
         # --- Configuration des arguments pour le chargement ---
         common_args = {
@@ -491,17 +574,33 @@ def load_ai_model(model_identifier, device_map="auto", torch_dtype=torch.float16
             "low_cpu_mem_usage": True, # Aide à réduire l'utilisation CPU lors du chargement
             "device_map": device_map,
             "torch_dtype": torch_dtype,
-            "token": os.environ.get("HF_TOKEN") or HfFolder.get_token() # Récupère le token depuis l'env ou le cache HF
         }
         
-        # Configuration de la quantisation (pour réduire l'empreinte mémoire)
-        if quantization == "4bit":
-            common_args.update({
-                "load_in_4bit": True,
-                "bnb_4bit_compute_dtype": torch.float16 # Ou torch.bfloat16 si supporté
-            })
-        elif quantization == "8bit":
-            common_args.update({"load_in_8bit": True})
+        # Ajouter Flash Attention 2 seulement si CUDA est disponible
+        if torch.cuda.is_available() and device_map != "cpu":
+            common_args["attn_implementation"] = "flash_attention_2"  # Optimisation de l'attention si disponible
+        
+        # Ajouter le token seulement pour les modèles Hugging Face
+        if not is_local:
+            common_args["token"] = os.environ.get("HF_TOKEN") or HfFolder.get_token()
+        
+        # Configuration de la quantisation optimisée pour les performances
+        if quantization == "4bit" and torch.cuda.is_available():
+            try:
+                import bitsandbytes
+                # Vérifier si bitsandbytes a le support GPU
+                if hasattr(bitsandbytes, 'cuda_setup') and bitsandbytes.cuda_setup.get_compute_capability():
+                    common_args.update(OPTIMIZED_QUANTIZATION_CONFIG)
+                else:
+                    st.warning("⚠️ bitsandbytes sans support GPU détecté. Utilisation de la configuration standard.")
+            except Exception as e:
+                st.warning(f"⚠️ Erreur avec bitsandbytes : {e}. Utilisation de la configuration standard.")
+        elif quantization == "8bit" and torch.cuda.is_available():
+            try:
+                import bitsandbytes
+                common_args.update({"load_in_8bit": True})
+            except Exception as e:
+                st.warning(f"⚠️ Erreur avec bitsandbytes 8-bit : {e}. Utilisation de la configuration standard.")
         
         # --- Chargement du processeur ---
         st.info("Chargement du processeur...")
@@ -512,7 +611,11 @@ def load_ai_model(model_identifier, device_map="auto", torch_dtype=torch.float16
         # Utiliser AutoModelForCausalLM car Gemma est un modèle causal
         model = AutoModelForCausalLM.from_pretrained(model_identifier, **common_args)
         
-        st.success(f"✅ Modèle `{model_identifier}` chargé avec succès sur device `{device_map}`.")
+        if is_local:
+            st.success(f"✅ Modèle local `{model_identifier}` chargé avec succès sur device `{device_map}`.")
+        else:
+            st.success(f"✅ Modèle Hugging Face `{model_identifier}` chargé avec succès sur device `{device_map}`.")
+        
         return model, processor
 
     except ImportError as e:
@@ -528,7 +631,7 @@ def load_ai_model(model_identifier, device_map="auto", torch_dtype=torch.float16
 def get_model_and_processor():
     """
     Stratégie de chargement du modèle Gemma 3n e2b it.
-    Essaie différentes configurations pour s'adapter aux ressources disponibles.
+    Utilise le modèle local s'il est disponible, sinon télécharge depuis Hugging Face.
     """
     # --- Diagnostic initial ---
     issues = diagnose_loading_issues()
@@ -536,53 +639,111 @@ def get_model_and_processor():
         for issue in issues:
             st.markdown(issue)
 
+    # --- Détection du mode de chargement ---
+    model_path = get_model_path()
+    is_valid, status_message = check_local_model()
+    
+    if is_valid:
+        local_path = st.session_state.get('local_model_path', LOCAL_MODEL_PATH)
+        st.success(f"✅ Modèle local valide : {local_path}")
+        st.info(f"📁 {status_message}")
+        st.info("Mode : Chargement local (pas de téléchargement depuis Hugging Face)")
+    else:
+        local_path = st.session_state.get('local_model_path', LOCAL_MODEL_PATH)
+        st.warning(f"⚠️ Modèle local non disponible : {local_path}")
+        st.error(f"❌ {status_message}")
+        st.info(f"Mode : Téléchargement depuis Hugging Face : {MODEL_ID_HF}")
+
     # --- Stratégies de chargement ---
     strategies = []
     device = get_device()
     
-    # Priorité aux stratégies GPU si disponibles
-    if device == "cuda":
-        gpu_memory_gb = torch.cuda.get_device_properties(0).total_memory / 1024**3
-        st.info(f"Mémoire GPU disponible : {gpu_memory_gb:.1f} GB")
-        
-        # Stratégies GPU par ordre de consommation mémoire décroissante
-        if gpu_memory_gb >= 12: # Idéal pour float16
-            strategies.append({"name": "GPU (float16)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": None}})
-        if gpu_memory_gb >= 10: # Peut fonctionner avec float16
-            strategies.append({"name": "GPU (float16)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": None}})
-        if gpu_memory_gb >= 8: # Recommandé pour 8-bit quant.
-            strategies.append({"name": "GPU (8-bit quant.)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": "8bit"}})
-        if gpu_memory_gb >= 6: # Minimum pour 4-bit quant.
-            strategies.append({"name": "GPU (4-bit quant.)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": "4bit"}})
-        
-        # Si la mémoire est très limitée, proposer une stratégie CPU
-        if gpu_memory_gb < 6:
-             st.warning("Mémoire GPU limitée (<6GB). Le chargement sur CPU est recommandé.")
-
-    # Stratégies CPU (plus lentes, mais plus robustes sur peu de ressources)
-    strategies.append({"name": "CPU (bfloat16)", "config": {"device_map": "cpu", "torch_dtype": torch.bfloat16, "quantization": None}})
-    strategies.append({"name": "CPU (float32)", "config": {"device_map": "cpu", "torch_dtype": torch.float32, "quantization": None}}) # Plus stable si bfloat16 échoue
+    # Vérifier si CUDA est disponible
+    if torch.cuda.is_available() and device == "cuda":
+        try:
+            gpu_memory_gb = torch.cuda.get_device_properties(0).total_memory / 1024**3
+            st.info(f"Mémoire GPU disponible : {gpu_memory_gb:.1f} GB")
+            
+            # Stratégies GPU par ordre de consommation mémoire décroissante
+            if gpu_memory_gb >= 12: # Idéal pour float16
+                strategies.append({"name": "GPU (float16)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": None}})
+            if gpu_memory_gb >= 10: # Peut fonctionner avec float16
+                strategies.append({"name": "GPU (float16)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": None}})
+            if gpu_memory_gb >= 8: # Recommandé pour 8-bit quant.
+                strategies.append({"name": "GPU (8-bit quant.)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": "8bit"}})
+            if gpu_memory_gb >= 6: # Minimum pour 4-bit quant.
+                strategies.append({"name": "GPU (4-bit quant.)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": "4bit"}})
+            
+            # Si la mémoire est très limitée, proposer une stratégie CPU
+            if gpu_memory_gb < 6:
+                 st.warning("Mémoire GPU limitée (<6GB). Le chargement sur CPU est recommandé.")
+        except Exception as e:
+            st.warning(f"Erreur lors de la détection GPU : {e}. Utilisation du CPU.")
+            device = "cpu"
+    
+    # Si CUDA n'est pas disponible ou a échoué, utiliser CPU
+    if not torch.cuda.is_available() or device == "cpu":
+        st.info("🖥️ Mode CPU détecté - Utilisation des stratégies CPU optimisées")
+        # Stratégies CPU optimisées pour les performances (sans quantisation)
+        strategies.append({"name": "CPU (float32)", "config": {"device_map": "cpu", "torch_dtype": torch.float32, "quantization": None}})
+        strategies.append({"name": "CPU (bfloat16)", "config": {"device_map": "cpu", "torch_dtype": torch.bfloat16, "quantization": None}})
+        # Stratégie de fallback ultra-stable
+        strategies.append({"name": "CPU (float32 - fallback)", "config": {"device_map": "cpu", "torch_dtype": torch.float32, "quantization": None}})
+    else:
+        # Stratégies CPU de fallback (plus lentes, mais plus robustes sur peu de ressources)
+        strategies.append({"name": "CPU (bfloat16)", "config": {"device_map": "cpu", "torch_dtype": torch.bfloat16, "quantization": None}})
+        strategies.append({"name": "CPU (float32)", "config": {"device_map": "cpu", "torch_dtype": torch.float32, "quantization": None}}) # Plus stable si bfloat16 échoue
     
     # --- Tentative de chargement via les stratégies ---
-    for strat in strategies:
-        st.info(f"Essai : {strat['name']}...")
+    st.info(f"🔍 Tentative de chargement avec {len(strategies)} stratégies...")
+    
+    for i, strat in enumerate(strategies, 1):
+        st.info(f"📋 Stratégie {i}/{len(strategies)} : {strat['name']}...")
         try:
             model, processor = load_ai_model(
-                MODEL_ID_HF,
+                model_path,  # Utilise le chemin détecté automatiquement
                 device_map=strat["config"]["device_map"],
                 torch_dtype=strat["config"]["torch_dtype"],
                 quantization=strat["config"]["quantization"]
             )
             if model and processor:
-                st.success(f"Succès avec la stratégie : {strat['name']}")
+                st.success(f"✅ Succès avec la stratégie : {strat['name']}")
                 return model, processor
         except Exception as e:
-            st.warning(f"Échec avec '{strat['name']}' : {e}")
+            error_msg = str(e)
+            st.warning(f"❌ Échec avec '{strat['name']}' : {error_msg}")
+            
+            # Log détaillé pour le debugging
+            with st.expander(f"🔍 Détails de l'erreur - {strat['name']}", expanded=False):
+                st.code(f"Erreur: {error_msg}")
+                st.info(f"Configuration: {strat['config']}")
+            
             # Nettoyage mémoire avant de passer à la stratégie suivante
             gc.collect()
-            if torch.cuda.is_available(): torch.cuda.empty_cache()
+            if torch.cuda.is_available(): 
+                torch.cuda.empty_cache()
             time.sleep(1) # Petite pause pour éviter les conflits
 
+    # Si toutes les stratégies ont échoué, afficher un diagnostic détaillé
+    st.error("❌ Toutes les stratégies de chargement du modèle ont échoué.")
+    
+    with st.expander("🔍 Diagnostic complet", expanded=True):
+        st.markdown("### 📊 Informations système :")
+        st.info(f"• CUDA disponible : {torch.cuda.is_available()}")
+        st.info(f"• Device détecté : {device}")
+        st.info(f"• Modèle local valide : {is_valid}")
+        st.info(f"• Chemin du modèle : {model_path}")
+        
+        st.markdown("### 🧪 Stratégies testées :")
+        for i, strat in enumerate(strategies, 1):
+            st.info(f"{i}. {strat['name']} - {strat['config']}")
+        
+        st.markdown("### 💡 Solutions possibles :")
+        st.info("1. Vérifiez que le modèle local est complet et accessible")
+        st.info("2. Assurez-vous que toutes les dépendances sont installées")
+        st.info("3. Redémarrez l'application pour nettoyer le cache")
+        st.info("4. Vérifiez l'espace disque et la mémoire disponible")
+    
     raise RuntimeError("Toutes les stratégies de chargement du modèle ont échoué.")
 
 # --- FONCTIONS D'ANALYSE ---
@@ -626,16 +787,11 @@ def analyze_image_multilingual(image, prompt=""):
         input_len = inputs["input_ids"].shape[-1]
         
         with torch.inference_mode():
-            # Appel générique de model.generate, en passant les inputs correctement
-            # La gestion des arguments spécifiques comme `pixel_values` doit être faite par le modèle lui-même.
-            # Si le bug #2751 est présent, il peut se manifester ici.
+            # Utilisation de la configuration de génération selon le mode de performance
+            generation_config = get_generation_config(st.session_state.get('performance_mode', 'fast'))
             generation = model.generate(
                 **inputs, # Déballer le dictionnaire des inputs
-                max_new_tokens=520,
-                do_sample=True,
-                temperature=0.7,
-                top_p=0.9,
-                repetition_penalty=1.1
+                **generation_config  # Utilise la configuration dynamique
             )
             
             response = processor.decode(generation[0][input_len:], skip_special_tokens=True)
@@ -689,13 +845,11 @@ def analyze_text_multilingual(text):
         input_len = inputs["input_ids"].shape[-1]
         
         with torch.inference_mode():
+            # Utilisation de la configuration de génération selon le mode de performance
+            generation_config = get_generation_config(st.session_state.get('performance_mode', 'fast'))
             generation = model.generate(
                 **inputs,
-                max_new_tokens=500,
-                do_sample=True,
-                temperature=0.7,
-                top_p=0.9,
-                repetition_penalty=1.1
+                **generation_config  # Utilise la configuration dynamique
             )
             
             response = processor.decode(generation[0][input_len:], skip_special_tokens=True)
@@ -754,6 +908,93 @@ with st.sidebar:
 
     # Gestion du modèle IA
     st.header(t("model_title"))
+    
+    # Affichage du statut du modèle local
+    local_path = st.session_state.get('local_model_path', LOCAL_MODEL_PATH)
+    is_valid, status_message = check_local_model()
+    if is_valid:
+        st.success(f"✅ Modèle local valide : {local_path}")
+        st.info(f"📁 {status_message}")
+    else:
+        st.warning(f"⚠️ Modèle local non disponible : {local_path}")
+        st.error(f"❌ {status_message}")
+        st.info("Le modèle sera téléchargé depuis Hugging Face")
+    
+    # Configuration du chemin du modèle local
+    st.subheader("📁 Configuration du modèle local")
+    current_path = st.session_state.get('local_model_path', LOCAL_MODEL_PATH)
+    new_path = st.text_input(
+        "Chemin vers le dossier du modèle local :",
+        value=current_path,
+        help="Exemple : D:/Dev/model_gemma ou /path/to/model"
+    )
+    
+    if new_path != current_path:
+        st.session_state.local_model_path = new_path
+        st.info("Chemin mis à jour. Rechargez le modèle pour appliquer les changements.")
+    
+    # Configuration des performances
+    st.subheader("⚡ Configuration des performances")
+    if 'performance_mode' not in st.session_state:
+        st.session_state.performance_mode = "fast"
+    
+    performance_mode = st.selectbox(
+        "Mode de performance :",
+        ["fast", "balanced", "quality"],
+        index=["fast", "balanced", "quality"].index(st.session_state.performance_mode),
+        help="Fast: Réponse rapide (300 tokens), Balanced: Équilibré (400 tokens), Quality: Qualité maximale (500 tokens)"
+    )
+    
+    if performance_mode != st.session_state.performance_mode:
+        st.session_state.performance_mode = performance_mode
+        st.info("Mode de performance mis à jour. Rechargez le modèle pour appliquer les changements.")
+    
+    # Affichage des paramètres actuels
+    if st.session_state.performance_mode == "fast":
+        st.success("🚀 Mode RAPIDE activé - Réponse en ~10-30 secondes")
+        st.info("• max_new_tokens: 300\n• top_k: 50\n• Optimisations activées")
+    elif st.session_state.performance_mode == "balanced":
+        st.info("⚖️ Mode ÉQUILIBRÉ activé - Réponse en ~20-60 secondes")
+        st.info("• max_new_tokens: 400\n• top_k: 100\n• Équilibre vitesse/qualité")
+    else:
+        st.warning("🎯 Mode QUALITÉ activé - Réponse en ~30-90 secondes")
+        st.info("• max_new_tokens: 500\n• top_k: 200\n• Qualité maximale")
+    
+    # Détails du modèle local (expandable)
+    with st.expander("📋 Détails du modèle local", expanded=False):
+        is_valid, status_message = check_local_model()
+        if is_valid:
+            try:
+                local_path = st.session_state.get('local_model_path', LOCAL_MODEL_PATH)
+                files = os.listdir(local_path)
+                st.write(f"**Fichiers trouvés :** {len(files)}")
+                
+                # Afficher les fichiers importants
+                important_files = ['config.json', 'tokenizer.json', 'tokenizer_config.json']
+                model_files = [f for f in files if f.endswith(('.bin', '.safetensors', '.gguf'))]
+                
+                st.write("**Fichiers de configuration :**")
+                for file in important_files:
+                    if file in files:
+                        st.write(f"✅ {file}")
+                    else:
+                        st.write(f"❌ {file}")
+                
+                st.write("**Fichiers de poids du modèle :**")
+                for file in model_files[:5]:  # Afficher les 5 premiers
+                    st.write(f"📦 {file}")
+                if len(model_files) > 5:
+                    st.write(f"... et {len(model_files) - 5} autres fichiers")
+                
+                # Taille du dossier
+                total_size = sum(os.path.getsize(os.path.join(local_path, f)) for f in files if os.path.isfile(os.path.join(local_path, f)))
+                st.write(f"**Taille totale :** {total_size / (1024**3):.2f} GB")
+                
+            except Exception as e:
+                st.error(f"Erreur lors de l'analyse du dossier : {e}")
+        else:
+            st.error(status_message)
+    
     if st.session_state.model_loaded:
         st.success(f"{t('model_status')} {st.session_state.model_status}")
         if st.session_state.model and hasattr(st.session_state.model, 'device'):
@@ -1539,11 +1780,11 @@ with tab4:
     st.markdown(t("technology_title"))
     
     # Détecter si le modèle local est présent pour adapter le texte
-    # is_local = os.path.exists(LOCAL_MODEL_PATH) # Si LOCAL_MODEL_PATH est défini et utilisé
-    is_local = False # Pour l'instant, on assume chargement HF
+    local_path = st.session_state.get('local_model_path', LOCAL_MODEL_PATH)
+    is_local = os.path.exists(local_path)
     
     if is_local:
-        st.markdown(t("local_model_text").format(path=LOCAL_MODEL_PATH))
+        st.markdown(t("local_model_text").format(path=local_path))
     else:
         st.markdown(t("online_model_text"))
     
