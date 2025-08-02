@@ -28,5 +28,12 @@ textColor = "#262730"
 showErrorDetails = true
 toolbarMode = "minimal"
 
+# Configuration pour les timeouts et retry
+[server]
+maxUploadSize = 200
+fileWatcherType = "none"
+maxMessageSize = 200
+enableStaticServing = true
+
 # Configuration pour les uploads (supprimée car obsolète)
 # Les uploads sont maintenant gérés directement par Streamlit 

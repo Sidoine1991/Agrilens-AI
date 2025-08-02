@@ -26,6 +26,14 @@ st.set_page_config(
 LOCAL_MODEL_PATH = "D:/Dev/model_gemma"  # Chemin vers le modèle local
 MODEL_ID_HF = "google/gemma-3n-e2b-it"  # ID Hugging Face (pour référence)
 
+# Configuration optimisée pour Hugging Face Spaces
+HF_TIMEOUT = 300  # 5 minutes de timeout pour le téléchargement
+HF_RETRY_ATTEMPTS = 3  # Nombre de tentatives de téléchargement
+
+def is_huggingface_spaces():
+    """Détecte si l'application tourne sur Hugging Face Spaces"""
+    return os.environ.get("SPACE_ID") is not None or "huggingface" in os.environ.get("HOSTNAME", "").lower()
+
 # --- TRADUCTIONS ---
 TRANSLATIONS = {
     "title": {"fr": "AgriLens AI", "en": "AgriLens AI"},
@@ -721,24 +729,46 @@ def load_ai_model(model_identifier, device_map="auto", torch_dtype=torch.float16
             except Exception as e:
                 st.warning(t("bitsandbytes_error").format(error=e))
         
-        # --- Chargement du processor ---
+        # --- Chargement du processor avec retry logic ---
         st.info(t("loading_processor"))
-        try:
-            processor = AutoProcessor.from_pretrained(model_identifier, **common_args)
-            st.success(t("processor_loaded"))
-        except Exception as e:
-            st.error(t("processor_load_error").format(error=e))
-            raise
+        processor = None
+        for attempt in range(HF_RETRY_ATTEMPTS):
+            try:
+                processor = AutoProcessor.from_pretrained(
+                    model_identifier, 
+                    **common_args,
+                    timeout=HF_TIMEOUT
+                )
+                st.success(t("processor_loaded"))
+                break
+            except Exception as e:
+                if attempt < HF_RETRY_ATTEMPTS - 1:
+                    st.warning(f"Tentative {attempt + 1}/{HF_RETRY_ATTEMPTS} échouée pour le processor. Nouvelle tentative...")
+                    time.sleep(5)  # Attendre 5 secondes avant de réessayer
+                else:
+                    st.error(t("processor_load_error").format(error=e))
+                    raise
         
-        # --- Chargement du modèle multimodal ---
+        # --- Chargement du modèle multimodal avec retry logic ---
         st.info(t("loading_model"))
-        try:
-            # Utiliser AutoModelForImageTextToText pour le modèle multimodal Gemma
-            model = AutoModelForImageTextToText.from_pretrained(model_identifier, **common_args)
-            st.success(t("model_loaded"))
-        except Exception as e:
-            st.error(t("model_load_error").format(error=e))
-            raise
+        model = None
+        for attempt in range(HF_RETRY_ATTEMPTS):
+            try:
+                # Utiliser AutoModelForImageTextToText pour le modèle multimodal Gemma
+                model = AutoModelForImageTextToText.from_pretrained(
+                    model_identifier, 
+                    **common_args,
+                    timeout=HF_TIMEOUT
+                )
+                st.success(t("model_loaded"))
+                break
+            except Exception as e:
+                if attempt < HF_RETRY_ATTEMPTS - 1:
+                    st.warning(f"Tentative {attempt + 1}/{HF_RETRY_ATTEMPTS} échouée pour le modèle. Nouvelle tentative...")
+                    time.sleep(10)  # Attendre 10 secondes avant de réessayer
+                else:
+                    st.error(t("model_load_error").format(error=e))
+                    raise
         
         st.success(t("model_loaded_device").format(model=model_identifier, device=device_map))
         return model, processor
@@ -789,9 +819,17 @@ def get_model_and_processor():
     strategies = []
     device = get_device()
     
-    # Vérifier si CUDA est disponible
-    if torch.cuda.is_available() and device == "cuda":
-        try:
+    # Configuration spéciale pour Hugging Face Spaces
+    if is_huggingface_spaces():
+        st.info("🚀 Mode Hugging Face Spaces détecté - Configuration optimisée")
+        # Sur HF Spaces, utiliser CPU avec des timeouts plus longs
+        strategies.append({"name": "HF Spaces (CPU float32)", "config": {"device_map": "cpu", "torch_dtype": torch.float32, "quantization": None}})
+        strategies.append({"name": "HF Spaces (CPU bfloat16)", "config": {"device_map": "cpu", "torch_dtype": torch.bfloat16, "quantization": None}})
+        strategies.append({"name": "HF Spaces (CPU float32 fallback)", "config": {"device_map": "cpu", "torch_dtype": torch.float32, "quantization": None}})
+    else:
+        # Vérifier si CUDA est disponible
+        if torch.cuda.is_available() and device == "cuda":
+            try:
             gpu_memory_gb = torch.cuda.get_device_properties(0).total_memory / 1024**3
             st.info(t("gpu_memory").format(memory=gpu_memory_gb))
             
