@@ -1,0 +1,32 @@
+# Configuration spécifique pour Hugging Face Spaces
+# Ce fichier remplace config.toml pour le déploiement sur HF Spaces
+
+[global]
+developmentMode = false
+
+[server]
+headless = true
+enableCORS = false
+enableXsrfProtection = false
+port = 7860
+address = "0.0.0.0"
+maxUploadSize = 200
+fileWatcherType = "none"
+maxMessageSize = 200
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+primaryColor = "#00FF00"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F0F2F6"
+textColor = "#262730"
+
+# Configuration spécifique pour éviter les erreurs 403
+[client]
+showErrorDetails = true
+toolbarMode = "minimal"
+
+# Configuration pour les uploads (supprimée car obsolète)
+# Les uploads sont maintenant gérés directement par Streamlit 
