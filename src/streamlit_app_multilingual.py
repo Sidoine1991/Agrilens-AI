@@ -9,9 +9,10 @@ import time
 import sys
 import psutil
 from datetime import datetime
-from transformers import AutoTokenizer, AutoModelForCausalLM # Utilisation générique pour Gemma
+from transformers import AutoProcessor, AutoModelForImageTextToText # Utilisation pour Gemma multimodal
 from huggingface_hub import HfFolder, hf_hub_download, snapshot_download
 from functools import lru_cache # Alternative pour le caching, mais st.cache_resource est mieux pour les modèles
+import base64
 
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(
@@ -23,8 +24,16 @@ st.set_page_config(
 
 # --- CONFIGURATION OPTIMISÉE POUR PERFORMANCE ---
 # Configuration du modèle local
-LOCAL_MODEL_PATH = "D:/Dev/model_gemma"  # Chemin vers le modèle local
+LOCAL_MODEL_PATH = r"D:\Dev\model_gemma"  # Chemin vers le modèle local
 MODEL_ID_HF = "google/gemma-3n-e2b-it"  # ID Hugging Face (pour référence)
+
+# Configuration optimisée pour Hugging Face Spaces
+HF_TIMEOUT = 600  # 10 minutes de timeout pour le téléchargement (augmenté pour modèle local)
+HF_RETRY_ATTEMPTS = 3  # Nombre de tentatives de téléchargement
+
+def is_huggingface_spaces():
+    """Détecte si l'application tourne sur Hugging Face Spaces"""
+    return os.environ.get("SPACE_ID") is not None or "huggingface" in os.environ.get("HOSTNAME", "").lower()
 
 # --- TRADUCTIONS ---
 TRANSLATIONS = {
@@ -90,53 +99,168 @@ TRANSLATIONS = {
     "webcam_capture": {"fr": "📷 Capture par webcam", "en": "📷 Webcam capture"},
     "choose_method": {"fr": "Choisissez votre méthode :", "en": "Choose your method:"},
     "webcam_title": {"fr": "**📷 Capture d'image par webcam**", "en": "**📷 Webcam image capture**"},
+    "webcam_info": {"fr": "Utilisez votre webcam pour capturer une image de votre plante.", "en": "Use your webcam to capture an image of your plant."},
+    "take_photo": {"fr": "Prendre une photo", "en": "Take a photo"},
+    "file_too_large": {"fr": "❌ Fichier trop volumineux. Taille maximale : 10 MB", "en": "❌ File too large. Maximum size: 10 MB"},
+    "file_empty": {"fr": "❌ Fichier vide ou corrompu", "en": "❌ Empty or corrupted file"},
+    "large_file_warning": {"fr": "⚠️ Fichier volumineux détecté. Le traitement peut prendre plus de temps.", "en": "⚠️ Large file detected. Processing may take longer."},
+    "image_processing_error": {"fr": "❌ Erreur lors du traitement de l'image : ", "en": "❌ Error processing image: "},
+    "image_processing_error_webcam": {"fr": "❌ Erreur lors du traitement de l'image webcam : ", "en": "❌ Error processing webcam image: "},
+    "try_different_image": {"fr": "💡 Essayez avec une image différente ou vérifiez le format.", "en": "💡 Try with a different image or check the format."},
+    "try_retake_photo": {"fr": "💡 Essayez de reprendre la photo ou utilisez l'upload.", "en": "💡 Try retaking the photo or use upload."},
+    "ram_available": {"fr": "💾 RAM disponible : {ram} GB", "en": "💾 Available RAM: {ram} GB"},
+    "ram_low_warning": {"fr": "⚠️ RAM faible détectée. Le modèle peut ne pas se charger.", "en": "⚠️ Low RAM detected. Model may not load."},
+    "ram_check_error": {"fr": "❌ Erreur lors de la vérification de la RAM", "en": "❌ Error checking RAM"},
+    "model_loading_attempt": {"fr": "🔄 Tentative de chargement du modèle : {model}", "en": "🔄 Attempting to load model: {model}"},
+    "model_config": {"fr": "⚙️ Configuration : Device={device}, Dtype={dtype}, Quant={quant}", "en": "⚙️ Configuration: Device={device}, Dtype={dtype}, Quant={quant}"},
+    "hf_token_configured": {"fr": "✅ Jeton HF configuré", "en": "✅ HF token configured"},
+    "no_hf_token": {"fr": "⚠️ Aucun jeton HF trouvé", "en": "⚠️ No HF token found"},
+    "quantization_4bit": {"fr": "🔧 Application de la quantification 4-bit", "en": "🔧 Applying 4-bit quantization"},
+    "quantization_8bit": {"fr": "🔧 Application de la quantification 8-bit", "en": "🔧 Applying 8-bit quantization"},
+    "bitsandbytes_no_gpu": {"fr": "⚠️ BitsAndBytes non disponible, pas de quantification", "en": "⚠️ BitsAndBytes not available, no quantization"},
+    "bitsandbytes_error": {"fr": "❌ Erreur BitsAndBytes : {error}", "en": "❌ BitsAndBytes error: {error}"},
+    "loading_processor": {"fr": "🔄 Chargement du processeur...", "en": "🔄 Loading processor..."},
+    "processor_loaded": {"fr": "✅ Processeur chargé avec succès", "en": "✅ Processor loaded successfully"},
+    "processor_load_error": {"fr": "❌ Erreur de chargement du processeur : {error}", "en": "❌ Processor load error: {error}"},
+    "model_loaded": {"fr": "✅ Modèle chargé avec succès", "en": "✅ Model loaded successfully"},
+    "model_load_error": {"fr": "❌ Erreur de chargement du modèle : {error}", "en": "❌ Model load error: {error}"},
+    "model_loaded_device": {"fr": "✅ Modèle {model} chargé sur {device}", "en": "✅ Model {model} loaded on {device}"},
+    "dependency_error": {"fr": "❌ Erreur de dépendance : {error}", "en": "❌ Dependency error: {error}"},
+    "dependency_help": {"fr": "💡 Vérifiez que toutes les dépendances sont installées", "en": "💡 Check that all dependencies are installed"},
+    "hf_access_error": {"fr": "❌ Erreur d'accès Hugging Face", "en": "❌ Hugging Face access error"},
+    "hf_token_help": {"fr": "💡 Configurez votre jeton HF avec HF_TOKEN", "en": "💡 Configure your HF token with HF_TOKEN"},
+    "model_config_error": {"fr": "❌ Erreur de configuration du modèle : {error}", "en": "❌ Model configuration error: {error}"},
+    "unexpected_error": {"fr": "❌ Erreur inattendue : {error}", "en": "❌ Unexpected error: {error}"},
+    "check_logs_help": {"fr": "💡 Vérifiez les logs pour plus de détails", "en": "💡 Check logs for more details"},
+    "local_model_valid": {"fr": "✅ Modèle local valide trouvé : {path}", "en": "✅ Valid local model found: {path}"},
+    "local_mode": {"fr": "🔄 Mode local activé", "en": "🔄 Local mode activated"},
+    "local_model_unavailable": {"fr": "⚠️ Modèle local non disponible : {path}", "en": "⚠️ Local model unavailable: {path}"},
+    "hf_mode": {"fr": "🌐 Mode Hugging Face activé : {model}", "en": "🌐 Hugging Face mode activated: {model}"},
+    "gpu_memory": {"fr": "🎮 GPU détecté avec {memory} GB de mémoire", "en": "🎮 GPU detected with {memory} GB memory"},
+    "gpu_memory_limited": {"fr": "⚠️ Mémoire GPU limitée", "en": "⚠️ Limited GPU memory"},
+    "gpu_detection_error": {"fr": "❌ Erreur de détection GPU : {error}", "en": "❌ GPU detection error: {error}"},
+    "cpu_mode": {"fr": "💻 Mode CPU activé", "en": "💻 CPU mode activated"},
+    "loading_strategies": {"fr": "🔄 {count} stratégies de chargement disponibles", "en": "🔄 {count} loading strategies available"},
+    "strategy_attempt": {"fr": "🔄 Tentative {current}/{total} : {name}", "en": "🔄 Attempt {current}/{total}: {name}"},
+    "strategy_success": {"fr": "✅ Stratégie {name} réussie", "en": "✅ Strategy {name} successful"},
+    "strategy_failed": {"fr": "❌ Stratégie {name} échouée : {error}", "en": "❌ Strategy {name} failed: {error}"},
+    "strategy_config": {"fr": "⚙️ Configuration : {config}", "en": "⚙️ Configuration: {config}"},
+    "all_strategies_failed": {"fr": "❌ Toutes les stratégies ont échoué", "en": "❌ All strategies failed"},
+    "check_requirements": {"fr": "💡 Vérifiez les exigences système", "en": "💡 Check system requirements"},
+    "check_local_model": {"fr": "💡 Vérifiez le modèle local", "en": "💡 Check local model"},
+    "check_memory": {"fr": "💡 Vérifiez la mémoire disponible", "en": "💡 Check available memory"},
+    "check_dependencies": {"fr": "💡 Vérifiez les dépendances", "en": "💡 Check dependencies"},
+    "image_analysis_info": {"fr": "📸 Image : Format={format}, Taille={size}, Mode={mode}", "en": "📸 Image: Format={format}, Size={size}, Mode={mode}"},
+    "image_rgb_converted": {"fr": "🔄 Image convertie en RGB (mode={mode})", "en": "🔄 Image converted to RGB (mode={mode})"},
+    "image_resized": {"fr": "📏 Image redimensionnée", "en": "📏 Image resized"},
+    "image_ready": {"fr": "✅ Image prête : Taille={size}, Mode={mode}", "en": "✅ Image ready: Size={size}, Mode={mode}"},
+    "culture_considered": {"fr": "🌾 Culture considérée : {culture}", "en": "🌾 Culture considered: {culture}"},
+    "location_considered": {"fr": "📍 Localisation considérée : {location}", "en": "📍 Location considered: {location}"},
+    "agronomic_considered": {"fr": "🌱 Variables agronomiques : {vars}", "en": "🌱 Agronomic variables: {vars}"},
+    "climatic_considered": {"fr": "🌤️ Variables climatiques : {vars}", "en": "🌤️ Climatic variables: {vars}"},
+    "messages_structure": {"fr": "💬 Structure des messages : {count} messages, Type image={type}", "en": "💬 Message structure: {count} messages, Image type={type}"},
+    "template_success": {"fr": "✅ Template appliqué avec succès", "en": "✅ Template applied successfully"},
+    "fallback_prompt": {"fr": "🔄 Utilisation du prompt de secours", "en": "🔄 Using fallback prompt"},
+    "generic_response_warning": {"fr": "⚠️ Réponse générique détectée. Essayez avec une image plus claire.", "en": "⚠️ Generic response detected. Try with a clearer image."},
+    "image_resized_warning": {"fr": "⚠️ L'image a été redimensionnée à {new_size} pour optimiser le traitement.", "en": "⚠️ Image has been resized to {new_size} to optimize processing."},
     "image_info_title": {"fr": "**Informations de l'image :**", "en": "**Image information:**"},
-    "format_label": {"fr": "• Format : ", "en": "• Format: "},
-    "original_size": {"fr": "• Taille originale : ", "en": "• Original size: "},
-    "current_size": {"fr": "• Taille actuelle : ", "en": "• Current size: "},
-    "mode_label": {"fr": "• Mode : ", "en": "• Mode: "},
+    "format_label": {"fr": "Format : ", "en": "Format: "},
+    "original_size": {"fr": "Taille originale : ", "en": "Original size: "},
+    "current_size": {"fr": "Taille actuelle : ", "en": "Current size: "},
     "pixels": {"fr": " pixels", "en": " pixels"},
-    "symptoms_label": {"fr": "Description des symptômes :", "en": "Symptom description:"},
-    "mission_title": {"fr": "### 🌱 Notre Mission / Our Mission", "en": "### 🌱 Our Mission"},
-    "mission_text": {"fr": "AgriLens AI est une application de diagnostic des maladies de plantes utilisant l'intelligence artificielle pour aider les agriculteurs à identifier et traiter les problèmes de leurs cultures.", "en": "AgriLens AI is a plant disease diagnosis application using artificial intelligence to help farmers identify and treat problems with their crops."},
-    "features_title": {"fr": "### 🚀 Fonctionnalités / Features", "en": "### 🚀 Features"},
-    "features_text": {"fr": "• **Analyse d'images** : Diagnostic visuel des maladies\n• **Analyse de texte** : Conseils basés sur les descriptions\n• **Recommandations pratiques** : Actions concrètes à entreprendre\n• **Interface optimisée** : Pour une utilisation sur divers appareils\n• **Support multilingue** : Français et Anglais", "en": "• **Image analysis** : Visual diagnosis of diseases\n• **Text analysis** : Advice based on descriptions\n• **Practical recommendations** : Concrete actions to take\n• **Optimized interface** : For use on various devices\n• **Multilingual support** : French and English"},
-    "technology_title": {"fr": "### 🔧 Technologie / Technology", "en": "### 🔧 Technology"},
-    "local_model_text": {"fr": "• **Modèle** : Gemma 3n E4B IT (Local - {path})\n• **Framework** : Streamlit\n• **Déploiement** : Local", "en": "• **Model** : Gemma 3n E4B IT (Local - {path})\n• **Framework** : Streamlit\n• **Deployment** : Local"},
-    "online_model_text": {"fr": "• **Modèle** : Gemma 3n E4B IT (Hugging Face - en ligne)\n• **Framework** : Streamlit\n• **Déploiement** : Hugging Face Spaces", "en": "• **Model** : Gemma 3n E4B IT (Hugging Face - online)\n• **Framework** : Streamlit\n• **Deployment** : Hugging Face Spaces"},
-    "warning_title": {"fr": "### ⚠️ Avertissement / Warning", "en": "### ⚠️ Warning"},
-    "warning_text": {"fr": "Les résultats fournis par l'IA sont à titre indicatif uniquement et ne remplacent pas l'avis d'un expert agricole qualifié.", "en": "The results provided by AI are for guidance only and do not replace the advice of a qualified agricultural expert."},
-    "support_title": {"fr": "### 📞 Support", "en": "### 📞 Support"},
-    "support_text": {"fr": "Pour toute question ou problème, consultez la documentation ou contactez le créateur.", "en": "For any questions or issues, consult the documentation or contact the creator."},
-    "settings_button": {"fr": "⚙️ Réglages", "en": "⚙️ Settings"},
-    "specific_question": {"fr": "Question spécifique (optionnel) :", "en": "Specific question (optional):"},
-    "question_placeholder": {"fr": "Ex: Les feuilles ont des taches jaunes, que faire ?", "en": "Ex: The leaves have yellow spots, what to do?"},
-    "webcam_info": {"fr": "💡 Positionnez votre plante malade devant la webcam et cliquez sur 'Prendre une photo'. Assurez-vous d'un bon éclairage.", "en": "💡 Position your sick plant in front of the webcam and click 'Take a photo'. Make sure you have good lighting."},
-    "take_photo": {"fr": "Prendre une photo de la plante", "en": "Take a photo of the plant"},
-    "image_processing_error": {"fr": "❌ Erreur lors du traitement de l'image uploadée : ", "en": "❌ Error processing uploaded image: "},
-    "image_processing_error_webcam": {"fr": "❌ Erreur lors du traitement de l'image capturée : ", "en": "❌ Error processing captured image: "},
-    "try_different_image": {"fr": "💡 Essayez avec une image différente ou un format différent (PNG, JPG, JPEG).", "en": "💡 Try with a different image or format (PNG, JPG, JPEG)."},
-    "try_retake_photo": {"fr": "💡 Essayez de reprendre la photo.", "en": "💡 Try taking the photo again."},
-    "image_resized_warning": {"fr": "⚠️ L'image a été redimensionnée de  à {new_size} pour optimiser le traitement.", "en": "⚠️ Image has been resized from  to {new_size} to optimize processing."},
-    "model_not_loaded_error": {"fr": "❌ Modèle non chargé. Veuillez le charger dans les réglages.", "en": "❌ Model not loaded. Please load it in settings."},
-    "analyzing_image": {"fr": "🔍 Analyse d'image en cours...", "en": "🔍 Analyzing image..."},
-    "image_processing_general_error": {"fr": "Erreur lors du traitement de l'image : ", "en": "Error processing image: "},
-    "symptoms_placeholder": {"fr": "Ex: Mes tomates ont des taches brunes sur les feuilles et les fruits, une poudre blanche sur les tiges...", "en": "Ex: My tomatoes have brown spots on leaves and fruits, white powder on stems..."},
+    "mode_label": {"fr": "Mode : ", "en": "Mode: "},
     "culture_clarification": {"fr": "🌱 Clarification de la Culture", "en": "🌱 Culture Clarification"},
-    "culture_question": {"fr": "Quelle est la culture concernée ?", "en": "What is the crop concerned?"},
-    "culture_placeholder": {"fr": "Ex: Tomate, Piment, Maïs, Haricot, Aubergine...", "en": "Ex: Tomato, Pepper, Corn, Bean, Eggplant..."},
-    "culture_help": {"fr": "Précisez le type de plante pour un diagnostic plus précis", "en": "Specify the plant type for more accurate diagnosis"},
-    "diagnosis_with_culture": {"fr": "🔬 Diagnostic avec Culture Spécifiée", "en": "🔬 Diagnosis with Specified Culture"},
-    "culture_specified": {"fr": "Culture spécifiée : ", "en": "Specified culture: "},
+    "culture_question": {"fr": "Quelle est la culture représentée dans cette image ?", "en": "What crop is represented in this image?"},
+    "culture_placeholder": {"fr": "Ex: Tomate, Piment, Maïs, Haricot...", "en": "Ex: Tomato, Pepper, Corn, Bean..."},
+    "culture_help": {"fr": "Spécifier la culture aide le modèle à se concentrer sur les maladies spécifiques à cette plante.", "en": "Specifying the crop helps the model focus on diseases specific to this plant."},
+    "agronomic_variables_title": {"fr": "🌱 Variables Agronomiques", "en": "🌱 Agronomic Variables"},
+    "agronomic_help": {"fr": "Ces informations aident à affiner le diagnostic en tenant compte des conditions de culture.", "en": "This information helps refine the diagnosis by considering growing conditions."},
+    "soil_type": {"fr": "Type de sol", "en": "Soil type"},
+    "soil_type_options": {"fr": ["Non spécifié", "Sableux", "Argileux", "Limoneux", "Humifère"], "en": ["Not specified", "Sandy", "Clay", "Loamy", "Humic"]},
+    "soil_type_help": {"fr": "Type de sol dominant dans la zone de culture", "en": "Dominant soil type in the growing area"},
+    "plant_age": {"fr": "Âge de la plante", "en": "Plant age"},
+    "plant_age_placeholder": {"fr": "Ex: 2 mois, 45 jours...", "en": "Ex: 2 months, 45 days..."},
+    "plant_age_help": {"fr": "Âge approximatif de la plante au moment de la photo", "en": "Approximate age of the plant when the photo was taken"},
+    "planting_density": {"fr": "Densité de plantation", "en": "Planting density"},
+    "planting_density_options": {"fr": ["Non spécifié", "Faible", "Moyenne", "Élevée"], "en": ["Not specified", "Low", "Medium", "High"]},
+    "planting_density_help": {"fr": "Densité de plantation dans la parcelle", "en": "Planting density in the plot"},
+    "irrigation": {"fr": "Irrigation", "en": "Irrigation"},
+    "irrigation_options": {"fr": ["Non spécifié", "Pluie", "Goutte à goutte", "Aspersion", "Gravitaire"], "en": ["Not specified", "Rain", "Drip", "Sprinkler", "Gravity"]},
+    "irrigation_help": {"fr": "Type d'irrigation utilisé", "en": "Type of irrigation used"},
+    "fertilization": {"fr": "Fertilisation", "en": "Fertilization"},
+    "fertilization_options": {"fr": ["Non spécifié", "Organique", "Chimique", "Mixte", "Aucune"], "en": ["Not specified", "Organic", "Chemical", "Mixed", "None"]},
+    "fertilization_help": {"fr": "Type de fertilisation appliquée", "en": "Type of fertilization applied"},
+    "crop_rotation": {"fr": "Rotation des cultures", "en": "Crop rotation"},
+    "crop_rotation_options": {"fr": ["Non spécifié", "Oui", "Non", "Partielle"], "en": ["Not specified", "Yes", "No", "Partial"]},
+    "crop_rotation_help": {"fr": "Pratique de rotation des cultures", "en": "Crop rotation practice"},
+    "climatic_variables_title": {"fr": "🌤️ Variables Climatiques", "en": "🌤️ Climatic Variables"},
+    "climatic_help": {"fr": "Ces informations aident à identifier les facteurs climatiques favorables aux maladies.", "en": "This information helps identify climatic factors favorable to diseases."},
+    "temperature": {"fr": "Température", "en": "Temperature"},
+    "temperature_placeholder": {"fr": "Ex: 25°C, 30-35°C...", "en": "Ex: 25°C, 30-35°C..."},
+    "temperature_help": {"fr": "Température ambiante au moment de la photo", "en": "Ambient temperature when the photo was taken"},
+    "humidity": {"fr": "Humidité", "en": "Humidity"},
+    "humidity_options": {"fr": ["Non spécifié", "Faible (<40%)", "Moyenne (40-70%)", "Élevée (>70%)"], "en": ["Not specified", "Low (<40%)", "Medium (40-70%)", "High (>70%)"]},
+    "humidity_help": {"fr": "Niveau d'humidité ambiante", "en": "Ambient humidity level"},
+    "rainfall": {"fr": "Précipitations", "en": "Rainfall"},
+    "rainfall_options": {"fr": ["Non spécifié", "Faible", "Modérée", "Abondante", "Sécheresse"], "en": ["Not specified", "Low", "Moderate", "Abundant", "Drought"]},
+    "rainfall_help": {"fr": "Conditions de précipitations récentes", "en": "Recent precipitation conditions"},
+    "season": {"fr": "Saison", "en": "Season"},
+    "season_options": {"fr": ["Non spécifié", "Saison sèche", "Saison des pluies", "Transition"], "en": ["Not specified", "Dry season", "Rainy season", "Transition"]},
+    "season_help": {"fr": "Saison actuelle", "en": "Current season"},
+    "sun_exposure": {"fr": "Exposition solaire", "en": "Sun exposure"},
+    "sun_exposure_options": {"fr": ["Non spécifié", "Pleine exposition", "Ombre partielle", "Ombre complète"], "en": ["Not specified", "Full exposure", "Partial shade", "Full shade"]},
+    "sun_exposure_help": {"fr": "Niveau d'exposition solaire", "en": "Level of sun exposure"},
+    "wind_conditions": {"fr": "Conditions de vent", "en": "Wind conditions"},
+    "wind_conditions_options": {"fr": ["Non spécifié", "Calme", "Léger", "Modéré", "Fort"], "en": ["Not specified", "Calm", "Light", "Moderate", "Strong"]},
+    "wind_conditions_help": {"fr": "Conditions de vent dans la zone", "en": "Wind conditions in the area"},
+    "location_title": {"fr": "📍 Localisation", "en": "📍 Location"},
+    "location_help": {"fr": "La localisation peut aider à identifier les maladies spécifiques à la région.", "en": "Location can help identify diseases specific to the region."},
+    "location_method": {"fr": "Méthode de localisation", "en": "Location method"},
+    "location_method_options": {"fr": ["GPS automatique", "Saisie manuelle"], "en": ["Automatic GPS", "Manual entry"]},
+    "location_method_help": {"fr": "Choisissez comment spécifier la localisation", "en": "Choose how to specify the location"},
+    "gps_info": {"fr": "📱 Sur mobile, la géolocalisation automatique sera utilisée si disponible.", "en": "📱 On mobile, automatic geolocation will be used if available."},
+    "country": {"fr": "Pays", "en": "Country"},
+    "country_placeholder": {"fr": "Ex: Bénin, France...", "en": "Ex: Benin, France..."},
+    "city": {"fr": "Ville/Région", "en": "City/Region"},
+    "city_placeholder": {"fr": "Ex: Bohicon, Cotonou...", "en": "Ex: Bohicon, Cotonou..."},
+    "latitude": {"fr": "Latitude", "en": "Latitude"},
+    "latitude_placeholder": {"fr": "Ex: 7.1761", "en": "Ex: 7.1761"},
+    "longitude": {"fr": "Longitude", "en": "Longitude"},
+    "longitude_placeholder": {"fr": "Ex: 2.0667", "en": "Ex: 2.0667"},
+    "specific_question": {"fr": "Question spécifique (optionnel)", "en": "Specific question (optional)"},
+    "question_placeholder": {"fr": "Ex: Est-ce grave ? Que faire en priorité ?", "en": "Ex: Is it serious? What to do first?"},
+    "culture_specified": {"fr": "Culture spécifiée :", "en": "Specified crop:"},
+    "location_display": {"fr": "📍 Localisation : {location}", "en": "📍 Location: {location}"},
     "export_diagnostic": {"fr": "📄 Exporter le Diagnostic", "en": "📄 Export Diagnosis"},
-    "export_html": {"fr": "💻 Exporter en HTML", "en": "💻 Export as HTML"},
-    "export_text": {"fr": "📝 Exporter en Texte", "en": "📝 Export as Text"},
-    "download_html": {"fr": "Télécharger HTML", "en": "Download HTML"},
-    "download_text": {"fr": "Télécharger Texte", "en": "Download Text"},
-    "export_success": {"fr": "✅ Diagnostic exporté avec succès !", "en": "✅ Diagnosis exported successfully!"},
-    "export_error": {"fr": "❌ Erreur lors de l'export", "en": "❌ Export error"},
-    "html_filename": {"fr": "diagnostic_agrilens_{date}.html", "en": "agrilens_diagnosis_{date}.html"},
-    "text_filename": {"fr": "diagnostic_agrilens_{date}.txt", "en": "agrilens_diagnosis_{date}.txt"}
+    "download_html": {"fr": "📄 Télécharger HTML", "en": "📄 Download HTML"},
+    "download_text": {"fr": "📄 Télécharger Texte", "en": "📄 Download Text"},
+    "export_html": {"fr": "Télécharger le diagnostic au format HTML avec mise en page", "en": "Download diagnosis in HTML format with layout"},
+    "export_text": {"fr": "Télécharger le diagnostic au format texte simple", "en": "Download diagnosis in simple text format"},
+    "symptoms_placeholder": {"fr": "Décrivez les symptômes observés sur votre plante...", "en": "Describe the symptoms observed on your plant..."},
+    "symptoms_required": {"fr": "❌ Veuillez décrire les symptômes pour l'analyse.", "en": "❌ Please describe the symptoms for analysis."},
+    "model_not_loaded_error": {"fr": "❌ Le modèle IA n'est pas chargé. Veuillez le charger dans les réglages.", "en": "❌ The AI model is not loaded. Please load it in the settings."},
+    "image_processing_general_error": {"fr": "❌ Erreur générale lors du traitement de l'image : ", "en": "❌ General error processing image: "},
+    "local_model_detected": {"fr": "🏠 Modèle local détecté - Stratégies optimisées", "en": "🏠 Local model detected - Optimized strategies"},
+    "local_model_loading": {"fr": "🔄 Chargement du modèle local en cours...", "en": "🔄 Loading local model..."},
+    "local_model_success": {"fr": "✅ Modèle local chargé avec succès !", "en": "✅ Local model loaded successfully!"},
+    "local_model_failed": {"fr": "❌ Échec du chargement du modèle local", "en": "❌ Local model loading failed"},
+    "analysis_started": {"fr": "🔊 Analyse démarrée - Notification sonore activée", "en": "🔊 Analysis started - Sound notification activated"},
+    "analysis_completed": {"fr": "🔊 Analyse terminée - Notification sonore activée", "en": "🔊 Analysis completed - Sound notification activated"},
+    "sound_notifications": {"fr": "🔊 Notifications Sonores", "en": "🔊 Sound Notifications"},
+    "sound_enabled": {"fr": "✅ Notifications sonores activées", "en": "✅ Sound notifications enabled"},
+    "sound_disabled": {"fr": "🔇 Notifications sonores désactivées", "en": "🔇 Sound notifications disabled"},
+    "mission_title": {"fr": "### 🎯 Notre Mission", "en": "### 🎯 Our Mission"},
+    "mission_text": {"fr": "AgriLens AI vise à démocratiser l'accès au diagnostic des maladies de plantes en utilisant l'intelligence artificielle. Notre objectif est d'aider les agriculteurs, les jardiniers et les professionnels de l'agriculture à identifier rapidement et précisément les problèmes de santé de leurs cultures.", "en": "AgriLens AI aims to democratize access to plant disease diagnosis using artificial intelligence. Our goal is to help farmers, gardeners, and agricultural professionals quickly and accurately identify health problems in their crops."},
+    "features_title": {"fr": "### ✨ Fonctionnalités Principales", "en": "### ✨ Main Features"},
+    "features_text": {"fr": "- **Diagnostic par Image** : Analysez des photos de plantes malades\n- **Analyse de Texte** : Décrivez les symptômes pour obtenir des conseils\n- **Support Multilingue** : Interface disponible en français et anglais\n- **Export de Résultats** : Sauvegardez vos diagnostics\n- **Interface Responsive** : Compatible mobile et desktop", "en": "- **Image Diagnosis** : Analyze photos of diseased plants\n- **Text Analysis** : Describe symptoms to get advice\n- **Multilingual Support** : Interface available in French and English\n- **Result Export** : Save your diagnoses\n- **Responsive Interface** : Mobile and desktop compatible"},
+    "technology_title": {"fr": "### 🤖 Technologies Utilisées", "en": "### 🤖 Technologies Used"},
+    "local_model_text": {"fr": "**Modèle Local** : Utilise un modèle Gemma 3n stocké localement à {path}", "en": "**Local Model** : Uses a Gemma 3n model stored locally at {path}"},
+    "online_model_text": {"fr": "**Modèle en Ligne** : Utilise le modèle Gemma 3n via Hugging Face", "en": "**Online Model** : Uses the Gemma 3n model via Hugging Face"},
+    "creator_portfolio": {"fr": "📁 [Portfolio Hugging Face](https://huggingface.co/spaces/Sidoineko/portfolio)", "en": "📁 [Hugging Face Portfolio](https://huggingface.co/spaces/Sidoineko/portfolio)"},
+    "warning_title": {"fr": "### ⚠️ Avertissements Importants", "en": "### ⚠️ Important Warnings"},
+    "warning_text": {"fr": "Les résultats fournis par l'IA sont à titre informatif uniquement. Pour des cas critiques, consultez toujours un expert en agriculture ou un phytopathologiste.", "en": "The results provided by AI are for informational purposes only. For critical cases, always consult an agricultural expert or plant pathologist."},
+    "support_title": {"fr": "### 📞 Support et Contact", "en": "### 📞 Support and Contact"},
+    "support_text": {"fr": "Pour toute question ou support technique, n'hésitez pas à nous contacter via les informations fournies ci-dessus.", "en": "For any questions or technical support, don't hesitate to contact us using the information provided above."}
 }
 
 def t(key):
@@ -145,6 +269,57 @@ def t(key):
         st.session_state.language = 'fr'
     lang = st.session_state.language
     return TRANSLATIONS.get(key, {}).get(lang, key)
+
+def get_audio_html(audio_type="start"):
+    """Génère le HTML pour les notifications sonores."""
+    if audio_type == "start":
+        # Son court pour le début de l'analyse
+        audio_base64 = "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBC13yO/eizEIHWq+8+OWT"
+    else:
+        # Son différent pour la fin de l'analyse
+        audio_base64 = "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBC13yO/eizEIHWq+8+OWT"
+    
+    return f"""
+    <audio id="audio_{audio_type}" preload="auto">
+        <source src="{audio_base64}" type="audio/wav">
+    </audio>
+    <script>
+        function playAudio_{audio_type}() {{
+            var audio = document.getElementById('audio_{audio_type}');
+            audio.play();
+        }}
+    </script>
+    """
+
+def play_start_sound():
+    """Joue le son de début d'analyse."""
+    audio_html = get_audio_html("start")
+    st.markdown(audio_html, unsafe_allow_html=True)
+    st.markdown(
+        """
+        <script>
+            setTimeout(function() {
+                playAudio_start();
+            }, 100);
+        </script>
+        """, 
+        unsafe_allow_html=True
+    )
+
+def play_completion_sound():
+    """Joue le son de fin d'analyse."""
+    audio_html = get_audio_html("completion")
+    st.markdown(audio_html, unsafe_allow_html=True)
+    st.markdown(
+        """
+        <script>
+            setTimeout(function() {
+                playAudio_completion();
+            }, 100);
+        </script>
+        """, 
+        unsafe_allow_html=True
+    )
 
 # --- INITIALISATION DE LA LANGUE ET DES CONSTATATIONS GLOBALES ---
 if 'language' not in st.session_state:
@@ -330,13 +505,13 @@ def afficher_ram_disponible():
     """Affiche l'utilisation de la RAM."""
     try:
         mem = psutil.virtual_memory()
-        st.info(f"💾 RAM : {mem.available // (1024**3)} GB disponible")
+        st.info(t("ram_available").format(ram=mem.available // (1024**3)))
         if mem.available < 4 * 1024**3:
-            st.warning("⚠️ Moins de 4GB de RAM disponible, le chargement du modèle risque d'échouer !")
+            st.warning(t("ram_low_warning"))
     except ImportError:
-        st.warning("⚠️ Impossible de vérifier la RAM système.")
+        st.warning(t("ram_check_error"))
 
-def generate_html_diagnostic(diagnostic_text, culture=None, image_info=None, timestamp=None):
+def generate_html_diagnostic(diagnostic_text, culture=None, image_info=None, timestamp=None, location=None):
     """
     Génère un fichier HTML formaté pour le diagnostic.
     
@@ -345,6 +520,7 @@ def generate_html_diagnostic(diagnostic_text, culture=None, image_info=None, tim
         culture (str): La culture spécifiée
         image_info (dict): Informations sur l'image
         timestamp (str): Horodatage de l'analyse
+        location (str): La localisation spécifiée
         
     Returns:
         str: Contenu HTML formaté
@@ -445,6 +621,7 @@ def generate_html_diagnostic(diagnostic_text, culture=None, image_info=None, tim
             <p><strong>Date et heure :</strong> {timestamp}</p>
             <p><strong>Modèle utilisé :</strong> Gemma 3n E4B IT</p>
             {f'<p><strong>Culture analysée :</strong> {culture}</p>' if culture else ''}
+            {f'<p><strong>Localisation :</strong> {location}</p>' if location else ''}
             {f'<p><strong>Format image :</strong> {image_info.get("format", "N/A")}</p>' if image_info else ''}
             {f'<p><strong>Taille image :</strong> {image_info.get("size", "N/A")}</p>' if image_info else ''}
         </div>
@@ -469,7 +646,7 @@ def generate_html_diagnostic(diagnostic_text, culture=None, image_info=None, tim
 """
     return html_content
 
-def generate_text_diagnostic(diagnostic_text, culture=None, image_info=None, timestamp=None):
+def generate_text_diagnostic(diagnostic_text, culture=None, image_info=None, timestamp=None, location=None):
     """
     Génère un fichier texte formaté pour le diagnostic.
     
@@ -478,6 +655,7 @@ def generate_text_diagnostic(diagnostic_text, culture=None, image_info=None, tim
         culture (str): La culture spécifiée
         image_info (dict): Informations sur l'image
         timestamp (str): Horodatage de l'analyse
+        location (str): La localisation spécifiée
         
     Returns:
         str: Contenu texte formaté
@@ -495,6 +673,7 @@ AGRILENS AI - DIAGNOSTIC INTELLIGENT DES PLANTES
 Date et heure : {timestamp}
 Modèle utilisé : Gemma 3n E4B IT
 {f'Culture analysée : {culture}' if culture else ''}
+{f'Localisation : {location}' if location else ''}
 {f'Format image : {image_info.get("format", "N/A")}' if image_info else ''}
 {f'Taille image : {image_info.get("size", "N/A")}' if image_info else ''}
 
@@ -531,14 +710,14 @@ def load_ai_model(model_identifier, device_map="auto", torch_dtype=torch.float16
     """
     try:
         # Import local pour éviter les problèmes de scope
-        from transformers import AutoTokenizer, AutoModelForCausalLM
+        from transformers import AutoProcessor, AutoModelForImageTextToText
         
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-        st.info(f"🔍 Tentative de chargement du modèle : `{model_identifier}`")
-        st.info(f"📋 Configuration : device_map={device_map}, torch_dtype={torch_dtype}, quantization={quantization}")
+        st.info(t("model_loading_attempt").format(model=model_identifier))
+        st.info(t("model_config").format(device=device_map, dtype=torch_dtype, quant=quantization))
         
         # --- Configuration des arguments pour le chargement ---
         common_args = {
@@ -553,9 +732,9 @@ def load_ai_model(model_identifier, device_map="auto", torch_dtype=torch.float16
             token = os.environ.get("HF_TOKEN") or HfFolder.get_token()
             if token:
                 common_args["token"] = token
-                st.info("🔑 Token Hugging Face configuré")
+                st.info(t("hf_token_configured"))
             else:
-                st.warning("⚠️ Pas de token Hugging Face - peut causer des erreurs 403")
+                st.warning(t("no_hf_token"))
         
         # Configuration de la quantisation (pour réduire l'empreinte mémoire)
         if quantization == "4bit":
@@ -568,65 +747,97 @@ def load_ai_model(model_identifier, device_map="auto", torch_dtype=torch.float16
                         "bnb_4bit_use_double_quant": True,
                         "bnb_4bit_quant_type": "nf4"
                     })
-                    st.info("🔧 Quantisation 4-bit activée")
+                    st.info(t("quantization_4bit"))
                 else:
-                    st.warning("⚠️ bitsandbytes sans support GPU - quantisation désactivée")
+                    st.warning(t("bitsandbytes_no_gpu"))
             except Exception as e:
-                st.warning(f"⚠️ Erreur bitsandbytes : {e} - quantisation désactivée")
+                st.warning(t("bitsandbytes_error").format(error=e))
         elif quantization == "8bit":
             try:
                 import bitsandbytes as bnb
                 if bnb.cuda_setup.get_compute_capability() is not None:
                     common_args.update({"load_in_8bit": True})
-                    st.info("🔧 Quantisation 8-bit activée")
+                    st.info(t("quantization_8bit"))
                 else:
-                    st.warning("⚠️ bitsandbytes sans support GPU - quantisation désactivée")
+                    st.warning(t("bitsandbytes_no_gpu"))
             except Exception as e:
-                st.warning(f"⚠️ Erreur bitsandbytes : {e} - quantisation désactivée")
+                st.warning(t("bitsandbytes_error").format(error=e))
         
-        # --- Chargement du tokenizer ---
-        st.info("📝 Chargement du tokenizer...")
-        try:
-            tokenizer = AutoTokenizer.from_pretrained(model_identifier, **common_args)
-            st.success("✅ Tokenizer chargé avec succès")
-        except Exception as e:
-            st.error(f"❌ Erreur chargement tokenizer : {e}")
-            raise
+        # --- Chargement du processor avec retry logic ---
+        st.info(t("loading_processor"))
+        processor = None
+        for attempt in range(HF_RETRY_ATTEMPTS):
+            try:
+                # Préparer les arguments pour le processor
+                processor_args = common_args.copy()
+                # Ajouter timeout seulement pour les modèles Hugging Face (pas locaux)
+                if model_identifier.startswith("google/") or "/" in model_identifier:
+                    processor_args["timeout"] = HF_TIMEOUT
+                
+                processor = AutoProcessor.from_pretrained(
+                    model_identifier, 
+                    **processor_args
+                )
+                st.success(t("processor_loaded"))
+                break
+            except Exception as e:
+                if attempt < HF_RETRY_ATTEMPTS - 1:
+                    st.warning(f"Tentative {attempt + 1}/{HF_RETRY_ATTEMPTS} échouée pour le processor. Nouvelle tentative...")
+                    time.sleep(5)  # Attendre 5 secondes avant de réessayer
+                else:
+                    st.error(t("processor_load_error").format(error=e))
+                    raise
         
-        # --- Chargement du modèle ---
-        st.info("🤖 Chargement du modèle...")
-        try:
-            # Utiliser AutoModelForCausalLM car Gemma est un modèle causal
-            model = AutoModelForCausalLM.from_pretrained(model_identifier, **common_args)
-            st.success("✅ Modèle chargé avec succès")
-        except Exception as e:
-            st.error(f"❌ Erreur chargement modèle : {e}")
-            raise
+        # --- Chargement du modèle multimodal avec retry logic ---
+        st.info(t("loading_model"))
+        model = None
+        for attempt in range(HF_RETRY_ATTEMPTS):
+            try:
+                # Préparer les arguments pour le modèle
+                model_args = common_args.copy()
+                # Ajouter timeout seulement pour les modèles Hugging Face (pas locaux)
+                if model_identifier.startswith("google/") or "/" in model_identifier:
+                    model_args["timeout"] = HF_TIMEOUT
+                
+                # Utiliser AutoModelForImageTextToText pour le modèle multimodal Gemma
+                model = AutoModelForImageTextToText.from_pretrained(
+                    model_identifier, 
+                    **model_args
+                )
+                st.success(t("model_loaded"))
+                break
+            except Exception as e:
+                if attempt < HF_RETRY_ATTEMPTS - 1:
+                    st.warning(f"Tentative {attempt + 1}/{HF_RETRY_ATTEMPTS} échouée pour le modèle. Nouvelle tentative...")
+                    time.sleep(10)  # Attendre 10 secondes avant de réessayer
+                else:
+                    st.error(t("model_load_error").format(error=e))
+                    raise
         
-        st.success(f"🎉 Modèle `{model_identifier}` chargé avec succès sur device `{device_map}`.")
-        return model, tokenizer
+        st.success(t("model_loaded_device").format(model=model_identifier, device=device_map))
+        return model, processor
 
     except ImportError as e:
-        st.error(f"❌ Erreur de dépendance : {e}")
-        st.error("💡 Assurez-vous que `transformers`, `torch`, `accelerate`, et `bitsandbytes` sont installés.")
+        st.error(t("dependency_error").format(error=e))
+        st.error(t("dependency_help"))
         raise ImportError(f"Erreur de dépendance : {e}. Assurez-vous que `transformers`, `torch`, `accelerate`, et `bitsandbytes` sont installés.")
     except ValueError as e:
         error_msg = str(e)
         if "403" in error_msg or "Forbidden" in error_msg:
-            st.error("❌ Erreur d'accès Hugging Face (403)")
-            st.error("💡 Vérifiez votre jeton Hugging Face (HF_TOKEN). Il doit être défini et valide.")
+            st.error(t("hf_access_error"))
+            st.error(t("hf_token_help"))
             raise ValueError("❌ Erreur d'accès Hugging Face (403). Vérifiez votre jeton Hugging Face (HF_TOKEN). Il doit être défini et valide.")
         else:
-            st.error(f"❌ Erreur de configuration du modèle : {e}")
+            st.error(t("model_config_error").format(error=e))
             raise ValueError(f"Erreur de configuration du modèle : {e}")
     except Exception as e:
-        st.error(f"❌ Erreur inattendue lors du chargement : {e}")
-        st.error("💡 Vérifiez les logs ci-dessus pour plus de détails")
+        st.error(t("unexpected_error").format(error=e))
+        st.error(t("check_logs_help"))
         raise RuntimeError(f"Une erreur est survenue lors du chargement du modèle : {e}")
 
-def get_model_and_tokenizer():
+def get_model_and_processor():
     """
-    Stratégie de chargement du modèle Gemma 3n e2b it.
+    Stratégie de chargement du modèle multimodal Gemma 3n e2b it.
     Utilise le modèle local s'il est disponible, sinon télécharge depuis Hugging Face.
     """
     # --- Diagnostic initial ---
@@ -640,47 +851,64 @@ def get_model_and_tokenizer():
     is_valid, status_message = check_local_model()
     
     if is_valid:
-        st.success(f"✅ Modèle local valide : {LOCAL_MODEL_PATH}")
+        st.success(t("local_model_valid").format(path=LOCAL_MODEL_PATH))
         st.info(f"📁 {status_message}")
-        st.info("Mode : Chargement local (pas de téléchargement depuis Hugging Face)")
+        st.info(t("local_mode"))
     else:
-        st.warning(f"⚠️ Modèle local non disponible : {LOCAL_MODEL_PATH}")
+        st.warning(t("local_model_unavailable").format(path=LOCAL_MODEL_PATH))
         st.error(f"❌ {status_message}")
-        st.info(f"Mode : Téléchargement depuis Hugging Face : {MODEL_ID_HF}")
+        st.info(t("hf_mode").format(model=MODEL_ID_HF))
 
     # --- Stratégies de chargement ---
     strategies = []
     device = get_device()
     
-    # Vérifier si CUDA est disponible
-    if torch.cuda.is_available() and device == "cuda":
-        try:
-            gpu_memory_gb = torch.cuda.get_device_properties(0).total_memory / 1024**3
-            st.info(f"Mémoire GPU disponible : {gpu_memory_gb:.1f} GB")
-            
-            # Stratégies GPU par ordre de consommation mémoire décroissante
-            if gpu_memory_gb >= 12: # Idéal pour float16
-                strategies.append({"name": "GPU (float16)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": None}})
-            if gpu_memory_gb >= 10: # Peut fonctionner avec float16
-                strategies.append({"name": "GPU (float16)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": None}})
-            if gpu_memory_gb >= 8: # Recommandé pour 8-bit quant.
-                strategies.append({"name": "GPU (8-bit quant.)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": "8bit"}})
-            if gpu_memory_gb >= 6: # Minimum pour 4-bit quant.
-                strategies.append({"name": "GPU (4-bit quant.)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": "4bit"}})
-            
-            # Si la mémoire est très limitée, proposer une stratégie CPU
-            if gpu_memory_gb < 6:
-                 st.warning("Mémoire GPU limitée (<6GB). Le chargement sur CPU est recommandé.")
-        except Exception as e:
-            st.warning(f"Erreur lors de la détection GPU : {e}. Utilisation du CPU.")
-            device = "cpu"
+    # Configuration spéciale pour Hugging Face Spaces
+    if is_huggingface_spaces():
+        st.info("🚀 Mode Hugging Face Spaces détecté - Configuration optimisée")
+        # Sur HF Spaces, utiliser CPU avec des timeouts plus longs
+        strategies.append({"name": "HF Spaces (CPU float32)", "config": {"device_map": "cpu", "torch_dtype": torch.float32, "quantization": None}})
+        strategies.append({"name": "HF Spaces (CPU bfloat16)", "config": {"device_map": "cpu", "torch_dtype": torch.bfloat16, "quantization": None}})
+        strategies.append({"name": "HF Spaces (CPU float32 fallback)", "config": {"device_map": "cpu", "torch_dtype": torch.float32, "quantization": None}})
+    else:
+        # Vérifier si CUDA est disponible
+        if torch.cuda.is_available() and device == "cuda":
+            try:
+                gpu_memory_gb = torch.cuda.get_device_properties(0).total_memory / 1024**3
+                st.info(t("gpu_memory").format(memory=gpu_memory_gb))
+                
+                # Stratégies GPU par ordre de consommation mémoire décroissante
+                if gpu_memory_gb >= 12: # Idéal pour float16
+                    strategies.append({"name": "GPU (float16)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": None}})
+                if gpu_memory_gb >= 10: # Peut fonctionner avec float16
+                    strategies.append({"name": "GPU (float16)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": None}})
+                if gpu_memory_gb >= 8: # Recommandé pour 8-bit quant.
+                    strategies.append({"name": "GPU (8-bit quant.)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": "8bit"}})
+                if gpu_memory_gb >= 6: # Minimum pour 4-bit quant.
+                    strategies.append({"name": "GPU (4-bit quant.)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": "4bit"}})
+                
+                # Si la mémoire est très limitée, proposer une stratégie CPU
+                if gpu_memory_gb < 6:
+                    st.warning(t("gpu_memory_limited"))
+            except Exception as e:
+                st.warning(t("gpu_detection_error").format(error=e))
+                device = "cpu"
     
     # Si CUDA n'est pas disponible ou a échoué, utiliser CPU
     if not torch.cuda.is_available() or device == "cpu":
-        st.info("🖥️ Mode CPU détecté - Utilisation des stratégies CPU optimisées")
-        # Stratégies CPU optimisées pour les performances (sans quantisation)
-        strategies.append({"name": "CPU (float32)", "config": {"device_map": "cpu", "torch_dtype": torch.float32, "quantization": None}})
-        strategies.append({"name": "CPU (bfloat16)", "config": {"device_map": "cpu", "torch_dtype": torch.bfloat16, "quantization": None}})
+        st.info(t("cpu_mode"))
+        
+        # Si on utilise le modèle local, ajouter des stratégies optimisées
+        if model_path == LOCAL_MODEL_PATH:
+            st.info(t("local_model_detected"))
+            # Stratégies optimisées pour le modèle local (plus de mémoire, plus de temps)
+            strategies.append({"name": "Local Model (CPU float32)", "config": {"device_map": "cpu", "torch_dtype": torch.float32, "quantization": None}})
+            strategies.append({"name": "Local Model (CPU bfloat16)", "config": {"device_map": "cpu", "torch_dtype": torch.bfloat16, "quantization": None}})
+        else:
+            # Stratégies CPU optimisées pour les performances (sans quantisation)
+            strategies.append({"name": "CPU (float32)", "config": {"device_map": "cpu", "torch_dtype": torch.float32, "quantization": None}})
+            strategies.append({"name": "CPU (bfloat16)", "config": {"device_map": "cpu", "torch_dtype": torch.bfloat16, "quantization": None}})
+        
         # Stratégie de fallback ultra-stable
         strategies.append({"name": "CPU (float32 - fallback)", "config": {"device_map": "cpu", "torch_dtype": torch.float32, "quantization": None}})
     else:
@@ -689,28 +917,28 @@ def get_model_and_tokenizer():
         strategies.append({"name": "CPU (float32)", "config": {"device_map": "cpu", "torch_dtype": torch.float32, "quantization": None}}) # Plus stable si bfloat16 échoue
     
     # --- Tentative de chargement via les stratégies ---
-    st.info(f"🔍 Tentative de chargement avec {len(strategies)} stratégies...")
+    st.info(t("loading_strategies").format(count=len(strategies)))
     
     for i, strat in enumerate(strategies, 1):
-        st.info(f"📋 Stratégie {i}/{len(strategies)} : {strat['name']}...")
+        st.info(t("strategy_attempt").format(current=i, total=len(strategies), name=strat['name']))
         try:
-            model, tokenizer = load_ai_model(
+            model, processor = load_ai_model(
                 model_path,  # Utilise le chemin détecté automatiquement
                 device_map=strat["config"]["device_map"],
                 torch_dtype=strat["config"]["torch_dtype"],
                 quantization=strat["config"]["quantization"]
             )
-            if model and tokenizer:
-                st.success(f"✅ Succès avec la stratégie : {strat['name']}")
-                return model, tokenizer
+            if model and processor:
+                st.success(t("strategy_success").format(name=strat['name']))
+                return model, processor
         except Exception as e:
             error_msg = str(e)
-            st.warning(f"❌ Échec avec '{strat['name']}' : {error_msg}")
+            st.warning(t("strategy_failed").format(name=strat['name'], error=error_msg))
             
             # Log détaillé pour le debugging
             with st.expander(f"🔍 Détails de l'erreur - {strat['name']}", expanded=False):
                 st.code(f"Erreur: {error_msg}")
-                st.info(f"Configuration: {strat['config']}")
+                st.info(t("strategy_config").format(config=strat['config']))
             
             # Nettoyage mémoire avant de passer à la stratégie suivante
             gc.collect()
@@ -719,18 +947,18 @@ def get_model_and_tokenizer():
             time.sleep(1) # Petite pause pour éviter les conflits
 
     # Si toutes les stratégies ont échoué, afficher un diagnostic détaillé
-    st.error("❌ Toutes les stratégies de chargement du modèle ont échoué.")
-    st.error("💡 Vérifiez que :")
-    st.error("   • Le modèle local est correctement installé")
-    st.error("   • Vous avez suffisamment de mémoire RAM/GPU")
-    st.error("   • Les dépendances sont à jour")
+    st.error(t("all_strategies_failed"))
+    st.error(t("check_requirements"))
+    st.error(t("check_local_model"))
+    st.error(t("check_memory"))
+    st.error(t("check_dependencies"))
     raise RuntimeError("Toutes les stratégies de chargement du modèle ont échoué.")
 
 # --- FONCTIONS D'ANALYSE ---
-def analyze_image_multilingual(image, prompt=""):
-    """Analyse une image avec Gemma 3n e2b it pour un diagnostic précis."""
-    model, tokenizer = st.session_state.model, st.session_state.tokenizer
-    if not model or not tokenizer:
+def analyze_image_multilingual(image, prompt="", culture="", agronomic_vars="", climatic_vars="", location=""):
+    """Analyse une image avec Gemma 3n e2b it multimodal pour un diagnostic précis."""
+    model, processor = st.session_state.model, st.session_state.processor
+    if not model or not processor:
         return "❌ Modèle IA non chargé. Veuillez charger le modèle dans les réglages."
 
     try:
@@ -739,73 +967,107 @@ def analyze_image_multilingual(image, prompt=""):
             return "❌ Erreur : Aucune image fournie pour l'analyse."
         
         # Log de débogage pour vérifier l'image
-        st.info(f"🔍 Analyse d'image : Format {image.format}, Taille {image.size}, Mode {image.mode}")
+        st.info(t("image_analysis_info").format(format=image.format, size=image.size, mode=image.mode))
         
         # S'assurer que l'image est en mode RGB (requis pour les modèles)
         if image.mode != 'RGB':
             image = image.convert('RGB')
-            st.info(f"🔄 Image convertie en RGB (mode original : {image.mode})")
+            st.info(t("image_rgb_converted").format(mode=image.mode))
         
-        # Convertir l'image PIL en format compatible avec Gemma
-        import io
-        import base64
+        # Redimensionner l'image si nécessaire (comme dans le notebook Kaggle)
+        if image.size[0] > 224 or image.size[1] > 224:
+            image = image.resize((224, 224), Image.Resampling.LANCZOS)
+            st.info(t("image_resized"))
         
-        # Convertir l'image PIL en bytes avec format approprié
-        img_buffer = io.BytesIO()
+        st.info(t("image_ready").format(size=image.size, mode=image.mode))
         
-        # Déterminer le format approprié pour l'image
-        if image.format and image.format.upper() in ['JPEG', 'JPG']:
-            save_format = 'JPEG'
-            mime_type = 'image/jpeg'
-        elif image.format and image.format.upper() == 'PNG':
-            save_format = 'PNG'
-            mime_type = 'image/png'
-        else:
-            # Format par défaut si non détecté
-            save_format = 'JPEG'
-            mime_type = 'image/jpeg'
+        # Construire le prompt en tenant compte de la culture, des variables agronomiques/climatiques et de la localisation
+        additional_info = ""
+        if culture and culture.strip():
+            additional_info += f"Culture spécifiée : {culture.strip()}. "
+            st.info(t("culture_considered").format(culture=culture.strip()))
         
-        # Sauvegarder l'image avec le format approprié
-        if save_format == 'JPEG':
-            image.save(img_buffer, format=save_format, quality=85)
-        else:
-            image.save(img_buffer, format=save_format)
-            
-        img_bytes = img_buffer.getvalue()
+        if location and location.strip():
+            additional_info += f"Localisation : {location.strip()}. "
+            st.info(t("location_considered").format(location=location.strip()))
         
-        # Encoder en base64
-        img_base64 = base64.b64encode(img_bytes).decode('utf-8')
+        if agronomic_vars and agronomic_vars.strip():
+            additional_info += f"Variables agronomiques : {agronomic_vars.strip()}. "
+            st.info(t("agronomic_considered").format(vars=agronomic_vars.strip()))
         
-        # Créer l'URL de données pour l'image
-        img_data_url = f"data:{mime_type};base64,{img_base64}"
-        
-        # Log supplémentaire pour vérifier la conversion
-        st.info(f"🔧 Image convertie : Format {save_format}, MIME {mime_type}, Taille base64 {len(img_base64)} caractères")
+        if climatic_vars and climatic_vars.strip():
+            additional_info += f"Variables climatiques : {climatic_vars.strip()}. "
+            st.info(t("climatic_considered").format(vars=climatic_vars.strip()))
         
         # Déterminer les messages selon la langue
         if st.session_state.language == "fr":
-            user_instruction = f"Analyse cette image de plante malade et fournis un diagnostic SUCCINCT et STRUCTURÉ. Question : {prompt}" if prompt else "Analyse cette image de plante malade et fournis un diagnostic SUCCINCT et STRUCTURÉ."
-            system_message = "Tu es un expert en pathologie végétale. Réponds de manière SUCCINCTE et STRUCTURÉE avec EXACTEMENT ces 3 sections : 1) SYMPTÔMES VISIBLES (courte description), 2) NOM DE LA MALADIE (avec niveau de confiance %), 3) TRAITEMENT RECOMMANDÉ (actions concrètes). Sois précis et concis. Maximum 200 mots."
+            user_instruction = f"{additional_info}Analyse cette image de plante malade et fournis un diagnostic SUCCINCT et STRUCTURÉ. Question : {prompt}" if prompt else f"{additional_info}Analyse cette image de plante malade et fournis un diagnostic SUCCINCT et STRUCTURÉ."
+            system_message = f"""Tu es un expert en phytopathologie et agronomie. Analyse l'image fournie et fournis un diagnostic STRUCTURÉ et SUCCINCT en 3 parties obligatoires :
+
+1. SYMPTÔMES VISIBLES : Description concise des signes visibles sur la plante (taches, déformations, jaunissement, etc.)
+
+2. NOM DE LA MALADIE : Nom de la maladie la plus probable avec niveau de confiance (ex: "Mildiou du manioc (85%)")
+
+3. TRAITEMENT RECOMMANDÉ : Actions concrètes à mettre en œuvre pour traiter la maladie (fongicide, amélioration ventilation, etc.)
+
+{additional_info}
+
+IMPORTANT : 
+- Analyse UNIQUEMENT l'image fournie
+- Sois précis et concis
+- Inclus TOUJOURS les 3 sections
+- Ne donne PAS de réponses génériques
+- Prends en compte les variables agronomiques et climatiques fournies pour affiner le diagnostic"""
         else: # English
-            user_instruction = f"Analyze this diseased plant image and provide a SUCCINCT and STRUCTURED diagnosis. Question: {prompt}" if prompt else "Analyze this diseased plant image and provide a SUCCINCT and STRUCTURED diagnosis."
-            system_message = "You are a plant pathology expert. Respond in a SUCCINCT and STRUCTURED manner with EXACTLY these 3 sections: 1) VISIBLE SYMPTOMS (brief description), 2) DISEASE NAME (with confidence level %), 3) RECOMMENDED TREATMENT (concrete actions). Be precise and concise. Maximum 200 words."
+            user_instruction = f"{additional_info}Analyze this diseased plant image and provide a SUCCINCT and STRUCTURED diagnosis. Question: {prompt}" if prompt else f"{additional_info}Analyze this diseased plant image and provide a SUCCINCT and STRUCTURED diagnosis."
+            system_message = f"""You are a plant pathology and agronomy expert. Analyze the provided image and provide a STRUCTURED and SUCCINCT diagnosis in 3 mandatory parts:
+
+1. VISIBLE SYMPTOMS: Concise description of visible signs on the plant (spots, deformations, yellowing, etc.)
+
+2. DISEASE NAME: Most likely disease name with confidence level (e.g., "Cassava Mosaic Virus (85%)")
+
+3. RECOMMENDED TREATMENT: Concrete actions to implement to treat the disease (fungicide, ventilation improvement, etc.)
+
+{additional_info}
+
+IMPORTANT:
+- Analyze ONLY the provided image
+- Be precise and concise
+- ALWAYS include the 3 sections
+- Do NOT give generic responses
+- Take into account the provided agronomic and climatic variables to refine the diagnosis"""
         
+        # Structure des messages pour Gemma 3n e2b it multimodal (comme dans le notebook Kaggle)
+        # Format simplifié sans message système séparé
         messages = [
-            {"role": "system", "content": [{"type": "text", "text": system_message}]},
-            {"role": "user", "content": [
-                {"type": "image", "image": img_data_url}, # Image en format base64
-                {"type": "text", "text": user_instruction + " IMPORTANT : Analyse uniquement ce que tu vois dans cette image spécifique. Ne donne pas de réponse générique."}
-            ]}
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image", "image": image},  # Passer directement l'objet PIL Image
+                    {"type": "text", "text": f"{system_message}\n\n{user_instruction} IMPORTANT : Analyse uniquement ce que tu vois dans cette image spécifique. Ne donne pas de réponse générique."}
+                ]
+            }
         ]
         
-        # Utiliser apply_chat_template pour convertir le format conversationnel en tenseurs
-        inputs = tokenizer.apply_chat_template(
-            messages,
-            add_generation_prompt=True,
-            tokenize=True,
-            return_dict=True,
-            return_tensors="pt",
-        )
+        # Log pour debug
+        st.info(t("messages_structure").format(count=len(messages), type=type(image)))
+        
+        # Utiliser processor.apply_chat_template pour convertir le format conversationnel en tenseurs
+        try:
+            inputs = processor.apply_chat_template(
+                messages,
+                add_generation_prompt=True,
+                tokenize=True,
+                return_dict=True,
+                return_tensors="pt",
+            )
+            st.info(t("template_success"))
+        except Exception as template_error:
+            st.error(f"❌ Erreur avec apply_chat_template: {template_error}")
+            # Fallback : essayer un format plus simple
+            st.info(t("fallback_prompt"))
+            simple_prompt = f"{system_message}\n\n{user_instruction}"
+            inputs = processor(simple_prompt, image, return_tensors="pt", padding=True, truncation=True)
         
         device = getattr(model, 'device', 'cpu')
         # Déplacer les tenseurs sur le bon device
@@ -815,10 +1077,10 @@ def analyze_image_multilingual(image, prompt=""):
         input_len = inputs["input_ids"].shape[-1]
         
         with torch.inference_mode():
-            # Configuration de génération avec max_new_tokens augmenté
+            # Configuration de génération avec max_new_tokens à 500
             generation = model.generate(
                 **inputs, # Déballer le dictionnaire des inputs
-                max_new_tokens=550,
+                max_new_tokens=500,
                 do_sample=True,
                 temperature=0.7,
                 top_p=0.9,
@@ -828,7 +1090,7 @@ def analyze_image_multilingual(image, prompt=""):
                 num_beams=1
             )
             
-            response = tokenizer.decode(generation[0][input_len:], skip_special_tokens=True)
+            response = processor.batch_decode(generation[:, input_len:], skip_special_tokens=True)[0]
 
         final_response = response.strip()
         # Nettoyage des tokens de contrôle si présents
@@ -844,7 +1106,7 @@ def analyze_image_multilingual(image, prompt=""):
         is_generic = any(indicator.lower() in final_response.lower() for indicator in generic_indicators)
         
         if is_generic:
-            st.warning("⚠️ Le modèle semble donner une réponse générique. L'image pourrait ne pas être correctement traitée.")
+            st.warning(t("generic_response_warning"))
             # Ajouter une instruction pour forcer l'analyse de l'image
             final_response += "\n\n⚠️ **Note importante** : Cette réponse semble générique. Veuillez vérifier que l'image a été correctement uploadée et réessayer l'analyse."
         
@@ -864,9 +1126,9 @@ def analyze_image_multilingual(image, prompt=""):
             return f"❌ Erreur lors de l'analyse d'image : {e}"
 
 def analyze_text_multilingual(text):
-    """Analyse un texte avec le modèle Gemma 3n e2b it."""
-    model, tokenizer = st.session_state.model, st.session_state.tokenizer
-    if not model or not tokenizer:
+    """Analyse un texte avec le modèle Gemma 3n e2b it multimodal."""
+    model, processor = st.session_state.model, st.session_state.processor
+    if not model or not processor:
         return "❌ Modèle IA non chargé. Veuillez charger le modèle dans les réglages."
         
     try:
@@ -876,9 +1138,10 @@ def analyze_text_multilingual(text):
         else: # English
             prompt_template = f"You are a plant pathology expert. Analyze this plant problem in a SUCCINCT and STRUCTURED manner: \n\n**Description:**\n{text}\n\n**Respond with EXACTLY these 3 sections:**\n1. **SYMPTOMS** (brief description)\n2. **DISEASE/PROBLEM NAME** (with confidence level %)\n3. **TREATMENT** (concrete actions)\n\nBe precise and concise. Maximum 150 words."
         
+        # Format correct pour l'analyse de texte avec AutoProcessor
         messages = [{"role": "user", "content": [{"type": "text", "text": prompt_template}]}]
         
-        inputs = tokenizer.apply_chat_template(
+        inputs = processor.apply_chat_template(
             messages,
             add_generation_prompt=True,
             tokenize=True,
@@ -895,7 +1158,7 @@ def analyze_text_multilingual(text):
         with torch.inference_mode():
             generation = model.generate(
                 **inputs,
-                max_new_tokens=550,
+                max_new_tokens=500,
                 do_sample=True,
                 temperature=0.7,
                 top_p=0.9,
@@ -905,7 +1168,7 @@ def analyze_text_multilingual(text):
                 num_beams=1
             )
             
-            response = tokenizer.decode(generation[0][input_len:], skip_special_tokens=True)
+            response = processor.batch_decode(generation[:, input_len:], skip_special_tokens=True)[0]
         
         cleaned_response = response.strip()
         cleaned_response = cleaned_response.replace("<start_of_turn>", "").replace("<end_of_turn>", "").strip()
@@ -920,8 +1183,8 @@ def analyze_text_multilingual(text):
 # --- INITIALISATION DES VARIABLES DE SESSION ---
 if 'model' not in st.session_state:
     st.session_state.model = None
-if 'tokenizer' not in st.session_state:
-    st.session_state.tokenizer = None
+if 'processor' not in st.session_state:
+    st.session_state.processor = None
 if 'model_loaded' not in st.session_state:
     st.session_state.model_loaded = False
 if 'model_status' not in st.session_state:
@@ -932,7 +1195,7 @@ with st.sidebar:
     st.header("⚙️ " + t("config_title"))
     
     # Sélection de la langue
-    st.subheader("🌐 Sélection de la langue")
+    st.subheader("🌐 " + t("language_selection"))
     language_options = ["Français", "English"]
     current_lang_index = 0 if st.session_state.language == "fr" else 1
     language_choice = st.selectbox(
@@ -945,6 +1208,26 @@ with st.sidebar:
         st.session_state.language = "fr" if language_choice == "Français" else "en"
         st.rerun() # Recharge l'application pour appliquer la langue
 
+    st.divider()
+
+    # Configuration des notifications sonores
+    st.subheader(t("sound_notifications"))
+    if 'sound_enabled' not in st.session_state:
+        st.session_state.sound_enabled = True
+    
+    sound_toggle = st.toggle(
+        "🔊 Activer les notifications sonores",
+        value=st.session_state.sound_enabled,
+        help="Joue un son au début et à la fin de l'analyse"
+    )
+    
+    if sound_toggle != st.session_state.sound_enabled:
+        st.session_state.sound_enabled = sound_toggle
+        if sound_toggle:
+            st.success(t("sound_enabled"))
+        else:
+            st.info(t("sound_disabled"))
+    
     st.divider()
 
     # Configuration du jeton Hugging Face
@@ -970,7 +1253,7 @@ with st.sidebar:
         with col1_btn:
             if st.button(t("reload_model"), type="secondary"):
                 st.session_state.model = None
-                st.session_state.tokenizer = None
+                st.session_state.processor = None
                 st.session_state.model_loaded = False
                 st.session_state.model_status = t("not_loaded")
                 # Désactive le cache pour forcer le rechargement
@@ -988,9 +1271,9 @@ with st.sidebar:
         if st.button(t("load_model_button"), type="primary"):
             # Essaye de charger le modèle manuellement
             try:
-                model, tokenizer = get_model_and_tokenizer()
+                model, processor = get_model_and_processor()
                 st.session_state.model = model
-                st.session_state.tokenizer = tokenizer
+                st.session_state.processor = processor
                 st.session_state.model_loaded = True
                 st.session_state.model_status = t("loaded")
                 st.success(t("model_loaded_success"))
@@ -1080,13 +1363,13 @@ with tab1:
         if uploaded_file is not None:
             MAX_FILE_SIZE_BYTES = 200 * 1024 * 1024
             if uploaded_file.size > MAX_FILE_SIZE_BYTES:
-                st.error("Erreur : Le fichier est trop volumineux. Maximum 200MB.")
+                st.error(t("file_too_large"))
                 uploaded_file = None
             elif uploaded_file.size == 0:
-                st.error("Erreur : Le fichier est vide.")
+                st.error(t("file_empty"))
                 uploaded_file = None
             elif uploaded_file.size > (MAX_FILE_SIZE_BYTES * 0.8):
-                st.warning("Attention : Le fichier est très volumineux, le chargement peut prendre du temps.")
+                st.warning(t("large_file_warning"))
     else:
         st.markdown(t("webcam_title"))
         st.info(t("webcam_info"))
@@ -1138,6 +1421,144 @@ with tab1:
                 help=t("culture_help")
             )
             
+            # Section des variables agronomiques
+            st.markdown("---")
+            st.subheader(t("agronomic_variables_title"))
+            st.info(t("agronomic_help"))
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                soil_type = st.selectbox(
+                    t("soil_type"),
+                    t("soil_type_options"),
+                    help=t("soil_type_help")
+                )
+                
+                plant_age = st.text_input(
+                    t("plant_age"),
+                    placeholder=t("plant_age_placeholder"),
+                    help=t("plant_age_help")
+                )
+                
+                planting_density = st.selectbox(
+                    t("planting_density"),
+                    t("planting_density_options"),
+                    help=t("planting_density_help")
+                )
+            
+            with col2:
+                irrigation = st.selectbox(
+                    t("irrigation"),
+                    t("irrigation_options"),
+                    help=t("irrigation_help")
+                )
+                
+                fertilization = st.selectbox(
+                    t("fertilization"),
+                    t("fertilization_options"),
+                    help=t("fertilization_help")
+                )
+                
+                crop_rotation = st.selectbox(
+                    t("crop_rotation"),
+                    t("crop_rotation_options"),
+                    help=t("crop_rotation_help")
+                )
+            
+            # Section des variables climatiques
+            st.markdown("---")
+            st.subheader(t("climatic_variables_title"))
+            st.info(t("climatic_help"))
+            
+            col3, col4 = st.columns(2)
+            with col3:
+                temperature = st.text_input(
+                    t("temperature"),
+                    placeholder=t("temperature_placeholder"),
+                    help=t("temperature_help")
+                )
+                
+                humidity = st.selectbox(
+                    t("humidity"),
+                    t("humidity_options"),
+                    help=t("humidity_help")
+                )
+                
+                rainfall = st.selectbox(
+                    t("rainfall"),
+                    t("rainfall_options"),
+                    help=t("rainfall_help")
+                )
+            
+            with col4:
+                season = st.selectbox(
+                    t("season"),
+                    t("season_options"),
+                    help=t("season_help")
+                )
+                
+                sun_exposure = st.selectbox(
+                    t("sun_exposure"),
+                    t("sun_exposure_options"),
+                    help=t("sun_exposure_help")
+                )
+                
+                wind_conditions = st.selectbox(
+                    t("wind_conditions"),
+                    t("wind_conditions_options"),
+                    help=t("wind_conditions_help")
+                )
+            
+            # Section de localisation
+            st.markdown("---")
+            st.subheader(t("location_title"))
+            st.info(t("location_help"))
+            
+            location_method = st.radio(
+                t("location_method"),
+                t("location_method_options"),
+                help=t("location_method_help")
+            )
+            
+            if location_method == t("location_method_options")[0]:  # GPS automatique
+                # Note: Streamlit n'a pas de widget GPS natif, on utilise une explication
+                st.info(t("gps_info"))
+                location_input = ""
+            else:
+                col5, col6 = st.columns(2)
+                with col5:
+                    country = st.text_input(
+                        t("country"),
+                        placeholder=t("country_placeholder"),
+                        help="Pays où l'image a été prise"
+                    )
+                    
+                    city = st.text_input(
+                        t("city"),
+                        placeholder=t("city_placeholder"),
+                        help="Ville ou région où l'image a été prise"
+                    )
+                
+                with col6:
+                    latitude = st.text_input(
+                        t("latitude"),
+                        placeholder=t("latitude_placeholder"),
+                        help="Coordonnée GPS latitude"
+                    )
+                    
+                    longitude = st.text_input(
+                        t("longitude"),
+                        placeholder=t("longitude_placeholder"),
+                        help="Coordonnée GPS longitude"
+                    )
+                
+                # Construire la chaîne de localisation
+                location_parts = []
+                if country: location_parts.append(f"Pays: {country}")
+                if city: location_parts.append(f"Ville: {city}")
+                if latitude and longitude: location_parts.append(f"GPS: {latitude}, {longitude}")
+                location_input = "; ".join(location_parts) if location_parts else ""
+            
             question = st.text_area(
                 t("specific_question"),
                 placeholder=t("question_placeholder"),
@@ -1148,6 +1569,11 @@ with tab1:
                 if not st.session_state.model_loaded:
                     st.error(t("model_not_loaded_error"))
                 else:
+                    # Notification sonore de début d'analyse
+                    if st.session_state.get('sound_enabled', True):
+                        play_start_sound()
+                        st.info(t("analysis_started"))
+                    
                     # Créer des placeholders pour la progression
                     progress_placeholder = st.empty()
                     status_placeholder = st.empty()
@@ -1155,6 +1581,26 @@ with tab1:
                     # Afficher la barre de progression initiale
                     progress_placeholder.progress(0)
                     status_placeholder.info("🔍 Préparation de l'analyse...")
+                    
+                    # Collecter les variables agronomiques
+                    agronomic_vars = []
+                    if soil_type: agronomic_vars.append(f"Sol: {soil_type}")
+                    if plant_age: agronomic_vars.append(f"Âge: {plant_age}")
+                    if planting_density: agronomic_vars.append(f"Densité: {planting_density}")
+                    if irrigation: agronomic_vars.append(f"Irrigation: {irrigation}")
+                    if fertilization: agronomic_vars.append(f"Fertilisation: {fertilization}")
+                    if crop_rotation: agronomic_vars.append(f"Rotation: {crop_rotation}")
+                    agronomic_vars_str = "; ".join(agronomic_vars) if agronomic_vars else ""
+                    
+                    # Collecter les variables climatiques
+                    climatic_vars = []
+                    if temperature: climatic_vars.append(f"Température: {temperature}°C")
+                    if humidity: climatic_vars.append(f"Humidité: {humidity}")
+                    if rainfall: climatic_vars.append(f"Précipitations: {rainfall}")
+                    if season: climatic_vars.append(f"Saison: {season}")
+                    if sun_exposure: climatic_vars.append(f"Exposition: {sun_exposure}")
+                    if wind_conditions: climatic_vars.append(f"Vent: {wind_conditions}")
+                    climatic_vars_str = "; ".join(climatic_vars) if climatic_vars else ""
                     
                     # Construire le prompt avec la culture spécifiée
                     enhanced_prompt = ""
@@ -1184,11 +1630,16 @@ with tab1:
                         time.sleep(0.3)  # Petite pause pour voir la progression
                     
                     # Effectuer l'analyse réelle
-                    result = analyze_image_multilingual(image, enhanced_prompt)
+                    result = analyze_image_multilingual(image, enhanced_prompt, culture_input, agronomic_vars_str, climatic_vars_str, location_input)
                     
                     # Finaliser la progression
                     progress_placeholder.progress(1.0)
                     status_placeholder.success("✅ Analyse terminée !")
+                    
+                    # Notification sonore de fin d'analyse
+                    if st.session_state.get('sound_enabled', True):
+                        play_completion_sound()
+                        st.success(t("analysis_completed"))
                     
                     # Effacer les placeholders après un court délai
                     time.sleep(1)
@@ -1200,6 +1651,10 @@ with tab1:
                     # Afficher la culture spécifiée si elle existe
                     if culture_input:
                         st.info(f"🌱 {t('culture_specified')} **{culture_input}**")
+                    
+                    # Afficher la localisation si elle existe
+                    if location_input:
+                        st.info(t("location_display").format(location=location_input))
                     
                     st.markdown("---")
                     st.markdown(result)
@@ -1219,7 +1674,7 @@ with tab1:
                     
                     with col1:
                         # Export HTML
-                        html_content = generate_html_diagnostic(result, culture_input, image_info, timestamp)
+                        html_content = generate_html_diagnostic(result, culture_input, image_info, timestamp, location_input)
                         st.download_button(
                             label=t("download_html"),
                             data=html_content,
@@ -1230,7 +1685,7 @@ with tab1:
                     
                     with col2:
                         # Export Texte
-                        text_content = generate_text_diagnostic(result, culture_input, image_info, timestamp)
+                        text_content = generate_text_diagnostic(result, culture_input, image_info, timestamp, location_input)
                         st.download_button(
                             label=t("download_text"),
                             data=text_content,
@@ -1256,8 +1711,13 @@ with tab2:
         if not st.session_state.model_loaded:
             st.error(t("model_not_loaded_error"))
         elif not text_input.strip():
-            st.error("❌ Veuillez saisir une description des symptômes.")
+            st.error(t("symptoms_required"))
         else:
+            # Notification sonore de début d'analyse
+            if st.session_state.get('sound_enabled', True):
+                play_start_sound()
+                st.info(t("analysis_started"))
+            
             # Créer des placeholders pour la progression
             progress_placeholder = st.empty()
             status_placeholder = st.empty()
@@ -1290,6 +1750,11 @@ with tab2:
             progress_placeholder.progress(1.0)
             status_placeholder.success("✅ Analyse terminée !")
             
+            # Notification sonore de fin d'analyse
+            if st.session_state.get('sound_enabled', True):
+                play_completion_sound()
+                st.success(t("analysis_completed"))
+            
             # Effacer les placeholders après un court délai
             time.sleep(1)
             progress_placeholder.empty()
@@ -1310,7 +1775,7 @@ with tab2:
             
             with col1:
                 # Export HTML
-                html_content = generate_html_diagnostic(result, None, None, timestamp)
+                html_content = generate_html_diagnostic(result, None, None, timestamp, None)
                 st.download_button(
                     label=t("download_html"),
                     data=html_content,
@@ -1321,7 +1786,7 @@ with tab2:
             
             with col2:
                 # Export Texte
-                text_content = generate_text_diagnostic(result, None, None, timestamp)
+                text_content = generate_text_diagnostic(result, None, None, timestamp, None)
                 st.download_button(
                     label=t("download_text"),
                     data=text_content,
@@ -1333,19 +1798,21 @@ with tab2:
 # --- ONGLET 3: MANUEL ---
 with tab3:
     st.header(t("manual_title"))
+    
+    # Contenu du manuel selon la langue
     manual_content = {
         "fr": """
         ## 🚀 **GUIDE DE DÉMARRAGE RAPIDE**
         
         ### **Étape 1 : Configuration Initiale**
         1. **Choisir la langue** : Dans la sidebar, sélectionnez Français ou English
-        2. **Charger le modèle** : Cliquez sur 'Charger le modèle Gemma 3n E4B IT'
+        2. **Charger le modèle** : Cliquez sur 'Charger le Modèle Gemma 3n E4B IT'
         3. **Attendre le chargement** : Le processus peut prendre 1-2 minutes
         4. **Vérifier le statut** : Le modèle doit afficher "✅ Chargé"
 
         ### **Étape 2 : Première Analyse**
         1. **Aller dans l'onglet "📸 Analyse d'Image"**
-        2. **Télécharger une photo** de plante malade
+        2. **Télécharger une photo** d'une plante malade
         3. **Cliquer sur "🔬 Analyser avec l'IA"**
         4. **Consulter les résultats** avec recommandations
 
