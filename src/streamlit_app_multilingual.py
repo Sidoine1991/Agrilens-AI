@@ -725,25 +725,25 @@ def get_model_and_processor():
         # Vérifier si CUDA est disponible
         if torch.cuda.is_available() and device == "cuda":
             try:
-            gpu_memory_gb = torch.cuda.get_device_properties(0).total_memory / 1024**3
-            st.info(t("gpu_memory").format(memory=gpu_memory_gb))
-            
-            # Stratégies GPU par ordre de consommation mémoire décroissante
-            if gpu_memory_gb >= 12: # Idéal pour float16
-                strategies.append({"name": "GPU (float16)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": None}})
-            if gpu_memory_gb >= 10: # Peut fonctionner avec float16
-                strategies.append({"name": "GPU (float16)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": None}})
-            if gpu_memory_gb >= 8: # Recommandé pour 8-bit quant.
-                strategies.append({"name": "GPU (8-bit quant.)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": "8bit"}})
-            if gpu_memory_gb >= 6: # Minimum pour 4-bit quant.
-                strategies.append({"name": "GPU (4-bit quant.)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": "4bit"}})
-            
-            # Si la mémoire est très limitée, proposer une stratégie CPU
-            if gpu_memory_gb < 6:
-                 st.warning(t("gpu_memory_limited"))
-        except Exception as e:
-            st.warning(t("gpu_detection_error").format(error=e))
-            device = "cpu"
+                gpu_memory_gb = torch.cuda.get_device_properties(0).total_memory / 1024**3
+                st.info(t("gpu_memory").format(memory=gpu_memory_gb))
+                
+                # Stratégies GPU par ordre de consommation mémoire décroissante
+                if gpu_memory_gb >= 12: # Idéal pour float16
+                    strategies.append({"name": "GPU (float16)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": None}})
+                if gpu_memory_gb >= 10: # Peut fonctionner avec float16
+                    strategies.append({"name": "GPU (float16)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": None}})
+                if gpu_memory_gb >= 8: # Recommandé pour 8-bit quant.
+                    strategies.append({"name": "GPU (8-bit quant.)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": "8bit"}})
+                if gpu_memory_gb >= 6: # Minimum pour 4-bit quant.
+                    strategies.append({"name": "GPU (4-bit quant.)", "config": {"device_map": "auto", "torch_dtype": torch.float16, "quantization": "4bit"}})
+                
+                # Si la mémoire est très limitée, proposer une stratégie CPU
+                if gpu_memory_gb < 6:
+                    st.warning(t("gpu_memory_limited"))
+            except Exception as e:
+                st.warning(t("gpu_detection_error").format(error=e))
+                device = "cpu"
     
     # Si CUDA n'est pas disponible ou a échoué, utiliser CPU
     if not torch.cuda.is_available() or device == "cpu":
@@ -789,11 +789,11 @@ def get_model_and_processor():
             time.sleep(1) # Petite pause pour éviter les conflits
 
     # Si toutes les stratégies ont échoué, afficher un diagnostic détaillé
-            st.error(t("all_strategies_failed"))
-        st.error(t("check_requirements"))
-        st.error(t("check_local_model"))
-        st.error(t("check_memory"))
-        st.error(t("check_dependencies"))
+    st.error(t("all_strategies_failed"))
+    st.error(t("check_requirements"))
+    st.error(t("check_local_model"))
+    st.error(t("check_memory"))
+    st.error(t("check_dependencies"))
     raise RuntimeError("Toutes les stratégies de chargement du modèle ont échoué.")
 
 # --- FONCTIONS D'ANALYSE ---
