@@ -9,7 +9,7 @@ import time
 import sys
 import psutil
 from datetime import datetime
-from transformers import AutoTokenizer, AutoModelForCausalLM # Utilisation générique pour Gemma
+from transformers import AutoProcessor, AutoModelForImageTextToText # Utilisation pour Gemma multimodal
 from huggingface_hub import HfFolder, hf_hub_download, snapshot_download
 from functools import lru_cache # Alternative pour le caching, mais st.cache_resource est mieux pour les modèles
 
@@ -336,7 +336,7 @@ def afficher_ram_disponible():
     except ImportError:
         st.warning("⚠️ Impossible de vérifier la RAM système.")
 
-def generate_html_diagnostic(diagnostic_text, culture=None, image_info=None, timestamp=None):
+def generate_html_diagnostic(diagnostic_text, culture=None, image_info=None, timestamp=None, location=None):
     """
     Génère un fichier HTML formaté pour le diagnostic.
     
@@ -345,6 +345,7 @@ def generate_html_diagnostic(diagnostic_text, culture=None, image_info=None, tim
         culture (str): La culture spécifiée
         image_info (dict): Informations sur l'image
         timestamp (str): Horodatage de l'analyse
+        location (str): La localisation spécifiée
         
     Returns:
         str: Contenu HTML formaté
@@ -445,6 +446,7 @@ def generate_html_diagnostic(diagnostic_text, culture=None, image_info=None, tim
             <p><strong>Date et heure :</strong> {timestamp}</p>
             <p><strong>Modèle utilisé :</strong> Gemma 3n E4B IT</p>
             {f'<p><strong>Culture analysée :</strong> {culture}</p>' if culture else ''}
+            {f'<p><strong>Localisation :</strong> {location}</p>' if location else ''}
             {f'<p><strong>Format image :</strong> {image_info.get("format", "N/A")}</p>' if image_info else ''}
             {f'<p><strong>Taille image :</strong> {image_info.get("size", "N/A")}</p>' if image_info else ''}
         </div>
@@ -469,7 +471,7 @@ def generate_html_diagnostic(diagnostic_text, culture=None, image_info=None, tim
 """
     return html_content
 
-def generate_text_diagnostic(diagnostic_text, culture=None, image_info=None, timestamp=None):
+def generate_text_diagnostic(diagnostic_text, culture=None, image_info=None, timestamp=None, location=None):
     """
     Génère un fichier texte formaté pour le diagnostic.
     
@@ -478,6 +480,7 @@ def generate_text_diagnostic(diagnostic_text, culture=None, image_info=None, tim
         culture (str): La culture spécifiée
         image_info (dict): Informations sur l'image
         timestamp (str): Horodatage de l'analyse
+        location (str): La localisation spécifiée
         
     Returns:
         str: Contenu texte formaté
@@ -495,6 +498,7 @@ AGRILENS AI - DIAGNOSTIC INTELLIGENT DES PLANTES
 Date et heure : {timestamp}
 Modèle utilisé : Gemma 3n E4B IT
 {f'Culture analysée : {culture}' if culture else ''}
+{f'Localisation : {location}' if location else ''}
 {f'Format image : {image_info.get("format", "N/A")}' if image_info else ''}
 {f'Taille image : {image_info.get("size", "N/A")}' if image_info else ''}
 
@@ -531,7 +535,7 @@ def load_ai_model(model_identifier, device_map="auto", torch_dtype=torch.float16
     """
     try:
         # Import local pour éviter les problèmes de scope
-        from transformers import AutoTokenizer, AutoModelForCausalLM
+        from transformers import AutoProcessor, AutoModelForImageTextToText
         
         gc.collect()
         if torch.cuda.is_available():
@@ -584,27 +588,27 @@ def load_ai_model(model_identifier, device_map="auto", torch_dtype=torch.float16
             except Exception as e:
                 st.warning(f"⚠️ Erreur bitsandbytes : {e} - quantisation désactivée")
         
-        # --- Chargement du tokenizer ---
-        st.info("📝 Chargement du tokenizer...")
+        # --- Chargement du processor ---
+        st.info("📝 Chargement du processor...")
         try:
-            tokenizer = AutoTokenizer.from_pretrained(model_identifier, **common_args)
-            st.success("✅ Tokenizer chargé avec succès")
+            processor = AutoProcessor.from_pretrained(model_identifier, **common_args)
+            st.success("✅ Processor chargé avec succès")
         except Exception as e:
-            st.error(f"❌ Erreur chargement tokenizer : {e}")
+            st.error(f"❌ Erreur chargement processor : {e}")
             raise
         
-        # --- Chargement du modèle ---
-        st.info("🤖 Chargement du modèle...")
+        # --- Chargement du modèle multimodal ---
+        st.info("🤖 Chargement du modèle multimodal...")
         try:
-            # Utiliser AutoModelForCausalLM car Gemma est un modèle causal
-            model = AutoModelForCausalLM.from_pretrained(model_identifier, **common_args)
-            st.success("✅ Modèle chargé avec succès")
+            # Utiliser AutoModelForImageTextToText pour le modèle multimodal Gemma
+            model = AutoModelForImageTextToText.from_pretrained(model_identifier, **common_args)
+            st.success("✅ Modèle multimodal chargé avec succès")
         except Exception as e:
             st.error(f"❌ Erreur chargement modèle : {e}")
             raise
         
-        st.success(f"🎉 Modèle `{model_identifier}` chargé avec succès sur device `{device_map}`.")
-        return model, tokenizer
+        st.success(f"🎉 Modèle multimodal `{model_identifier}` chargé avec succès sur device `{device_map}`.")
+        return model, processor
 
     except ImportError as e:
         st.error(f"❌ Erreur de dépendance : {e}")
@@ -624,9 +628,9 @@ def load_ai_model(model_identifier, device_map="auto", torch_dtype=torch.float16
         st.error("💡 Vérifiez les logs ci-dessus pour plus de détails")
         raise RuntimeError(f"Une erreur est survenue lors du chargement du modèle : {e}")
 
-def get_model_and_tokenizer():
+def get_model_and_processor():
     """
-    Stratégie de chargement du modèle Gemma 3n e2b it.
+    Stratégie de chargement du modèle multimodal Gemma 3n e2b it.
     Utilise le modèle local s'il est disponible, sinon télécharge depuis Hugging Face.
     """
     # --- Diagnostic initial ---
@@ -694,15 +698,15 @@ def get_model_and_tokenizer():
     for i, strat in enumerate(strategies, 1):
         st.info(f"📋 Stratégie {i}/{len(strategies)} : {strat['name']}...")
         try:
-            model, tokenizer = load_ai_model(
+            model, processor = load_ai_model(
                 model_path,  # Utilise le chemin détecté automatiquement
                 device_map=strat["config"]["device_map"],
                 torch_dtype=strat["config"]["torch_dtype"],
                 quantization=strat["config"]["quantization"]
             )
-            if model and tokenizer:
+            if model and processor:
                 st.success(f"✅ Succès avec la stratégie : {strat['name']}")
-                return model, tokenizer
+                return model, processor
         except Exception as e:
             error_msg = str(e)
             st.warning(f"❌ Échec avec '{strat['name']}' : {error_msg}")
@@ -727,10 +731,10 @@ def get_model_and_tokenizer():
     raise RuntimeError("Toutes les stratégies de chargement du modèle ont échoué.")
 
 # --- FONCTIONS D'ANALYSE ---
-def analyze_image_multilingual(image, prompt=""):
-    """Analyse une image avec Gemma 3n e2b it pour un diagnostic précis."""
-    model, tokenizer = st.session_state.model, st.session_state.tokenizer
-    if not model or not tokenizer:
+def analyze_image_multilingual(image, prompt="", culture="", agronomic_vars="", climatic_vars="", location=""):
+    """Analyse une image avec Gemma 3n e2b it multimodal pour un diagnostic précis."""
+    model, processor = st.session_state.model, st.session_state.processor
+    if not model or not processor:
         return "❌ Modèle IA non chargé. Veuillez charger le modèle dans les réglages."
 
     try:
@@ -746,66 +750,100 @@ def analyze_image_multilingual(image, prompt=""):
             image = image.convert('RGB')
             st.info(f"🔄 Image convertie en RGB (mode original : {image.mode})")
         
-        # Convertir l'image PIL en format compatible avec Gemma
-        import io
-        import base64
+        # Redimensionner l'image si nécessaire (comme dans le notebook Kaggle)
+        if image.size[0] > 224 or image.size[1] > 224:
+            image = image.resize((224, 224), Image.Resampling.LANCZOS)
+            st.info(f"🔄 Image redimensionnée à 224x224 pixels")
         
-        # Convertir l'image PIL en bytes avec format approprié
-        img_buffer = io.BytesIO()
+        st.info(f"✅ Image prête pour analyse : Taille finale {image.size}, Mode {image.mode}")
         
-        # Déterminer le format approprié pour l'image
-        if image.format and image.format.upper() in ['JPEG', 'JPG']:
-            save_format = 'JPEG'
-            mime_type = 'image/jpeg'
-        elif image.format and image.format.upper() == 'PNG':
-            save_format = 'PNG'
-            mime_type = 'image/png'
-        else:
-            # Format par défaut si non détecté
-            save_format = 'JPEG'
-            mime_type = 'image/jpeg'
+        # Construire le prompt en tenant compte de la culture, des variables agronomiques/climatiques et de la localisation
+        additional_info = ""
+        if culture and culture.strip():
+            additional_info += f"Culture spécifiée : {culture.strip()}. "
+            st.info(f"🌱 Culture prise en compte : {culture.strip()}")
         
-        # Sauvegarder l'image avec le format approprié
-        if save_format == 'JPEG':
-            image.save(img_buffer, format=save_format, quality=85)
-        else:
-            image.save(img_buffer, format=save_format)
-            
-        img_bytes = img_buffer.getvalue()
+        if location and location.strip():
+            additional_info += f"Localisation : {location.strip()}. "
+            st.info(f"📍 Localisation prise en compte : {location.strip()}")
         
-        # Encoder en base64
-        img_base64 = base64.b64encode(img_bytes).decode('utf-8')
+        if agronomic_vars and agronomic_vars.strip():
+            additional_info += f"Variables agronomiques : {agronomic_vars.strip()}. "
+            st.info(f"🌾 Variables agronomiques prises en compte : {agronomic_vars.strip()}")
         
-        # Créer l'URL de données pour l'image
-        img_data_url = f"data:{mime_type};base64,{img_base64}"
-        
-        # Log supplémentaire pour vérifier la conversion
-        st.info(f"🔧 Image convertie : Format {save_format}, MIME {mime_type}, Taille base64 {len(img_base64)} caractères")
+        if climatic_vars and climatic_vars.strip():
+            additional_info += f"Variables climatiques : {climatic_vars.strip()}. "
+            st.info(f"🌤️ Variables climatiques prises en compte : {climatic_vars.strip()}")
         
         # Déterminer les messages selon la langue
         if st.session_state.language == "fr":
-            user_instruction = f"Analyse cette image de plante malade et fournis un diagnostic SUCCINCT et STRUCTURÉ. Question : {prompt}" if prompt else "Analyse cette image de plante malade et fournis un diagnostic SUCCINCT et STRUCTURÉ."
-            system_message = "Tu es un expert en pathologie végétale. Réponds de manière SUCCINCTE et STRUCTURÉE avec EXACTEMENT ces 3 sections : 1) SYMPTÔMES VISIBLES (courte description), 2) NOM DE LA MALADIE (avec niveau de confiance %), 3) TRAITEMENT RECOMMANDÉ (actions concrètes). Sois précis et concis. Maximum 200 mots."
+            user_instruction = f"{additional_info}Analyse cette image de plante malade et fournis un diagnostic SUCCINCT et STRUCTURÉ. Question : {prompt}" if prompt else f"{additional_info}Analyse cette image de plante malade et fournis un diagnostic SUCCINCT et STRUCTURÉ."
+            system_message = f"""Tu es un expert en phytopathologie et agronomie. Analyse l'image fournie et fournis un diagnostic STRUCTURÉ et SUCCINCT en 3 parties obligatoires :
+
+1. SYMPTÔMES VISIBLES : Description concise des signes visibles sur la plante (taches, déformations, jaunissement, etc.)
+
+2. NOM DE LA MALADIE : Nom de la maladie la plus probable avec niveau de confiance (ex: "Mildiou du manioc (85%)")
+
+3. TRAITEMENT RECOMMANDÉ : Actions concrètes à mettre en œuvre pour traiter la maladie (fongicide, amélioration ventilation, etc.)
+
+{additional_info}
+
+IMPORTANT : 
+- Analyse UNIQUEMENT l'image fournie
+- Sois précis et concis
+- Inclus TOUJOURS les 3 sections
+- Ne donne PAS de réponses génériques
+- Prends en compte les variables agronomiques et climatiques fournies pour affiner le diagnostic"""
         else: # English
-            user_instruction = f"Analyze this diseased plant image and provide a SUCCINCT and STRUCTURED diagnosis. Question: {prompt}" if prompt else "Analyze this diseased plant image and provide a SUCCINCT and STRUCTURED diagnosis."
-            system_message = "You are a plant pathology expert. Respond in a SUCCINCT and STRUCTURED manner with EXACTLY these 3 sections: 1) VISIBLE SYMPTOMS (brief description), 2) DISEASE NAME (with confidence level %), 3) RECOMMENDED TREATMENT (concrete actions). Be precise and concise. Maximum 200 words."
+            user_instruction = f"{additional_info}Analyze this diseased plant image and provide a SUCCINCT and STRUCTURED diagnosis. Question: {prompt}" if prompt else f"{additional_info}Analyze this diseased plant image and provide a SUCCINCT and STRUCTURED diagnosis."
+            system_message = f"""You are a plant pathology and agronomy expert. Analyze the provided image and provide a STRUCTURED and SUCCINCT diagnosis in 3 mandatory parts:
+
+1. VISIBLE SYMPTOMS: Concise description of visible signs on the plant (spots, deformations, yellowing, etc.)
+
+2. DISEASE NAME: Most likely disease name with confidence level (e.g., "Cassava Mosaic Virus (85%)")
+
+3. RECOMMENDED TREATMENT: Concrete actions to implement to treat the disease (fungicide, ventilation improvement, etc.)
+
+{additional_info}
+
+IMPORTANT:
+- Analyze ONLY the provided image
+- Be precise and concise
+- ALWAYS include the 3 sections
+- Do NOT give generic responses
+- Take into account the provided agronomic and climatic variables to refine the diagnosis"""
         
+        # Structure des messages pour Gemma 3n e2b it multimodal (comme dans le notebook Kaggle)
+        # Format simplifié sans message système séparé
         messages = [
-            {"role": "system", "content": [{"type": "text", "text": system_message}]},
-            {"role": "user", "content": [
-                {"type": "image", "image": img_data_url}, # Image en format base64
-                {"type": "text", "text": user_instruction + " IMPORTANT : Analyse uniquement ce que tu vois dans cette image spécifique. Ne donne pas de réponse générique."}
-            ]}
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image", "image": image},  # Passer directement l'objet PIL Image
+                    {"type": "text", "text": f"{system_message}\n\n{user_instruction} IMPORTANT : Analyse uniquement ce que tu vois dans cette image spécifique. Ne donne pas de réponse générique."}
+                ]
+            }
         ]
         
-        # Utiliser apply_chat_template pour convertir le format conversationnel en tenseurs
-        inputs = tokenizer.apply_chat_template(
-            messages,
-            add_generation_prompt=True,
-            tokenize=True,
-            return_dict=True,
-            return_tensors="pt",
-        )
+        # Log pour debug
+        st.info(f"🔍 Structure des messages : {len(messages)} messages, image type: {type(image)}")
+        
+        # Utiliser processor.apply_chat_template pour convertir le format conversationnel en tenseurs
+        try:
+            inputs = processor.apply_chat_template(
+                messages,
+                add_generation_prompt=True,
+                tokenize=True,
+                return_dict=True,
+                return_tensors="pt",
+            )
+            st.info("✅ Template de chat appliqué avec succès")
+        except Exception as template_error:
+            st.error(f"❌ Erreur avec apply_chat_template: {template_error}")
+            # Fallback : essayer un format plus simple
+            st.info("🔄 Tentative avec format de prompt simple...")
+            simple_prompt = f"{system_message}\n\n{user_instruction}"
+            inputs = processor(simple_prompt, image, return_tensors="pt", padding=True, truncation=True)
         
         device = getattr(model, 'device', 'cpu')
         # Déplacer les tenseurs sur le bon device
@@ -815,10 +853,10 @@ def analyze_image_multilingual(image, prompt=""):
         input_len = inputs["input_ids"].shape[-1]
         
         with torch.inference_mode():
-            # Configuration de génération avec max_new_tokens augmenté
+            # Configuration de génération avec max_new_tokens à 500
             generation = model.generate(
                 **inputs, # Déballer le dictionnaire des inputs
-                max_new_tokens=550,
+                max_new_tokens=500,
                 do_sample=True,
                 temperature=0.7,
                 top_p=0.9,
@@ -828,7 +866,7 @@ def analyze_image_multilingual(image, prompt=""):
                 num_beams=1
             )
             
-            response = tokenizer.decode(generation[0][input_len:], skip_special_tokens=True)
+            response = processor.batch_decode(generation[:, input_len:], skip_special_tokens=True)[0]
 
         final_response = response.strip()
         # Nettoyage des tokens de contrôle si présents
@@ -864,9 +902,9 @@ def analyze_image_multilingual(image, prompt=""):
             return f"❌ Erreur lors de l'analyse d'image : {e}"
 
 def analyze_text_multilingual(text):
-    """Analyse un texte avec le modèle Gemma 3n e2b it."""
-    model, tokenizer = st.session_state.model, st.session_state.tokenizer
-    if not model or not tokenizer:
+    """Analyse un texte avec le modèle Gemma 3n e2b it multimodal."""
+    model, processor = st.session_state.model, st.session_state.processor
+    if not model or not processor:
         return "❌ Modèle IA non chargé. Veuillez charger le modèle dans les réglages."
         
     try:
@@ -876,9 +914,10 @@ def analyze_text_multilingual(text):
         else: # English
             prompt_template = f"You are a plant pathology expert. Analyze this plant problem in a SUCCINCT and STRUCTURED manner: \n\n**Description:**\n{text}\n\n**Respond with EXACTLY these 3 sections:**\n1. **SYMPTOMS** (brief description)\n2. **DISEASE/PROBLEM NAME** (with confidence level %)\n3. **TREATMENT** (concrete actions)\n\nBe precise and concise. Maximum 150 words."
         
+        # Format correct pour l'analyse de texte avec AutoProcessor
         messages = [{"role": "user", "content": [{"type": "text", "text": prompt_template}]}]
         
-        inputs = tokenizer.apply_chat_template(
+        inputs = processor.apply_chat_template(
             messages,
             add_generation_prompt=True,
             tokenize=True,
@@ -895,7 +934,7 @@ def analyze_text_multilingual(text):
         with torch.inference_mode():
             generation = model.generate(
                 **inputs,
-                max_new_tokens=550,
+                max_new_tokens=500,
                 do_sample=True,
                 temperature=0.7,
                 top_p=0.9,
@@ -905,7 +944,7 @@ def analyze_text_multilingual(text):
                 num_beams=1
             )
             
-            response = tokenizer.decode(generation[0][input_len:], skip_special_tokens=True)
+            response = processor.batch_decode(generation[:, input_len:], skip_special_tokens=True)[0]
         
         cleaned_response = response.strip()
         cleaned_response = cleaned_response.replace("<start_of_turn>", "").replace("<end_of_turn>", "").strip()
@@ -920,8 +959,8 @@ def analyze_text_multilingual(text):
 # --- INITIALISATION DES VARIABLES DE SESSION ---
 if 'model' not in st.session_state:
     st.session_state.model = None
-if 'tokenizer' not in st.session_state:
-    st.session_state.tokenizer = None
+if 'processor' not in st.session_state:
+    st.session_state.processor = None
 if 'model_loaded' not in st.session_state:
     st.session_state.model_loaded = False
 if 'model_status' not in st.session_state:
@@ -970,7 +1009,7 @@ with st.sidebar:
         with col1_btn:
             if st.button(t("reload_model"), type="secondary"):
                 st.session_state.model = None
-                st.session_state.tokenizer = None
+                st.session_state.processor = None
                 st.session_state.model_loaded = False
                 st.session_state.model_status = t("not_loaded")
                 # Désactive le cache pour forcer le rechargement
@@ -988,9 +1027,9 @@ with st.sidebar:
         if st.button(t("load_model_button"), type="primary"):
             # Essaye de charger le modèle manuellement
             try:
-                model, tokenizer = get_model_and_tokenizer()
+                model, processor = get_model_and_processor()
                 st.session_state.model = model
-                st.session_state.tokenizer = tokenizer
+                st.session_state.processor = processor
                 st.session_state.model_loaded = True
                 st.session_state.model_status = t("loaded")
                 st.success(t("model_loaded_success"))
@@ -1138,6 +1177,149 @@ with tab1:
                 help=t("culture_help")
             )
             
+            # Section des variables agronomiques
+            st.markdown("---")
+            st.subheader("🌾 Variables Agronomiques (Optionnel)")
+            st.info("Ces informations aident à affiner le diagnostic")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                soil_type = st.selectbox(
+                    "Type de sol",
+                    ["", "Argileux", "Sableux", "Limoneux", "Humifère", "Calcaire", "Acide"],
+                    help="Type de sol où pousse la plante"
+                )
+                
+                plant_age = st.text_input(
+                    "Âge de la plante (mois/semaines)",
+                    placeholder="ex: 3 mois",
+                    help="Âge approximatif de la plante"
+                )
+                
+                planting_density = st.selectbox(
+                    "Densité de plantation",
+                    ["", "Faible", "Moyenne", "Élevée"],
+                    help="Densité de plantation dans la parcelle"
+                )
+            
+            with col2:
+                irrigation = st.selectbox(
+                    "Irrigation",
+                    ["", "Aucune", "Manuelle", "Goutte-à-goutte", "Aspersion", "Inondation"],
+                    help="Type d'irrigation utilisé"
+                )
+                
+                fertilization = st.selectbox(
+                    "Fertilisation",
+                    ["", "Aucune", "Organique", "Chimique", "Mixte"],
+                    help="Type de fertilisation appliquée"
+                )
+                
+                crop_rotation = st.selectbox(
+                    "Rotation des cultures",
+                    ["", "Aucune", "Annuelle", "Biannuelle", "Triennale"],
+                    help="Fréquence de rotation des cultures"
+                )
+            
+            # Section des variables climatiques
+            st.markdown("---")
+            st.subheader("🌤️ Variables Climatiques (Optionnel)")
+            st.info("Conditions climatiques actuelles ou récentes")
+            
+            col3, col4 = st.columns(2)
+            with col3:
+                temperature = st.text_input(
+                    "Température (°C)",
+                    placeholder="ex: 25-30",
+                    help="Plage de température actuelle"
+                )
+                
+                humidity = st.selectbox(
+                    "Humidité relative",
+                    ["", "Faible (<40%)", "Modérée (40-70%)", "Élevée (>70%)"],
+                    help="Niveau d'humidité ambiante"
+                )
+                
+                rainfall = st.selectbox(
+                    "Précipitations récentes",
+                    ["", "Aucune", "Faible", "Modérée", "Abondante"],
+                    help="Niveau de précipitations récentes"
+                )
+            
+            with col4:
+                season = st.selectbox(
+                    "Saison",
+                    ["", "Printemps", "Été", "Automne", "Hiver", "Saison sèche", "Saison des pluies"],
+                    help="Saison actuelle"
+                )
+                
+                sun_exposure = st.selectbox(
+                    "Exposition au soleil",
+                    ["", "Ombre", "Mi-ombre", "Plein soleil"],
+                    help="Niveau d'exposition au soleil"
+                )
+                
+                wind_conditions = st.selectbox(
+                    "Conditions de vent",
+                    ["", "Calme", "Léger", "Modéré", "Fort"],
+                    help="Conditions de vent actuelles"
+                )
+            
+            # Section de localisation
+            st.markdown("---")
+            st.subheader("📍 Localisation (Optionnel)")
+            st.info("Lieu où l'image a été prise pour affiner le diagnostic")
+            
+            location_method = st.radio(
+                "Méthode de localisation",
+                ["GPS automatique", "Saisie manuelle"],
+                help="Choisissez comment spécifier la localisation"
+            )
+            
+            if location_method == "GPS automatique":
+                # Note: Streamlit n'a pas de widget GPS natif, on utilise une explication
+                st.info("📱 Pour capturer les coordonnées GPS, utilisez l'application mobile ou votre navigateur web")
+                st.markdown("""
+                **Instructions :**
+                - Sur mobile : Autorisez l'accès à la localisation dans votre navigateur
+                - Sur desktop : Utilisez la saisie manuelle ou votre GPS
+                """)
+                location_input = ""
+            else:
+                col5, col6 = st.columns(2)
+                with col5:
+                    country = st.text_input(
+                        "Pays",
+                        placeholder="ex: Cameroun",
+                        help="Pays où l'image a été prise"
+                    )
+                    
+                    city = st.text_input(
+                        "Ville/Région",
+                        placeholder="ex: Yaoundé",
+                        help="Ville ou région où l'image a été prise"
+                    )
+                
+                with col6:
+                    latitude = st.text_input(
+                        "Latitude (optionnel)",
+                        placeholder="ex: 3.8480",
+                        help="Coordonnée GPS latitude"
+                    )
+                    
+                    longitude = st.text_input(
+                        "Longitude (optionnel)",
+                        placeholder="ex: 11.5021",
+                        help="Coordonnée GPS longitude"
+                    )
+                
+                # Construire la chaîne de localisation
+                location_parts = []
+                if country: location_parts.append(f"Pays: {country}")
+                if city: location_parts.append(f"Ville: {city}")
+                if latitude and longitude: location_parts.append(f"GPS: {latitude}, {longitude}")
+                location_input = "; ".join(location_parts) if location_parts else ""
+            
             question = st.text_area(
                 t("specific_question"),
                 placeholder=t("question_placeholder"),
@@ -1155,6 +1337,26 @@ with tab1:
                     # Afficher la barre de progression initiale
                     progress_placeholder.progress(0)
                     status_placeholder.info("🔍 Préparation de l'analyse...")
+                    
+                    # Collecter les variables agronomiques
+                    agronomic_vars = []
+                    if soil_type: agronomic_vars.append(f"Sol: {soil_type}")
+                    if plant_age: agronomic_vars.append(f"Âge: {plant_age}")
+                    if planting_density: agronomic_vars.append(f"Densité: {planting_density}")
+                    if irrigation: agronomic_vars.append(f"Irrigation: {irrigation}")
+                    if fertilization: agronomic_vars.append(f"Fertilisation: {fertilization}")
+                    if crop_rotation: agronomic_vars.append(f"Rotation: {crop_rotation}")
+                    agronomic_vars_str = "; ".join(agronomic_vars) if agronomic_vars else ""
+                    
+                    # Collecter les variables climatiques
+                    climatic_vars = []
+                    if temperature: climatic_vars.append(f"Température: {temperature}°C")
+                    if humidity: climatic_vars.append(f"Humidité: {humidity}")
+                    if rainfall: climatic_vars.append(f"Précipitations: {rainfall}")
+                    if season: climatic_vars.append(f"Saison: {season}")
+                    if sun_exposure: climatic_vars.append(f"Exposition: {sun_exposure}")
+                    if wind_conditions: climatic_vars.append(f"Vent: {wind_conditions}")
+                    climatic_vars_str = "; ".join(climatic_vars) if climatic_vars else ""
                     
                     # Construire le prompt avec la culture spécifiée
                     enhanced_prompt = ""
@@ -1184,7 +1386,7 @@ with tab1:
                         time.sleep(0.3)  # Petite pause pour voir la progression
                     
                     # Effectuer l'analyse réelle
-                    result = analyze_image_multilingual(image, enhanced_prompt)
+                    result = analyze_image_multilingual(image, enhanced_prompt, culture_input, agronomic_vars_str, climatic_vars_str, location_input)
                     
                     # Finaliser la progression
                     progress_placeholder.progress(1.0)
@@ -1200,6 +1402,10 @@ with tab1:
                     # Afficher la culture spécifiée si elle existe
                     if culture_input:
                         st.info(f"🌱 {t('culture_specified')} **{culture_input}**")
+                    
+                    # Afficher la localisation si elle existe
+                    if location_input:
+                        st.info(f"📍 Localisation : **{location_input}**")
                     
                     st.markdown("---")
                     st.markdown(result)
@@ -1219,7 +1425,7 @@ with tab1:
                     
                     with col1:
                         # Export HTML
-                        html_content = generate_html_diagnostic(result, culture_input, image_info, timestamp)
+                        html_content = generate_html_diagnostic(result, culture_input, image_info, timestamp, location_input)
                         st.download_button(
                             label=t("download_html"),
                             data=html_content,
@@ -1230,7 +1436,7 @@ with tab1:
                     
                     with col2:
                         # Export Texte
-                        text_content = generate_text_diagnostic(result, culture_input, image_info, timestamp)
+                        text_content = generate_text_diagnostic(result, culture_input, image_info, timestamp, location_input)
                         st.download_button(
                             label=t("download_text"),
                             data=text_content,
@@ -1310,7 +1516,7 @@ with tab2:
             
             with col1:
                 # Export HTML
-                html_content = generate_html_diagnostic(result, None, None, timestamp)
+                html_content = generate_html_diagnostic(result, None, None, timestamp, None)
                 st.download_button(
                     label=t("download_html"),
                     data=html_content,
@@ -1321,7 +1527,7 @@ with tab2:
             
             with col2:
                 # Export Texte
-                text_content = generate_text_diagnostic(result, None, None, timestamp)
+                text_content = generate_text_diagnostic(result, None, None, timestamp, None)
                 st.download_button(
                     label=t("download_text"),
                     data=text_content,
