@@ -767,8 +767,10 @@ with st.sidebar:
                 st.session_state.model_loaded = False
                 st.session_state.model_status = t("not_loaded")
                 # Désactive le cache pour forcer le rechargement
-                if 'load_ai_model' in st.cache_resource.__wrapped__.__wrapped__.__self__.__dict__:
-                    st.cache_resource.__wrapped__.__wrapped__.__self__['load_ai_model'].clear()
+                try:
+                    st.cache_resource.clear()
+                except:
+                    pass
                 st.rerun()
         with col2_btn:
             # Bouton pour forcer la persistance via @st.cache_resource
