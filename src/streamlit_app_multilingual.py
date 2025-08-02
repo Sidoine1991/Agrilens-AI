@@ -525,6 +525,9 @@ def load_ai_model(model_identifier, device_map="auto", torch_dtype=torch.float16
     Retourne le modèle et le tokenizer, ou lève une exception en cas d'échec.
     """
     try:
+        # Import local pour éviter les problèmes de scope
+        from transformers import AutoTokenizer, AutoModelForCausalLM
+        
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
