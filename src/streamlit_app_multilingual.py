@@ -503,9 +503,9 @@ def load_ai_model(model_identifier, device_map="auto", torch_dtype=torch.float16
         elif quantization == "8bit":
             common_args.update({"load_in_8bit": True})
         
-        # --- Chargement du processeur ---
-        st.info("Chargement du processeur...")
-        processor = AutoProcessor.from_pretrained(model_identifier, **common_args)
+        # --- Chargement du tokenizer ---
+        st.info("Chargement du tokenizer...")
+        tokenizer = AutoTokenizer.from_pretrained(model_identifier, **common_args)
         
         # --- Chargement du modèle ---
         st.info("Chargement du modèle...")
@@ -513,7 +513,7 @@ def load_ai_model(model_identifier, device_map="auto", torch_dtype=torch.float16
         model = AutoModelForCausalLM.from_pretrained(model_identifier, **common_args)
         
         st.success(f"✅ Modèle `{model_identifier}` chargé avec succès sur device `{device_map}`.")
-        return model, processor
+        return model, tokenizer
 
     except ImportError as e:
         raise ImportError(f"Erreur de dépendance : {e}. Assurez-vous que `transformers`, `torch`, `accelerate`, et `bitsandbytes` sont installés.")
@@ -525,7 +525,7 @@ def load_ai_model(model_identifier, device_map="auto", torch_dtype=torch.float16
     except Exception as e:
         raise RuntimeError(f"Une erreur est survenue lors du chargement du modèle : {e}")
 
-def get_model_and_processor():
+def get_model_and_tokenizer():
     """
     Stratégie de chargement du modèle Gemma 3n e2b it.
     Essaie différentes configurations pour s'adapter aux ressources disponibles.
@@ -567,15 +567,15 @@ def get_model_and_processor():
     for strat in strategies:
         st.info(f"Essai : {strat['name']}...")
         try:
-            model, processor = load_ai_model(
+            model, tokenizer = load_ai_model(
                 MODEL_ID_HF,
                 device_map=strat["config"]["device_map"],
                 torch_dtype=strat["config"]["torch_dtype"],
                 quantization=strat["config"]["quantization"]
             )
-            if model and processor:
+            if model and tokenizer:
                 st.success(f"Succès avec la stratégie : {strat['name']}")
-                return model, processor
+                return model, tokenizer
         except Exception as e:
             st.warning(f"Échec avec '{strat['name']}' : {e}")
             # Nettoyage mémoire avant de passer à la stratégie suivante
@@ -588,29 +588,36 @@ def get_model_and_processor():
 # --- FONCTIONS D'ANALYSE ---
 def analyze_image_multilingual(image, prompt=""):
     """Analyse une image avec Gemma 3n e2b it pour un diagnostic précis."""
-    model, processor = st.session_state.model, st.session_state.processor
-    if not model or not processor:
+    model, tokenizer = st.session_state.model, st.session_state.tokenizer
+    if not model or not tokenizer:
         return "❌ Modèle IA non chargé. Veuillez charger le modèle dans les réglages."
 
     try:
+        # Vérification que l'image est bien présente
+        if image is None:
+            return "❌ Erreur : Aucune image fournie pour l'analyse."
+        
+        # Log de débogage pour vérifier l'image
+        st.info(f"🔍 Analyse d'image : Format {image.format}, Taille {image.size}, Mode {image.mode}")
+        
         # Déterminer les messages selon la langue
         if st.session_state.language == "fr":
-            user_instruction = f"Analyse cette image de plante et fournis un diagnostic précis. Question spécifique : {prompt}" if prompt else "Analyse cette image de plante et fournis un diagnostic précis."
-            system_message = "Tu es un expert en pathologie végétale. Réponds de manière structurée et précise, en incluant diagnostic, causes, symptômes, traitement et urgence."
+            user_instruction = f"Analyse cette image de plante malade et fournis un diagnostic SUCCINCT et STRUCTURÉ. Question : {prompt}" if prompt else "Analyse cette image de plante malade et fournis un diagnostic SUCCINCT et STRUCTURÉ."
+            system_message = "Tu es un expert en pathologie végétale. Réponds de manière SUCCINCTE et STRUCTURÉE avec EXACTEMENT ces 3 sections : 1) SYMPTÔMES VISIBLES (courte description), 2) NOM DE LA MALADIE (avec niveau de confiance %), 3) TRAITEMENT RECOMMANDÉ (actions concrètes). Sois précis et concis. Maximum 200 mots."
         else: # English
-            user_instruction = f"Analyze this plant image and provide a precise diagnosis. Specific question: {prompt}" if prompt else "Analyze this plant image and provide a precise diagnosis."
-            system_message = "You are an expert in plant pathology. Respond in a structured and precise manner, including diagnosis, causes, symptoms, treatment, and urgency."
+            user_instruction = f"Analyze this diseased plant image and provide a SUCCINCT and STRUCTURED diagnosis. Question: {prompt}" if prompt else "Analyze this diseased plant image and provide a SUCCINCT and STRUCTURED diagnosis."
+            system_message = "You are a plant pathology expert. Respond in a SUCCINCT and STRUCTURED manner with EXACTLY these 3 sections: 1) VISIBLE SYMPTOMS (brief description), 2) DISEASE NAME (with confidence level %), 3) RECOMMENDED TREATMENT (concrete actions). Be precise and concise. Maximum 200 words."
         
         messages = [
             {"role": "system", "content": [{"type": "text", "text": system_message}]},
             {"role": "user", "content": [
                 {"type": "image", "image": image}, # L'image est transmise directement
-                {"type": "text", "text": user_instruction}
+                {"type": "text", "text": user_instruction + " IMPORTANT : Analyse uniquement ce que tu vois dans cette image spécifique. Ne donne pas de réponse générique."}
             ]}
         ]
         
         # Utiliser apply_chat_template pour convertir le format conversationnel en tenseurs
-        inputs = processor.apply_chat_template(
+        inputs = tokenizer.apply_chat_template(
             messages,
             add_generation_prompt=True,
             tokenize=True,
@@ -626,23 +633,38 @@ def analyze_image_multilingual(image, prompt=""):
         input_len = inputs["input_ids"].shape[-1]
         
         with torch.inference_mode():
-            # Appel générique de model.generate, en passant les inputs correctement
-            # La gestion des arguments spécifiques comme `pixel_values` doit être faite par le modèle lui-même.
-            # Si le bug #2751 est présent, il peut se manifester ici.
+            # Configuration de génération avec max_new_tokens augmenté
             generation = model.generate(
                 **inputs, # Déballer le dictionnaire des inputs
-                max_new_tokens=500,
+                max_new_tokens=550,
                 do_sample=True,
                 temperature=0.7,
                 top_p=0.9,
-                repetition_penalty=1.1
+                top_k=100,
+                repetition_penalty=1.1,
+                use_cache=True,
+                num_beams=1
             )
             
-            response = processor.decode(generation[0][input_len:], skip_special_tokens=True)
+            response = tokenizer.decode(generation[0][input_len:], skip_special_tokens=True)
 
         final_response = response.strip()
         # Nettoyage des tokens de contrôle si présents
         final_response = final_response.replace("<start_of_turn>", "").replace("<end_of_turn>", "").strip()
+        
+        # Vérification que la réponse n'est pas générique
+        generic_indicators = [
+            "sans l'image", "sans voir l'image", "basé sur des connaissances générales",
+            "without the image", "without seeing the image", "based on general knowledge",
+            "veuillez me fournir l'image", "please provide the image", "aucune image"
+        ]
+        
+        is_generic = any(indicator.lower() in final_response.lower() for indicator in generic_indicators)
+        
+        if is_generic:
+            st.warning("⚠️ Le modèle semble donner une réponse générique. L'image pourrait ne pas être correctement traitée.")
+            # Ajouter une instruction pour forcer l'analyse de l'image
+            final_response += "\n\n⚠️ **Note importante** : Cette réponse semble générique. Veuillez vérifier que l'image a été correctement uploadée et réessayer l'analyse."
         
         # Formatage de la réponse pour l'affichage
         if st.session_state.language == "fr":
@@ -661,20 +683,20 @@ def analyze_image_multilingual(image, prompt=""):
 
 def analyze_text_multilingual(text):
     """Analyse un texte avec le modèle Gemma 3n e2b it."""
-    model, processor = st.session_state.model, st.session_state.processor
-    if not model or not processor:
+    model, tokenizer = st.session_state.model, st.session_state.tokenizer
+    if not model or not tokenizer:
         return "❌ Modèle IA non chargé. Veuillez charger le modèle dans les réglages."
         
     try:
         # Construction du prompt selon la langue
         if st.session_state.language == "fr":
-            prompt_template = f"Tu es un assistant agricole expert. Analyse ce problème de plante : \n\n**Description du problème :**\n{text}\n\n**Instructions :**\n1. **Diagnostic** : Quel est le problème principal ?\n2. **Causes** : Quelles sont les causes possibles ?\n3. **Traitement** : Quelles sont les actions à entreprendre ?\n4. **Prévention** : Comment éviter le problème à l'avenir ?"
+            prompt_template = f"Tu es un expert en pathologie végétale. Analyse ce problème de plante de manière SUCCINCTE et STRUCTURÉE : \n\n**Description :**\n{text}\n\n**Réponds avec EXACTEMENT ces 3 sections :**\n1. **SYMPTÔMES** (description courte)\n2. **NOM DE LA MALADIE/PROBLÈME** (avec niveau de confiance %)\n3. **TRAITEMENT** (actions concrètes)\n\nSois précis et concis. Maximum 150 mots."
         else: # English
-            prompt_template = f"You are an expert agricultural assistant. Analyze this plant problem: \n\n**Problem Description:**\n{text}\n\n**Instructions:**\n1. **Diagnosis**: What is the main problem?\n2. **Causes**: What are the possible causes?\n3. **Treatment**: What actions should be taken?\n4. **Prevention**: How to avoid the problem in the future?"
+            prompt_template = f"You are a plant pathology expert. Analyze this plant problem in a SUCCINCT and STRUCTURED manner: \n\n**Description:**\n{text}\n\n**Respond with EXACTLY these 3 sections:**\n1. **SYMPTOMS** (brief description)\n2. **DISEASE/PROBLEM NAME** (with confidence level %)\n3. **TREATMENT** (concrete actions)\n\nBe precise and concise. Maximum 150 words."
         
         messages = [{"role": "user", "content": [{"type": "text", "text": prompt_template}]}]
         
-        inputs = processor.apply_chat_template(
+        inputs = tokenizer.apply_chat_template(
             messages,
             add_generation_prompt=True,
             tokenize=True,
@@ -691,14 +713,17 @@ def analyze_text_multilingual(text):
         with torch.inference_mode():
             generation = model.generate(
                 **inputs,
-                max_new_tokens=500,
+                max_new_tokens=550,
                 do_sample=True,
                 temperature=0.7,
                 top_p=0.9,
-                repetition_penalty=1.1
+                top_k=100,
+                repetition_penalty=1.1,
+                use_cache=True,
+                num_beams=1
             )
             
-            response = processor.decode(generation[0][input_len:], skip_special_tokens=True)
+            response = tokenizer.decode(generation[0][input_len:], skip_special_tokens=True)
         
         cleaned_response = response.strip()
         cleaned_response = cleaned_response.replace("<start_of_turn>", "").replace("<end_of_turn>", "").strip()
@@ -713,8 +738,8 @@ def analyze_text_multilingual(text):
 # --- INITIALISATION DES VARIABLES DE SESSION ---
 if 'model' not in st.session_state:
     st.session_state.model = None
-if 'processor' not in st.session_state:
-    st.session_state.processor = None
+if 'tokenizer' not in st.session_state:
+    st.session_state.tokenizer = None
 if 'model_loaded' not in st.session_state:
     st.session_state.model_loaded = False
 if 'model_status' not in st.session_state:
@@ -763,7 +788,7 @@ with st.sidebar:
         with col1_btn:
             if st.button(t("reload_model"), type="secondary"):
                 st.session_state.model = None
-                st.session_state.processor = None
+                st.session_state.tokenizer = None
                 st.session_state.model_loaded = False
                 st.session_state.model_status = t("not_loaded")
                 # Désactive le cache pour forcer le rechargement
@@ -781,9 +806,9 @@ with st.sidebar:
         if st.button(t("load_model_button"), type="primary"):
             # Essaye de charger le modèle manuellement
             try:
-                model, processor = get_model_and_processor()
+                model, tokenizer = get_model_and_tokenizer()
                 st.session_state.model = model
-                st.session_state.processor = processor
+                st.session_state.tokenizer = tokenizer
                 st.session_state.model_loaded = True
                 st.session_state.model_status = t("loaded")
                 st.success(t("model_loaded_success"))
