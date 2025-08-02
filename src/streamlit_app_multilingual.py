@@ -941,15 +941,52 @@ with tab1:
                 if not st.session_state.model_loaded:
                     st.error(t("model_not_loaded_error"))
                 else:
-                    with st.spinner(t("analyzing_image")):
-                        # Construire le prompt avec la culture spécifiée
-                        enhanced_prompt = ""
-                        if culture_input:
-                            enhanced_prompt += f"Culture spécifiée : {culture_input}. "
-                        if question:
-                            enhanced_prompt += f"Question : {question}. "
-                        
-                        result = analyze_image_multilingual(image, enhanced_prompt)
+                    # Créer des placeholders pour la progression
+                    progress_placeholder = st.empty()
+                    status_placeholder = st.empty()
+                    
+                    # Afficher la barre de progression initiale
+                    progress_placeholder.progress(0)
+                    status_placeholder.info("🔍 Préparation de l'analyse...")
+                    
+                    # Construire le prompt avec la culture spécifiée
+                    enhanced_prompt = ""
+                    if culture_input:
+                        enhanced_prompt += f"Culture spécifiée : {culture_input}. "
+                    if question:
+                        enhanced_prompt += f"Question : {question}. "
+                    
+                    # Simuler la progression pendant l'analyse
+                    import time
+                    
+                    # Étapes de progression
+                    steps = [
+                        (10, "Préparation de l'image..."),
+                        (25, "Chargement du modèle..."),
+                        (40, "Analyse des caractéristiques visuelles..."),
+                        (60, "Identification des symptômes..."),
+                        (80, "Génération du diagnostic..."),
+                        (95, "Finalisation de la réponse..."),
+                        (100, "Analyse terminée !")
+                    ]
+                    
+                    # Effectuer l'analyse avec mise à jour de la progression
+                    for progress, status in steps[:-1]:  # Toutes sauf la dernière
+                        progress_placeholder.progress(progress / 100)
+                        status_placeholder.info(f"🔍 {status}")
+                        time.sleep(0.3)  # Petite pause pour voir la progression
+                    
+                    # Effectuer l'analyse réelle
+                    result = analyze_image_multilingual(image, enhanced_prompt)
+                    
+                    # Finaliser la progression
+                    progress_placeholder.progress(1.0)
+                    status_placeholder.success("✅ Analyse terminée !")
+                    
+                    # Effacer les placeholders après un court délai
+                    time.sleep(1)
+                    progress_placeholder.empty()
+                    status_placeholder.empty()
                     
                     st.markdown(t("analysis_results"))
                     
@@ -1014,8 +1051,42 @@ with tab2:
         elif not text_input.strip():
             st.error("❌ Veuillez saisir une description des symptômes.")
         else:
-            with st.spinner("🔍 Analyse de texte en cours..."):
-                result = analyze_text_multilingual(text_input)
+            # Créer des placeholders pour la progression
+            progress_placeholder = st.empty()
+            status_placeholder = st.empty()
+            
+            # Afficher la barre de progression initiale
+            progress_placeholder.progress(0)
+            status_placeholder.info("🔍 Préparation de l'analyse...")
+            
+            # Simuler la progression pendant l'analyse
+            import time
+            
+            # Étapes de progression pour l'analyse de texte
+            steps = [
+                (20, "Analyse du texte..."),
+                (50, "Identification du problème..."),
+                (80, "Génération des recommandations..."),
+                (100, "Analyse terminée !")
+            ]
+            
+            # Effectuer l'analyse avec mise à jour de la progression
+            for progress, status in steps[:-1]:  # Toutes sauf la dernière
+                progress_placeholder.progress(progress / 100)
+                status_placeholder.info(f"🔍 {status}")
+                time.sleep(0.3)  # Petite pause pour voir la progression
+            
+            # Effectuer l'analyse réelle
+            result = analyze_text_multilingual(text_input)
+            
+            # Finaliser la progression
+            progress_placeholder.progress(1.0)
+            status_placeholder.success("✅ Analyse terminée !")
+            
+            # Effacer les placeholders après un court délai
+            time.sleep(1)
+            progress_placeholder.empty()
+            status_placeholder.empty()
             
             st.markdown(t("analysis_results"))
             st.markdown("---")
