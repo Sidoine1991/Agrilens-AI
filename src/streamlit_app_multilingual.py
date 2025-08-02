@@ -736,6 +736,21 @@ def analyze_image_multilingual(image, prompt=""):
         # Log de débogage pour vérifier l'image
         st.info(f"🔍 Analyse d'image : Format {image.format}, Taille {image.size}, Mode {image.mode}")
         
+        # Convertir l'image PIL en format compatible avec Gemma
+        import io
+        import base64
+        
+        # Convertir l'image PIL en bytes
+        img_buffer = io.BytesIO()
+        image.save(img_buffer, format='JPEG', quality=85)
+        img_bytes = img_buffer.getvalue()
+        
+        # Encoder en base64
+        img_base64 = base64.b64encode(img_bytes).decode('utf-8')
+        
+        # Créer l'URL de données pour l'image
+        img_data_url = f"data:image/jpeg;base64,{img_base64}"
+        
         # Déterminer les messages selon la langue
         if st.session_state.language == "fr":
             user_instruction = f"Analyse cette image de plante malade et fournis un diagnostic SUCCINCT et STRUCTURÉ. Question : {prompt}" if prompt else "Analyse cette image de plante malade et fournis un diagnostic SUCCINCT et STRUCTURÉ."
@@ -747,7 +762,7 @@ def analyze_image_multilingual(image, prompt=""):
         messages = [
             {"role": "system", "content": [{"type": "text", "text": system_message}]},
             {"role": "user", "content": [
-                {"type": "image", "image": image}, # L'image est transmise directement
+                {"type": "image", "image": img_data_url}, # Image en format base64
                 {"type": "text", "text": user_instruction + " IMPORTANT : Analyse uniquement ce que tu vois dans cette image spécifique. Ne donne pas de réponse générique."}
             ]}
         ]
