@@ -58,4 +58,8 @@ Thumbs.db
 
 # Hugging Face cache
 .cache/
-transformers_cache/ 
+transformers_cache/
+
+# Submodules and nested git repos
+hf-optimized/
+temp_backup/ 
