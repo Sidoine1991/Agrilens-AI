@@ -136,7 +136,68 @@ TRANSLATIONS = {
     "export_success": {"fr": "✅ Diagnostic exporté avec succès !", "en": "✅ Diagnosis exported successfully!"},
     "export_error": {"fr": "❌ Erreur lors de l'export", "en": "❌ Export error"},
     "html_filename": {"fr": "diagnostic_agrilens_{date}.html", "en": "agrilens_diagnosis_{date}.html"},
-    "text_filename": {"fr": "diagnostic_agrilens_{date}.txt", "en": "agrilens_diagnosis_{date}.txt"}
+    "text_filename": {"fr": "diagnostic_agrilens_{date}.txt", "en": "agrilens_diagnosis_{date}.txt"},
+    
+    # Variables agronomiques
+    "agronomic_variables_title": {"fr": "🌾 Variables Agronomiques (Optionnel)", "en": "🌾 Agronomic Variables (Optional)"},
+    "agronomic_help": {"fr": "Ces informations aident à affiner le diagnostic", "en": "This information helps refine the diagnosis"},
+    "soil_type": {"fr": "Type de sol", "en": "Soil Type"},
+    "soil_type_options": {"fr": ["", "Argileux", "Sableux", "Limoneux", "Humifère", "Calcaire", "Acide"], "en": ["", "Clay", "Sandy", "Loamy", "Humic", "Calcareous", "Acidic"]},
+    "soil_type_help": {"fr": "Type de sol où pousse la plante", "en": "Soil type where the plant grows"},
+    "plant_age": {"fr": "Âge de la plante (mois/semaines)", "en": "Plant Age (months/weeks)"},
+    "plant_age_placeholder": {"fr": "ex: 3 mois", "en": "ex: 3 months"},
+    "plant_age_help": {"fr": "Âge approximatif de la plante", "en": "Approximate age of the plant"},
+    "planting_density": {"fr": "Densité de plantation", "en": "Planting Density"},
+    "planting_density_options": {"fr": ["", "Faible", "Moyenne", "Élevée"], "en": ["", "Low", "Medium", "High"]},
+    "planting_density_help": {"fr": "Densité de plantation dans la parcelle", "en": "Planting density in the plot"},
+    "irrigation": {"fr": "Irrigation", "en": "Irrigation"},
+    "irrigation_options": {"fr": ["", "Aucune", "Manuelle", "Goutte-à-goutte", "Aspersion", "Inondation"], "en": ["", "None", "Manual", "Drip", "Sprinkler", "Flood"]},
+    "irrigation_help": {"fr": "Type d'irrigation utilisé", "en": "Type of irrigation used"},
+    "fertilization": {"fr": "Fertilisation", "en": "Fertilization"},
+    "fertilization_options": {"fr": ["", "Aucune", "Organique", "Chimique", "Mixte"], "en": ["", "None", "Organic", "Chemical", "Mixed"]},
+    "fertilization_help": {"fr": "Type de fertilisation appliquée", "en": "Type of fertilization applied"},
+    "crop_rotation": {"fr": "Rotation des cultures", "en": "Crop Rotation"},
+    "crop_rotation_options": {"fr": ["", "Aucune", "Annuelle", "Biannuelle", "Triennale"], "en": ["", "None", "Annual", "Biannual", "Triennial"]},
+    "crop_rotation_help": {"fr": "Fréquence de rotation des cultures", "en": "Frequency of crop rotation"},
+    
+    # Variables climatiques
+    "climatic_variables_title": {"fr": "🌤️ Variables Climatiques (Optionnel)", "en": "🌤️ Climatic Variables (Optional)"},
+    "climatic_help": {"fr": "Conditions climatiques actuelles ou récentes", "en": "Current or recent climatic conditions"},
+    "temperature": {"fr": "Température (°C)", "en": "Temperature (°C)"},
+    "temperature_placeholder": {"fr": "ex: 25-30", "en": "ex: 25-30"},
+    "temperature_help": {"fr": "Plage de température actuelle", "en": "Current temperature range"},
+    "humidity": {"fr": "Humidité relative", "en": "Relative Humidity"},
+    "humidity_options": {"fr": ["", "Faible (<40%)", "Modérée (40-70%)", "Élevée (>70%)"], "en": ["", "Low (<40%)", "Moderate (40-70%)", "High (>70%)"]},
+    "humidity_help": {"fr": "Niveau d'humidité ambiante", "en": "Ambient humidity level"},
+    "rainfall": {"fr": "Précipitations récentes", "en": "Recent Rainfall"},
+    "rainfall_options": {"fr": ["", "Aucune", "Faible", "Modérée", "Abondante"], "en": ["", "None", "Low", "Moderate", "Heavy"]},
+    "rainfall_help": {"fr": "Niveau de précipitations récentes", "en": "Level of recent rainfall"},
+    "season": {"fr": "Saison", "en": "Season"},
+    "season_options": {"fr": ["", "Printemps", "Été", "Automne", "Hiver", "Saison sèche", "Saison des pluies"], "en": ["", "Spring", "Summer", "Autumn", "Winter", "Dry Season", "Rainy Season"]},
+    "season_help": {"fr": "Saison actuelle", "en": "Current season"},
+    "sun_exposure": {"fr": "Exposition au soleil", "en": "Sun Exposure"},
+    "sun_exposure_options": {"fr": ["", "Ombre", "Mi-ombre", "Plein soleil"], "en": ["", "Shade", "Partial Shade", "Full Sun"]},
+    "sun_exposure_help": {"fr": "Niveau d'exposition au soleil", "en": "Level of sun exposure"},
+    "wind_conditions": {"fr": "Conditions de vent", "en": "Wind Conditions"},
+    "wind_conditions_options": {"fr": ["", "Calme", "Léger", "Modéré", "Fort"], "en": ["", "Calm", "Light", "Moderate", "Strong"]},
+    "wind_conditions_help": {"fr": "Conditions de vent actuelles", "en": "Current wind conditions"},
+    
+    # Localisation
+    "location_title": {"fr": "📍 Localisation (Optionnel)", "en": "📍 Location (Optional)"},
+    "location_help": {"fr": "Lieu où l'image a été prise pour affiner le diagnostic", "en": "Location where the image was taken to refine the diagnosis"},
+    "location_method": {"fr": "Méthode de localisation", "en": "Location Method"},
+    "location_method_options": {"fr": ["GPS automatique", "Saisie manuelle"], "en": ["Automatic GPS", "Manual Entry"]},
+    "location_method_help": {"fr": "Choisissez comment spécifier la localisation", "en": "Choose how to specify the location"},
+    "gps_info": {"fr": "💡 Note : Streamlit n'a pas de widget GPS natif. Vous pouvez utiliser les coordonnées de votre appareil ou saisir manuellement.", "en": "💡 Note: Streamlit doesn't have a native GPS widget. You can use your device coordinates or enter manually."},
+    "country": {"fr": "Pays", "en": "Country"},
+    "country_placeholder": {"fr": "Ex: Bénin, France, États-Unis...", "en": "Ex: Benin, France, United States..."},
+    "city": {"fr": "Ville/Région", "en": "City/Region"},
+    "city_placeholder": {"fr": "Ex: Cotonou, Paris, New York...", "en": "Ex: Cotonou, Paris, New York..."},
+    "latitude": {"fr": "Latitude", "en": "Latitude"},
+    "latitude_placeholder": {"fr": "Ex: 6.3690", "en": "Ex: 6.3690"},
+    "longitude": {"fr": "Longitude", "en": "Longitude"},
+    "longitude_placeholder": {"fr": "Ex: 2.3883", "en": "Ex: 2.3883"},
+    "location_display": {"fr": "📍 Localisation : {location}", "en": "📍 Location: {location}"}
 }
 
 def t(key):
@@ -1179,137 +1240,132 @@ with tab1:
             
             # Section des variables agronomiques
             st.markdown("---")
-            st.subheader("🌾 Variables Agronomiques (Optionnel)")
-            st.info("Ces informations aident à affiner le diagnostic")
+            st.subheader(t("agronomic_variables_title"))
+            st.info(t("agronomic_help"))
             
             col1, col2 = st.columns(2)
             with col1:
                 soil_type = st.selectbox(
-                    "Type de sol",
-                    ["", "Argileux", "Sableux", "Limoneux", "Humifère", "Calcaire", "Acide"],
-                    help="Type de sol où pousse la plante"
+                    t("soil_type"),
+                    t("soil_type_options"),
+                    help=t("soil_type_help")
                 )
                 
                 plant_age = st.text_input(
-                    "Âge de la plante (mois/semaines)",
-                    placeholder="ex: 3 mois",
-                    help="Âge approximatif de la plante"
+                    t("plant_age"),
+                    placeholder=t("plant_age_placeholder"),
+                    help=t("plant_age_help")
                 )
                 
                 planting_density = st.selectbox(
-                    "Densité de plantation",
-                    ["", "Faible", "Moyenne", "Élevée"],
-                    help="Densité de plantation dans la parcelle"
+                    t("planting_density"),
+                    t("planting_density_options"),
+                    help=t("planting_density_help")
                 )
             
             with col2:
                 irrigation = st.selectbox(
-                    "Irrigation",
-                    ["", "Aucune", "Manuelle", "Goutte-à-goutte", "Aspersion", "Inondation"],
-                    help="Type d'irrigation utilisé"
+                    t("irrigation"),
+                    t("irrigation_options"),
+                    help=t("irrigation_help")
                 )
                 
                 fertilization = st.selectbox(
-                    "Fertilisation",
-                    ["", "Aucune", "Organique", "Chimique", "Mixte"],
-                    help="Type de fertilisation appliquée"
+                    t("fertilization"),
+                    t("fertilization_options"),
+                    help=t("fertilization_help")
                 )
                 
                 crop_rotation = st.selectbox(
-                    "Rotation des cultures",
-                    ["", "Aucune", "Annuelle", "Biannuelle", "Triennale"],
-                    help="Fréquence de rotation des cultures"
+                    t("crop_rotation"),
+                    t("crop_rotation_options"),
+                    help=t("crop_rotation_help")
                 )
             
             # Section des variables climatiques
             st.markdown("---")
-            st.subheader("🌤️ Variables Climatiques (Optionnel)")
-            st.info("Conditions climatiques actuelles ou récentes")
+            st.subheader(t("climatic_variables_title"))
+            st.info(t("climatic_help"))
             
             col3, col4 = st.columns(2)
             with col3:
                 temperature = st.text_input(
-                    "Température (°C)",
-                    placeholder="ex: 25-30",
-                    help="Plage de température actuelle"
+                    t("temperature"),
+                    placeholder=t("temperature_placeholder"),
+                    help=t("temperature_help")
                 )
                 
                 humidity = st.selectbox(
-                    "Humidité relative",
-                    ["", "Faible (<40%)", "Modérée (40-70%)", "Élevée (>70%)"],
-                    help="Niveau d'humidité ambiante"
+                    t("humidity"),
+                    t("humidity_options"),
+                    help=t("humidity_help")
                 )
                 
                 rainfall = st.selectbox(
-                    "Précipitations récentes",
-                    ["", "Aucune", "Faible", "Modérée", "Abondante"],
-                    help="Niveau de précipitations récentes"
+                    t("rainfall"),
+                    t("rainfall_options"),
+                    help=t("rainfall_help")
                 )
             
             with col4:
                 season = st.selectbox(
-                    "Saison",
-                    ["", "Printemps", "Été", "Automne", "Hiver", "Saison sèche", "Saison des pluies"],
-                    help="Saison actuelle"
+                    t("season"),
+                    t("season_options"),
+                    help=t("season_help")
                 )
                 
                 sun_exposure = st.selectbox(
-                    "Exposition au soleil",
-                    ["", "Ombre", "Mi-ombre", "Plein soleil"],
-                    help="Niveau d'exposition au soleil"
+                    t("sun_exposure"),
+                    t("sun_exposure_options"),
+                    help=t("sun_exposure_help")
                 )
                 
                 wind_conditions = st.selectbox(
-                    "Conditions de vent",
-                    ["", "Calme", "Léger", "Modéré", "Fort"],
-                    help="Conditions de vent actuelles"
+                    t("wind_conditions"),
+                    t("wind_conditions_options"),
+                    help=t("wind_conditions_help")
                 )
             
             # Section de localisation
             st.markdown("---")
-            st.subheader("📍 Localisation (Optionnel)")
-            st.info("Lieu où l'image a été prise pour affiner le diagnostic")
+            st.subheader(t("location_title"))
+            st.info(t("location_help"))
             
             location_method = st.radio(
-                "Méthode de localisation",
-                ["GPS automatique", "Saisie manuelle"],
-                help="Choisissez comment spécifier la localisation"
+                t("location_method"),
+                t("location_method_options"),
+                help=t("location_method_help")
             )
             
-            if location_method == "GPS automatique":
+            if location_method == t("location_method_options")[0]:  # GPS automatique
                 # Note: Streamlit n'a pas de widget GPS natif, on utilise une explication
-                st.info("📱 Pour capturer les coordonnées GPS, utilisez l'application mobile ou votre navigateur web")
-                st.markdown("""
-                **Instructions :**
-                - Sur mobile : Autorisez l'accès à la localisation dans votre navigateur
-                - Sur desktop : Utilisez la saisie manuelle ou votre GPS
-                """)
+                st.info(t("gps_info"))
                 location_input = ""
             else:
                 col5, col6 = st.columns(2)
                 with col5:
                     country = st.text_input(
-                        "Pays",
-                        placeholder="ex: Cameroun",
+                        t("country"),
+                        placeholder=t("country_placeholder"),
                         help="Pays où l'image a été prise"
                     )
                     
                     city = st.text_input(
-                        "Ville/Région",
-                        placeholder="ex: Yaoundé",
+                        t("city"),
+                        placeholder=t("city_placeholder"),
                         help="Ville ou région où l'image a été prise"
                     )
                 
                 with col6:
                     latitude = st.text_input(
-                        "Latitude (optionnel)",
-                        placeholder="ex: 3.8480",
+                        t("latitude"),
+                        placeholder=t("latitude_placeholder"),
                         help="Coordonnée GPS latitude"
                     )
                     
                     longitude = st.text_input(
-                        "Longitude (optionnel)",
-                        placeholder="ex: 11.5021",
+                        t("longitude"),
+                        placeholder=t("longitude_placeholder"),
                         help="Coordonnée GPS longitude"
                     )
                 
@@ -1405,7 +1461,7 @@ with tab1:
                     
                     # Afficher la localisation si elle existe
                     if location_input:
-                        st.info(f"📍 Localisation : **{location_input}**")
+                        st.info(t("location_display").format(location=location_input))
                     
                     st.markdown("---")
                     st.markdown(result)
