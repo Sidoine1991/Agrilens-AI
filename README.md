@@ -44,6 +44,16 @@ Access the live version of AgriLens AI on Hugging Face:
 
 *Open this link on your smartphone for an optimized mobile experience.*
 
+### 🎬 Live Demo Video
+
+See AgriLens AI in action with this live demonstration:
+
+<div align="center">
+  <img src="Live_demo/live_demo_AgriLens%20AI.gif" alt="AgriLens AI Live Demo" width="800" style="border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);"/>
+</div>
+
+*Watch the complete workflow from photo upload to diagnosis results*
+
 ### How It Works
 
 1.  **Capture**: Take a photo of the affected plant.
