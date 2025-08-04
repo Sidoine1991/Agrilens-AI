@@ -265,7 +265,7 @@ For complete offline functionality, the Google Gemma 3n AI model (~10GB+) must b
 
 #### 🔄 Alternative Download: Kaggle Notebook
 
-If you encounter issues with Hugging Face direct download, you can use our [Kaggle Notebook](https://www.kaggle.com/code/sidoineyebadokpo/agrilens-ai) to download the model and then transfer the files to your local `model_gemma` folder.
+If you encounter issues with Hugging Face direct download, you can use our [Kaggle Notebook](https://www.kaggle.com/code/sidoineyebadokpo/agrilens-ai-final-notebook/) to download the model and then transfer the files to your local `model_gemma` folder.
 
 #### 🎮 GPU Acceleration Benefits
 
@@ -294,7 +294,7 @@ Users with NVIDIA/AMD GPUs will experience significantly faster performance:
     "
     ```
 3.  **From Kaggle Notebook**:
-    -   Utilize the [Kaggle Notebook](https://www.kaggle.com/code/sidoineyebadokpo/agrilens-ai?scriptVersionId=253640926) to download model files.
+    -   Utilize the [Kaggle Notebook](https://www.kaggle.com/code/sidoineyebadokpo/agrilens-ai-final-notebook/) to download model files.
     -   Transfer the downloaded files to your local machine.
 
 *Once downloaded, the model files are cached locally, enabling the app to work completely offline for diagnosis.*
@@ -376,7 +376,7 @@ This project is licensed under **CC BY 4.0**.
 ## 🔗 Useful Links
 
 -   **Live Demo**: [Hugging Face Spaces](https://huggingface.co/spaces/sido1991/Agrilens_IAv1)
--   **Kaggle Notebook**: [Kaggle](https://www.kaggle.com/code/sidoineyebadokpo/agrilens-ai?scriptVersionId=253640926)
+-   **Kaggle Notebook**: [Kaggle](https://www.kaggle.com/code/sidoineyebadokpo/agrilens-ai-final-notebook/)
 -   **Source Code**: [GitHub](https://github.com/Sidoine1991/Agrilens-AI)
 
 ---
