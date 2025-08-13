@@ -1,21 +1,28 @@
 FROM python:3.11-slim
+
+# Répertoire de travail
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends curl supervisor \
+# Installer dépendances système minimales
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
  && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt -i https://pypi.org/simple
+# Copier et installer les dépendances Python
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt -i https://pypi.org/simple
 
-# Code
-COPY src/ /app/src/
-COPY hf-optimized/ /app/hf-optimized/
-COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+# Copier le code de l'application
+COPY . .
 
-ENV MODEL_ID=google/gemma-3n-e2b-it DEVICE_MAP=auto MAX_NEW_TOKENS=256
-EXPOSE 7860
+# Variables d'environnement
+ENV MODEL_ID=google/gemma-3n-e2b-it \
+    DEVICE_MAP=auto \
+    MAX_NEW_TOKENS=256 \
+    PORT=7860
 
-# Healthcheck sur l’API (via 7860) – Streamlit est sur $PORT
-HEALTHCHECK CMD sh -lc 'curl -fsS http://localhost:7860/health || exit 1'
+# Exposer le port (Hugging Face redirige vers $PORT)
+EXPOSE ${PORT}
 
-CMD ["/usr/bin/supervisord","-c","/etc/supervisor/conf.d/supervisord.conf"]
+# Lancement Streamlit
+CMD ["streamlit", "run", "app.py", "--server.port=${PORT}", "--server.address=0.0.0.0"]
