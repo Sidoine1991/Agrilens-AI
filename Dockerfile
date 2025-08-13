@@ -1,14 +1,9 @@
-FROM python:3.9-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Installer les dépendances système nécessaires
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    curl \
-    git \
-    gnupg \
-    lsb-release \
+# Dépendances système minimales
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
  && rm -rf /var/lib/apt/lists/*
 
 # Copier les fichiers
@@ -16,13 +11,13 @@ COPY requirements.txt ./
 COPY src/ ./src/
 
 # Installer les dépendances Python
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt -i https://pypi.org/simple
 
-# Exposer le port Streamlit
-EXPOSE 8501
+# Port FastAPI
+EXPOSE 7860
 
-# Healthcheck pour vérifier si Streamlit tourne
-HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health || exit 1
+# Healthcheck FastAPI
+HEALTHCHECK CMD curl --fail http://localhost:7860/health || exit 1
 
-# Lancer l'application Streamlit
-ENTRYPOINT ["streamlit", "run", "src/streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+# Lancer l'API FastAPI
+CMD ["uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "7860"]
