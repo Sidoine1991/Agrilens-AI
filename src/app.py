@@ -15,7 +15,7 @@ from huggingface_hub import HfFolder
 APP_START_TS = time.time()
 
 # Configuration du modèle
-MODEL_ID = os.environ.get("MODEL_ID", "google/gemma-3n-e2b-it")  # modèle par défaut
+MODEL_ID = os.environ.get("MODEL_ID", "google/gemma-3n-e2b-it")
 DEVICE_MAP = os.environ.get("DEVICE_MAP", "auto")  # "auto" | "cpu" | "cuda"
 MAX_NEW_TOKENS = int(os.environ.get("MAX_NEW_TOKENS", "256"))
 
@@ -148,3 +148,9 @@ async def diagnose(
 @app.get("/")
 def root():
     return {"message": "AgriLens AI FastAPI up. Use POST /diagnose"}
+
+# Lancement correct pour Hugging Face Spaces
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 7860))  # Hugging Face donne ce port
+    uvicorn.run("app:app", host="0.0.0.0", port=port)
