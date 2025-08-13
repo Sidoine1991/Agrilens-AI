@@ -13,25 +13,8 @@ from transformers import AutoProcessor, AutoModelForImageTextToText # Utilisatio
 from huggingface_hub import HfFolder, hf_hub_download, snapshot_download
 from functools import lru_cache # Alternative pour le caching, mais st.cache_resource est mieux pour les modèles
 import base64
-
-# Charger les variables d'environnement depuis .env si le fichier existe
-def load_env_file():
-    """Charge les variables d'environnement depuis un fichier .env"""
-    env_file = ".env"
-    if os.path.exists(env_file):
-        try:
-            with open(env_file, 'r') as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith('#') and '=' in line:
-                        key, value = line.split('=', 1)
-                        os.environ[key.strip()] = value.strip()
-            print("✅ Variables d'environnement chargées depuis .env")
-        except Exception as e:
-            print(f"⚠️ Erreur chargement .env: {e}")
-
-# Charger le fichier .env au démarrage
-load_env_file()
+import pandas as pd
+import plotly.express as px
 
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(
@@ -44,7 +27,7 @@ st.set_page_config(
 # --- CONFIGURATION OPTIMISÉE POUR PERFORMANCE ---
 # Configuration du modèle local
 LOCAL_MODEL_PATH = r"D:\Dev\model_gemma"  # Chemin vers le modèle local
-MODEL_ID_HF = "google/gemma-3n-e2b-it"  # ID Hugging Face (modèle Gemma 3n multimodal)
+MODEL_ID_HF = "google/gemma-3n-e2b-it"  # ID Hugging Face (pour référence)
 
 # Configuration optimisée pour Hugging Face Spaces
 HF_TIMEOUT = 600  # 10 minutes de timeout pour le téléchargement (augmenté pour modèle local)
@@ -715,7 +698,9 @@ Email : syebadokpo@gmail.com
     return text_content
 
 # --- CHARGEMENT DU MODÈLE AVEC CACHING ---
-# Modèle principal à utiliser (défini plus haut)
+# Modèle principal à utiliser (corriger l'ID si nécessaire)
+MODEL_ID_HF = "google/gemma-3n-e2b-it" # Correction de l'ID du modèle
+
 # Chemin local pour le modèle (optionnel, pour tester hors ligne)
 # LOCAL_MODEL_PATH = "D:/Dev/model_gemma" # Décommentez et ajustez si vous avez un modèle local
 
@@ -727,7 +712,7 @@ def load_ai_model(model_identifier, device_map="auto", torch_dtype=torch.float16
     """
     try:
         # Import local pour éviter les problèmes de scope
-        from transformers import AutoProcessor, AutoModelForCausalLM, AutoModelForImageTextToText
+        from transformers import AutoProcessor, AutoModelForImageTextToText
         
         gc.collect()
         if torch.cuda.is_available():
@@ -743,20 +728,6 @@ def load_ai_model(model_identifier, device_map="auto", torch_dtype=torch.float16
             "device_map": device_map,
             "torch_dtype": torch_dtype,
         }
-        
-        # Configuration spéciale pour Gemma
-        if "gemma" in model_identifier.lower():
-            common_args.update({
-                "use_cache": True,
-            })
-            
-            # Flash attention seulement si disponible et sur GPU
-            if device_map != "cpu" and torch.cuda.is_available():
-                try:
-                    import flash_attn
-                    common_args["attn_implementation"] = "flash_attention_2"
-                except ImportError:
-                    pass  # Flash attention non disponible, utiliser l'attention standard
         
         # Ajouter le token seulement si c'est un modèle Hugging Face (pas local)
         if model_identifier.startswith("google/") or "/" in model_identifier:
@@ -826,22 +797,15 @@ def load_ai_model(model_identifier, device_map="auto", torch_dtype=torch.float16
             try:
                 # Préparer les arguments pour le modèle
                 model_args = common_args.copy()
-                # Ne pas ajouter timeout pour le modèle (seulement pour le processor)
-                # Le timeout n'est pas supporté par AutoModelForImageTextToText
+                # Ajouter timeout seulement pour les modèles Hugging Face (pas locaux)
+                if model_identifier.startswith("google/") or "/" in model_identifier:
+                    model_args["timeout"] = HF_TIMEOUT
                 
-                # Détecter le type de modèle et utiliser la classe appropriée
-                if "gemma" in model_identifier.lower():
-                    # Pour les modèles Gemma, utiliser AutoModelForCausalLM
-                    model = AutoModelForCausalLM.from_pretrained(
-                        model_identifier, 
-                        **model_args
-                    )
-                else:
-                    # Pour les autres modèles multimodaux, utiliser AutoModelForImageTextToText
-                    model = AutoModelForImageTextToText.from_pretrained(
-                        model_identifier, 
-                        **model_args
-                    )
+                # Utiliser AutoModelForImageTextToText pour le modèle multimodal Gemma
+                model = AutoModelForImageTextToText.from_pretrained(
+                    model_identifier, 
+                    **model_args
+                )
                 st.success(t("model_loaded"))
                 break
             except Exception as e:
@@ -869,24 +833,9 @@ def load_ai_model(model_identifier, device_map="auto", torch_dtype=torch.float16
             st.error(t("model_config_error").format(error=e))
             raise ValueError(f"Erreur de configuration du modèle : {e}")
     except Exception as e:
-        error_msg = str(e)
-        
-        # Gestion spécifique des erreurs de compatibilité
-        if "unexpected keyword argument" in error_msg:
-            st.error("❌ Erreur de compatibilité des arguments")
-            st.error(f"Le modèle ne reconnaît pas certains arguments : {error_msg}")
-            st.info("💡 Essayez de redémarrer l'application ou de mettre à jour les bibliothèques")
-        elif "403" in error_msg or "Forbidden" in error_msg:
-            st.error("❌ Erreur d'accès Hugging Face (403)")
-            st.error("Vérifiez votre jeton Hugging Face (HF_TOKEN)")
-        elif "timeout" in error_msg.lower():
-            st.error("❌ Erreur de timeout")
-            st.error("Le téléchargement a pris trop de temps. Vérifiez votre connexion internet.")
-        else:
-            st.error(t("unexpected_error").format(error=error_msg))
-            st.error(t("check_logs_help"))
-        
-        raise RuntimeError(f"Une erreur est survenue lors du chargement du modèle : {error_msg}")
+        st.error(t("unexpected_error").format(error=e))
+        st.error(t("check_logs_help"))
+        raise RuntimeError(f"Une erreur est survenue lors du chargement du modèle : {e}")
 
 def get_model_and_processor():
     """
@@ -1230,6 +1179,30 @@ def analyze_text_multilingual(text):
         
     except Exception as e:
         return f"❌ Erreur lors de l'analyse de texte : {e}"
+
+def analyze_survey_data(data):
+    """
+    Analyze survey data and create visualizations
+    """
+    import pandas as pd
+    import plotly.express as px
+
+    try:
+        data_commune = data.groupby("Q3. Commune").size().reset_index(name='Nombre de personnes')
+        fig_count = px.bar(data_commune, x="Q3. Commune", y="Nombre de personnes", title="Nombre de personnes par commune", color="Q3. Commune")
+
+        satisfaction = data.groupby("Q3. Commune")["11- Êtes-vous globalement satisfait(e) des services offerts par le CCR-B ?"].value_counts().unstack()
+        satisfaction = satisfaction.fillna(0)
+        satisfaction['Total'] = satisfaction.sum(axis=1)
+        for col in satisfaction.columns:
+            satisfaction[col] = (satisfaction[col]/satisfaction['Total'])*100
+        satisfaction = satisfaction.drop(columns=['Total'])
+        fig_satisfaction = px.bar(satisfaction, barmode='group', title="Satisfaction par commune")
+
+        return {'result': [fig_count, fig_satisfaction], 'type': ['figure', 'figure']}
+
+    except Exception as e:
+        return {'result': f"Erreur: {e}", 'type': 'error'}
 
 # --- INTERFACE UTILISATEUR STREAMLIT ---
 
@@ -2081,7 +2054,7 @@ with tab3:
         - **Documentation technique** : README.md du projet
         - **Code source** : Disponible sur GitHub
         - **Démo en ligne** : Hugging Face Spaces
-        - **Version compétition** : [Kaggle Notebook](https://www.kaggle.com/code/sidoineyebadokpo/agrilens-ai?scriptVersionId=253640926)
+        - **Version compétition** : [Kaggle Notebook](https://www.kaggle.com/code/sidoineyebadokpo/agrilens-ai-final-notebook/)
 
         ---
 
@@ -2314,7 +2287,7 @@ with tab3:
         - **Technical documentation** : Project README.md
         - **Source code** : Available on GitHub
         - **Online demo** : Hugging Face Spaces
-        - **Competition version** : [Kaggle Notebook](https://www.kaggle.com/code/sidoineyebadokpo/agrilens-ai?scriptVersionId=253640926)
+        - **Competition version** : [Kaggle Notebook](https://www.kaggle.com/code/sidoineyebadokpo/agrilens-ai-final-notebook/)
 
         ---
 
