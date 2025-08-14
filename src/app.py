@@ -110,32 +110,93 @@ async def diagnose(
     try:
         raw = await image.read()
         img = Image.open(io.BytesIO(raw)).convert("RGB")
+        
+        # Redimensionner l'image si nécessaire (comme dans Streamlit)
+        if img.size[0] > 224 or img.size[1] > 224:
+            img = img.resize((224, 224), Image.Resampling.LANCZOS)
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid image file")
 
-    prompt = _build_prompt(culture, notes)
+    # Construire le prompt comme dans Streamlit
+    additional_info = ""
+    if culture and culture.strip():
+        additional_info += f"Culture spécifiée : {culture.strip()}. "
+    if notes and notes.strip():
+        additional_info += f"Notes : {notes.strip()}. "
+
+    # Construire les messages comme dans Streamlit
+    system_message = f"""Tu es un expert en phytopathologie et agronomie. Analyse l'image fournie et fournis un diagnostic STRUCTURÉ et SUCCINCT en 3 parties obligatoires :
+
+1. SYMPTÔMES VISIBLES : Description concise des signes visibles sur la plante (taches, déformations, jaunissement, etc.)
+
+2. NOM DE LA MALADIE : Nom de la maladie la plus probable avec niveau de confiance (ex: "Mildiou du manioc (85%)")
+
+3. TRAITEMENT RECOMMANDÉ : Actions concrètes à mettre en œuvre pour traiter la maladie (fongicide, amélioration ventilation, etc.)
+
+{additional_info}
+
+IMPORTANT : 
+- Analyse UNIQUEMENT l'image fournie
+- Sois précis et concis
+- Inclus TOUJOURS les 3 sections
+- Ne donne PAS de réponses génériques"""
+
+    user_instruction = f"{additional_info}Analyse cette image de plante malade et fournis un diagnostic SUCCINCT et STRUCTURÉ."
+
+    # Structure des messages pour Gemma 3n e2b it multimodal (comme dans Streamlit)
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "image", "image": img},  # Passer directement l'objet PIL Image
+                {"type": "text", "text": f"{system_message}\n\n{user_instruction} IMPORTANT : Analyse uniquement ce que tu vois dans cette image spécifique. Ne donne pas de réponse générique."}
+            ]
+        }
+    ]
 
     try:
-        inputs = bundle.processor(text=prompt, images=img, return_tensors="pt")
+        # Utiliser processor.apply_chat_template comme dans Streamlit
+        try:
+            inputs = bundle.processor.apply_chat_template(
+                messages,
+                add_generation_prompt=True,
+                tokenize=True,
+                return_dict=True,
+                return_tensors="pt",
+            )
+        except Exception as template_error:
+            # Fallback : essayer un format plus simple
+            simple_prompt = f"{system_message}\n\n{user_instruction}"
+            inputs = bundle.processor(simple_prompt, img, return_tensors="pt", padding=True, truncation=True)
 
         if DEVICE_MAP == "cpu" or not torch.cuda.is_available():
             inputs = {k: v.to("cpu") if hasattr(v, "to") else v for k, v in inputs.items()}
+
+        input_len = inputs["input_ids"].shape[-1]
 
         with torch.no_grad():
             output_ids = bundle.model.generate(
                 **inputs,
                 max_new_tokens=MAX_NEW_TOKENS,
                 do_sample=True,
-                temperature=0.6,
+                temperature=0.7,
                 top_p=0.9,
+                top_k=100,
+                repetition_penalty=1.1,
+                use_cache=True,
+                num_beams=1
             )
 
-        text = bundle.processor.batch_decode(output_ids, skip_special_tokens=True)[0]
+        text = bundle.processor.batch_decode(output_ids[:, input_len:], skip_special_tokens=True)[0]
+
+        # Nettoyage des tokens de contrôle si présents
+        final_response = text.strip()
+        final_response = final_response.replace("<start_of_turn>", "").replace("<end_of_turn>", "").strip()
 
         return JSONResponse(
             content={
                 "success": True,
-                "diagnosis": text.strip(),
+                "diagnosis": final_response,
                 "meta": {
                     "model_id": MODEL_ID,
                     "dtype": str(bundle.dtype),
